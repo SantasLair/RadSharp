@@ -32,7 +32,7 @@ public sealed class RadProject
     static IEnumerable<string> Files(string dir, string pattern) =>
         System.IO.Directory.EnumerateFiles(dir, pattern, SearchOption.AllDirectories)
             .Where(f => !f.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                .Any(part => part is "bin" or "obj" or ".vs" or ".vscode"))
+                .Any(part => part is "bin" or "obj" or ".vs" or ".vscode" or "packages" or ".git"))
             .OrderBy(f => f, StringComparer.Ordinal);
 
     public IReadOnlyList<string> FormFiles => [.. Files(Directory, "*.radform.json")];

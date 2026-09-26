@@ -7,4 +7,11 @@ var designer = new DesignerForm(args.FirstOrDefault(a => a.EndsWith(".csproj", S
 if (Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_SELECT") is { Length: > 0 } select
     && designer.Document?.Form.FindControl(select) is { } control)
     designer.Document.Select(control);
+// Test hook: press F9 once the designer is up.
+switch (Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_RUN"))
+{
+    case "1": designer.Shown += _ => Application.Post(() => designer.Run()); break;
+    // Clicks the Run tool button through the same input path as the mouse.
+    case "click": designer.Shown += _ => Application.Post(() => designer.Simulate.Click(designer.FindControl("btnRun")!)); break;
+}
 Application.Run(designer);

@@ -34,7 +34,9 @@ public static unsafe class Application
         _initialized = true;
         Form.DefaultScale = Scale;
         RadSharp.Text.Clipboard.Current = new SdlClipboard();
-        SDL_AddEventWatch(&OnEventWatch, 0);
+        // RADSHARP_LIVE_RESIZE=0 turns live resizing off (for diagnosing).
+        _liveResize = Environment.GetEnvironmentVariable("RADSHARP_LIVE_RESIZE") != "0";
+        if (_liveResize) SDL_AddEventWatch(&OnEventWatch, 0);
         PlatformHost.Current = new SdlPlatform();
     }
 
@@ -80,7 +82,7 @@ public static unsafe class Application
         foreach (var w in Windows.Values.ToList()) w.Dispose();
         Windows.Clear();
         PlatformHost.Current = null;
-        SDL_RemoveEventWatch(&OnEventWatch, 0);
+        if (_liveResize) SDL_RemoveEventWatch(&OnEventWatch, 0);
         SDL_Quit();
         _initialized = false;
     }
@@ -118,7 +120,7 @@ public static unsafe class Application
 
     // ---- Live resizing ----
 
-    static bool _inWatch;
+    static bool _inWatch, _liveResize;
 
     /// <summary>How many frames were painted from inside the event watch (live resizing); for tests and diagnostics.</summary>
     public static int LiveFrames { get; private set; }
@@ -141,7 +143,7 @@ public static unsafe class Application
             var id = e->window.windowID;
             foreach (var w in Windows.Values)
             {
-                if (w.Id != id) continue;
+                if (w.Id != id || !w.CanPaintNow) continue;
                 w.PaintNow();
                 LiveFrames++;
                 break;
@@ -416,7 +418,23 @@ internal sealed unsafe class FormWindow : IDisposable
         SDL_SetCursor((SDL_Cursor*)handle);
     }
 
+    bool _busy, _disposed;
+
+    /// <summary>
+    /// False while this window is resizing or rendering (the event watch may be called from inside SDL
+    /// calls made by that code, and must not replace the back buffer under it) or once it is disposed.
+    /// </summary>
+    public bool CanPaintNow => !_busy && !_disposed;
+
     void SyncSizeToWindow()
+    {
+        bool outer = !_busy;
+        _busy = true;
+        try { SyncSizeToWindowCore(); }
+        finally { if (outer) _busy = false; }
+    }
+
+    void SyncSizeToWindowCore()
     {
         int w, h;
         SDL_GetWindowSizeInPixels(_window, &w, &h);
@@ -436,6 +454,14 @@ internal sealed unsafe class FormWindow : IDisposable
     }
 
     public void RenderIfDirty()
+    {
+        bool outer = !_busy;
+        _busy = true;
+        try { RenderIfDirtyCore(); }
+        finally { if (outer) _busy = false; }
+    }
+
+    void RenderIfDirtyCore()
     {
         _form.PerformLayout();
         if (_backBuffer == null || !_form.TryTakeDirtyRect(out var dirty)) return;
@@ -469,6 +495,7 @@ internal sealed unsafe class FormWindow : IDisposable
 
     public void Dispose()
     {
+        _disposed = true;
         _form.CaptionChanged -= OnCaptionChanged;
         if (_texture != null) SDL_DestroyTexture(_texture);
         foreach (var c in _cursors.Values) SDL_DestroyCursor((SDL_Cursor*)c);
