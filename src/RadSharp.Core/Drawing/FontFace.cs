@@ -77,9 +77,16 @@ public sealed class FontFace
         }
     }
 
-    static HB.Font CreateHarfBuzzFont(byte[] fontFile, int index, int unitsPerEm)
+    static unsafe HB.Font CreateHarfBuzzFont(byte[] fontFile, int index, int unitsPerEm)
     {
-        using var blob = HB.Blob.FromStream(new MemoryStream(fontFile));
+        // Not HB.Blob.FromStream: it hands HarfBuzz a pointer into a managed array that is only pinned for
+        // the duration of that call, so a later compacting GC moves or frees the font data under HarfBuzz
+        // (an intermittent access violation in hb_shape_full, e.g. after the designer's Roslyn compile).
+        // The data goes to native memory instead, freed by HarfBuzz when the last font using it is destroyed.
+        var length = fontFile.Length;
+        var data = (byte*)System.Runtime.InteropServices.NativeMemory.Alloc((nuint)length);
+        fontFile.AsSpan().CopyTo(new Span<byte>(data, length));
+        using var blob = new HB.Blob((nint)data, length, HB.MemoryMode.ReadOnly, () => System.Runtime.InteropServices.NativeMemory.Free(data));
         using var face = new HB.Face(blob, index);
         var font = new HB.Font(face);
         font.SetFunctionsOpenType();
