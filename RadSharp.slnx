@@ -1,0 +1,8 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/RadSharp.Core/RadSharp.Core.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/RadSharp.Core.Tests/RadSharp.Core.Tests.csproj" />
+  </Folder>
+</Solution>

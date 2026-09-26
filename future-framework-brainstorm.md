@@ -345,8 +345,9 @@ if they conflict. Sizes are never negative.
    Each shrink is capped so `R.w`/`R.h` never go below 0 (`R.x`/`R.y` still advance in full).
    When the space runs out, later children overlap earlier ones; that's expected (vector D.3b).
 4. **Anchored children** (`align = none`) are positioned against the parent's **full** size (not `R`):
-   - **Capture:** the first time a control is laid out (or after it was moved or resized from code, or
-     its align/anchors changed), store its rect and the parent size: `(aL, aT, aW, aH)` and `(PW0, PH0)`.
+   - **Capture:** store the control's rect and the parent size, `(aL, aT, aW, aH)` and `(PW0, PH0)`,
+     the first time it is laid out in its parent, and **immediately** (with the parent's size at that
+     moment) whenever it is moved or resized from code or its align/anchors change.
    - Then, for the current parent size `(PW, PH)`, with `dW = PW - PW0` and `dH = PH - PH0`, horizontally:
 
      | anchors | x | width |

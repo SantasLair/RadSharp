@@ -42,8 +42,8 @@ Fix the spec issues from the review, then set up the repo so every later milesto
   `tabOrder` sorting, `Mod+` shortcuts, splitter wording and max size.
 - ✅ Neutral form format ID `"radform"` (survives a product rename), `"generator"` field, `"MAJOR.MINOR"` version.
 - ✅ Appendix D as **JSON test vectors** (`spec/vectors/d1–d4`). Still to do: serialization vectors (D.5).
-- Repo layout: `src/RadSharp.Core`, `RadSharp.Controls`, `RadSharp.Platform.Sdl`, `RadSharp.Generators`, `RadSharp.Designer`; `tests/`; `spec/`.
-- GitHub Actions matrix (Windows, macOS, Linux): build + test.
+- ✅ Repo layout (so far `src/RadSharp.Core`, `tests/RadSharp.Core.Tests`; planned: `RadSharp.Controls`, `RadSharp.Platform.Sdl`, `RadSharp.Generators`, `RadSharp.Designer`).
+- ✅ GitHub Actions matrix (Windows, macOS, Linux): build + test (not yet run: no remote).
 
 **Done when:** the spec reads unambiguously, the vectors exist, and CI is green on three OSes.
 
@@ -52,6 +52,8 @@ Fix the spec issues from the review, then set up the repo so every later milesto
 - `Control` tree: parent/children, bounds, visibility, dirty flags, absolute positions.
 - Align + Anchors, margins/padding, constraints, rounding, invalidation, `OnResize`, Splitter logic.
 - xUnit runner that executes every JSON vector.
+- ✅ Layout core, a minimal form reader (hand-written property reading until M4) and the vector runner are in;
+  D.1–D.4 pass locally on Windows.
 
 **Done when:** all D.1–D.4 vectors pass on three OSes, with no drawing code involved.
 
