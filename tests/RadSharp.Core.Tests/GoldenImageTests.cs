@@ -95,6 +95,51 @@ public class GoldenImageTests
             File.WriteAllBytes(Path.Combine(dir, "fallback.png"), FormRenderer.EncodePng(bmp));
     }
 
+    [Fact]
+    public void Standard_controls_match_golden_image()
+    {
+        var form = new Form { Caption = "Standard controls" };
+        form.SetBounds(0, 0, 560, 400);
+        T Put<T>(Control parent, T c, int x, int y, int w, int h) where T : Control { c.SetBounds(x, y, w, h); parent.Add(c); return c; }
+
+        var menu = Put(form, new MainMenu(), 0, 0, 0, 26);
+        var file = menu.Add("File");
+        file.Add("New", shortcut: "Ctrl+N");
+        file.Add("Open…", shortcut: "Ctrl+O");
+        file.AddSeparator();
+        file.Add("Recent").Add("a.map");
+        file.Add("Autosave").Checked = true;
+        file.Add("Print").Enabled = false;
+        menu.Add("Edit");
+        menu.Add("View");
+
+        var tools = Put(form, new ToolBar(), 0, 0, 0, 36);
+        Put(tools, new ToolButton { Caption = "New" }, 0, 0, 56, 28);
+        Put(tools, new ToolButton { Caption = "Open" }, 0, 0, 56, 28);
+        Put(tools, new ToolSeparator(), 0, 0, 9, 24);
+        Put(tools, new ToolButton { Caption = "Paint", Down = true }, 0, 0, 56, 28);
+        Put(form, new StatusBar { SimpleText = "Ready" }, 0, 0, 0, 24);
+
+        Put(form, new ListBox { Items = ["Grass", "Water", "Sand", "Stone", "Lava", "Snow", "Ice", "Mud"], ItemIndex = 2 }, 12, 74, 150, 150);
+        Put(form, new ComboBox { Items = ["Small", "Medium", "Large"], ItemIndex = 1 }, 176, 74, 150, 26);
+        Put(form, new ColorBox { Selected = Color.FromHex("#008080") }, 176, 110, 150, 26);
+        Put(form, new SpinEdit { Value = 42, MaxValue = 100 }, 176, 146, 100, 26);
+        Put(form, new TrackBar { Max = 10, Position = 6 }, 176, 182, 150, 32);
+        Put(form, new ProgressBar { Position = 65 }, 176, 224, 150, 12);
+
+        var pages = Put(form, new PageControl(), 340, 74, 208, 160);
+        var general = new TabSheet { Caption = "General" };
+        pages.Add(general);
+        pages.Add(new TabSheet { Caption = "Advanced" });
+        Put(general, new CheckBox { Caption = "Enabled", Checked = true }, 10, 12, 150, 20);
+        Put(general, new Edit { Text = "Page one" }, 10, 42, 150, 26);
+
+        form.PerformLayout();
+        menu.OpenMenu(0);
+        using var actual = FormRenderer.RenderToBitmap(form);
+        CompareOrUpdate(actual, "standard@100%-560x400.png");
+    }
+
     static void CompareOrUpdate(SKBitmap actual, string imageName, [CallerFilePath] string testFile = "")
     {
         var sourceGoldenDir = Path.Combine(Path.GetDirectoryName(testFile)!, "Golden");

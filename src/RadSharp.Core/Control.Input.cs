@@ -109,7 +109,7 @@ public partial class Control
         for (int i = _children.Count - 1; i >= 0; i--)
         {
             var c = _children[i];
-            if (!c._visible) continue;
+            if (!c.IsShown) continue;
             int cx = x - ox - c._left, cy = y - oy - c._top;
             if (cx >= 0 && cy >= 0 && cx < c._width && cy < c._height) return c.HitTest(cx, cy);
         }

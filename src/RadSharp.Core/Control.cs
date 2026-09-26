@@ -334,8 +334,17 @@ public partial class Control
     /// <summary>True if this control and all its ancestors are visible.</summary>
     public bool IsEffectivelyVisible
     {
-        get { for (var c = this; c != null; c = c.Parent) if (!c._visible) return false; return true; }
+        get { for (var c = this; c != null; c = c.Parent) if (!c.IsShown) return false; return true; }
     }
+
+    /// <summary>
+    /// Visible, and shown by its parent: a page control shows only its active sheet without changing
+    /// the other sheets' <see cref="Visible"/> (which is saved in the form file).
+    /// </summary>
+    public bool IsShown => _visible && (Parent?.ShowsChild(this) ?? true);
+
+    /// <summary>Whether this container currently shows <paramref name="child"/> (see <see cref="IsShown"/>).</summary>
+    protected internal virtual bool ShowsChild(Control child) => true;
 
     /// <summary>True if this control and all its ancestors are enabled.</summary>
     public bool IsEffectivelyEnabled

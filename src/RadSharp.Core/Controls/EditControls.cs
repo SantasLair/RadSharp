@@ -299,6 +299,15 @@ public abstract class EditBase : Control
         form.TextInputArea = new Rect(AbsoluteLeft + c.X, AbsoluteTop + c.Y, c.Width, c.Height);
     }
 
+    /// <summary>Called when this editor, shown in the popup layer (an inline editor), is closed.</summary>
+    internal Action? PopupClosedHook { get; set; }
+
+    protected internal override void OnPopupClosed()
+    {
+        base.OnPopupClosed();
+        PopupClosedHook?.Invoke();
+    }
+
     // ---- Focus ----
 
     protected internal override void OnGotFocus()

@@ -44,7 +44,7 @@ public interface IPlatformServices
 
 public enum FileDialogKind { Open, Save, Folder }
 
-public static class Platform
+public static class PlatformHost
 {
     public static IPlatformServices? Current { get; set; }
 

@@ -124,6 +124,13 @@ public sealed class Canvas
     public static Rect Inflate(Rect r, int d) =>
         new(r.X - d, r.Y - d, Math.Max(0, r.Width + 2 * d), Math.Max(0, r.Height + 2 * d));
 
+    /// <summary>Draws a picture scaled into <paramref name="dest"/> (smooth, mipmapped sampling).</summary>
+    public void DrawPicture(Picture picture, Rect dest)
+    {
+        if (dest.Width <= 0 || dest.Height <= 0) return;
+        _sk.DrawImage(picture.Image, ToSK(dest), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
+    }
+
     // ---- Text ----
 
     /// <summary>Draws one line of text with its baseline at <paramref name="baseline"/> (rounded to whole pixels).</summary>

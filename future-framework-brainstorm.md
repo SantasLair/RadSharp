@@ -421,8 +421,10 @@ Absolute positions are refreshed for the whole tree every pass.
   - A press **outside every popup closes all of them and is consumed** (nothing underneath receives it).
   - **Escape** closes the topmost popup.
   - **Tab** closes all popups, then moves focus.
-  - While a popup is open, key presses (other than Tab) go to the topmost popup, not the focused
-    control, and typed text is discarded. An Escape the popup doesn't handle closes it.
+  - While a popup is open, key presses (other than Tab) go to the topmost popup (or the control
+    focused inside it), not the form's focused control. Typed text reaches only a control focused
+    inside the topmost popup (an inline editor); otherwise it is discarded. An Escape the popup
+    doesn't handle closes it.
   - Closing a popup also closes every popup opened above it (submenus).
   - Hiding, disabling or removing the control that opened a popup closes it.
 - **Context menus:** a control's `popupMenu` opens on right-button press, at the pointer, after the

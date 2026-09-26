@@ -34,11 +34,11 @@ public class Form : Control
     [Published(Category = "Appearance")] public Color? Color { get; set; }
 
     /// <summary>The form's size as designed (at 100 %); set when the form is loaded.</summary>
-    public int DesignWidth { get; internal set; }
-    public int DesignHeight { get; internal set; }
+    public int DesignWidth { get; set; }
+    public int DesignHeight { get; set; }
 
     /// <summary>The UI scale factor lengths were multiplied by when the form was loaded.</summary>
-    public double Scale { get; internal set; } = 1;
+    public double Scale { get; set; } = 1;
 
     public Theme Theme { get; set; } = Theme.Default;
 
@@ -131,14 +131,14 @@ public class Form : Control
     [Published("onShow")] public event NotifyEvent? Shown;
 
     /// <summary>Shows the form in its own window and returns immediately.</summary>
-    public void Show() => Platform.Require().ShowForm(this);
+    public void Show() => PlatformHost.Require().ShowForm(this);
 
     /// <summary>Shows the form as a modal dialog; returns how it was closed (Cancel if closed from its title bar).</summary>
     public ModalResult ShowModal()
     {
         _modalResult = ModalResult.None;
         IsModal = true;
-        try { Platform.Require().RunModal(this); }
+        try { PlatformHost.Require().RunModal(this); }
         finally { IsModal = false; }
         return _modalResult;
     }
@@ -151,7 +151,7 @@ public class Form : Control
         if (!e.CanClose) return false;
         if (IsModal && _modalResult == ModalResult.None) _modalResult = ModalResult.Cancel;
         CloseAllPopups();
-        Platform.Current?.CloseForm(this);
+        PlatformHost.Current?.CloseForm(this);
         Closed?.Invoke(this);
         return true;
     }
@@ -251,7 +251,7 @@ public class Form : Control
                 .ThenBy(t => t.i);
             foreach (var (c, _) in ordered)
             {
-                if (!c.Visible || !c.Enabled) continue;
+                if (!c.IsShown || !c.Enabled) continue;
                 if (c.TabStop) list.Add(c);
                 Collect(c, list);
             }
@@ -492,17 +492,25 @@ public class Form : Control
     /// <summary>Typed text goes to the focused control; it is discarded while a popup is open.</summary>
     public void ProcessTextInput(string text)
     {
-        if (_popups.Count > 0 || string.IsNullOrEmpty(text)) return;
-        var target = _focused ?? this;
+        if (string.IsNullOrEmpty(text) || TextTarget() is not { } target) return;
         if (target.IsEffectivelyEnabled) target.OnTextInput(new TextInputEventArgs(text));
     }
 
     /// <summary>An IME composition update for the focused control (discarded while a popup is open).</summary>
     public void ProcessTextComposition(string text, int cursor, int selectionLength = 0)
     {
-        if (_popups.Count > 0) return;
-        var target = _focused ?? this;
+        if (TextTarget() is not { } target) return;
         if (target.IsEffectivelyEnabled) target.OnTextComposition(new TextCompositionEventArgs(text, cursor, selectionLength));
+    }
+
+    /// <summary>
+    /// Where typed text goes: the focused control; while popups are open, only a focused control inside
+    /// the topmost popup (an inline editor), otherwise the text is discarded.
+    /// </summary>
+    Control? TextTarget()
+    {
+        if (_popups.Count == 0) return _focused ?? this;
+        return _focused != null && _focused.IsSelfOrDescendantOf(_popups[^1]) ? _focused : null;
     }
 
     static bool IsShortcutCandidate(KeyEventArgs e) =>
@@ -511,7 +519,7 @@ public class Form : Control
 
     static bool OfferShortcut(Control c, KeyEventArgs e)
     {
-        if (!c.Visible || !c.Enabled) return false;
+        if (!c.IsShown || !c.Enabled) return false;
         if (c.ProcessShortcut(e)) { e.Handled = true; return true; }
         foreach (var child in c.Children)
             if (OfferShortcut(child, e)) return true;
@@ -520,7 +528,7 @@ public class Form : Control
 
     static bool OfferDialogKey(Control c, KeyEventArgs e)
     {
-        if (!c.Visible || !c.Enabled) return false;
+        if (!c.IsShown || !c.Enabled) return false;
         if (c.ProcessDialogKey(e)) { e.Handled = true; return true; }
         foreach (var child in c.Children)
             if (OfferDialogKey(child, e)) return true;

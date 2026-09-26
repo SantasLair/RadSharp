@@ -27,7 +27,7 @@ public static class FormRenderer
 
     static void PaintTree(Control control, Canvas c, bool translate)
     {
-        if (!control.Visible) return;
+        if (!control.IsShown) return;
         var local = new Rect(0, 0, control.Width, control.Height);
         c.Save();
         if (translate) c.Translate(control.Left, control.Top);
