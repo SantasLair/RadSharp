@@ -178,6 +178,16 @@ public class DialogAndInspectorTests
     }
 
     [Fact]
+    public void PropertyGrid_shows_components_only_their_own_properties()
+    {
+        var grid = new PropertyGrid { Target = new Timer() };
+        var names = Enumerable.Range(0, grid.RowCount).Select(grid.RowName).ToList();
+        Assert.Equal(["enabled", "interval"], names);   // Timer redeclares "enabled"; no left/align/anchors...
+        grid.Mode = PropertyGridMode.Events;
+        Assert.Equal(["onTimer"], Enumerable.Range(0, grid.RowCount).Select(grid.RowName));
+    }
+
+    [Fact]
     public void ListView_columns_rows_and_header_clicks()
     {
         var f = new Form();

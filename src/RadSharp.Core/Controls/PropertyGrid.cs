@@ -82,10 +82,22 @@ public class PropertyGrid : Control
         _rows.Clear();
         if (_class != null)
         {
+            // Non-visual components show only their own properties and events: the inherited
+            // layout and input members of Control mean nothing for them (as in Delphi).
+            var hidden = _target is Component && ComponentRegistry.Find(typeof(Control)) is { } control
+                ? control.OwnProperties.Select(p => p.Name).Concat(control.OwnEvents.Select(e => e.Name)).ToHashSet()
+                : [];
             if (_mode == PropertyGridMode.Properties)
-                foreach (var p in _class.Properties) _rows.Add((p.Name, p, null));
+            {
+                foreach (var p in _class.Properties)
+                    if (!hidden.Contains(p.Name) || _class.FindProperty(p.Name) != ComponentRegistry.Find(typeof(Control))!.FindProperty(p.Name))
+                        _rows.Add((p.Name, p, null));
+            }
             else
-                foreach (var e in _class.Events) _rows.Add((e.Name, null, e));
+            {
+                foreach (var e in _class.Events)
+                    if (!hidden.Contains(e.Name)) _rows.Add((e.Name, null, e));
+            }
         }
         _selected = _rows.Count > 0 ? Math.Clamp(_selected, 0, _rows.Count - 1) : -1;
         _top = 0;

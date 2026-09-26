@@ -1,0 +1,381 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "convert_gmform.py",
+  "root": {
+    "class": "Form",
+    "name": "frmTiles",
+    "caption": "RADSharp - tile editor sample",
+    "height": 700,
+    "width": 1024,
+    "children": [
+      {
+        "class": "MainMenu",
+        "name": "mbMain",
+        "items": [
+          {
+            "caption": "File",
+            "items": [
+              {
+                "caption": "New",
+                "onClick": "mnuNew_Click",
+                "shortcut": "Mod+N"
+              },
+              {
+                "caption": "Open",
+                "onClick": "mnuOpen_Click",
+                "shortcut": "Mod+O"
+              },
+              {
+                "caption": "Save",
+                "onClick": "mnuSave_Click",
+                "shortcut": "Mod+S"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Other demos",
+                "items": [
+                  {
+                    "caption": "Form designer",
+                    "onClick": "mnuDesigner_Click"
+                  },
+                  {
+                    "caption": "M5 controls gallery",
+                    "onClick": "mnuGallery_Click"
+                  },
+                  {
+                    "caption": "M1 layout demo",
+                    "onClick": "mnuM1Demo_Click"
+                  }
+                ]
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Exit",
+                "onClick": "mnuExit_Click"
+              }
+            ]
+          },
+          {
+            "caption": "Edit",
+            "items": [
+              {
+                "caption": "Undo",
+                "onClick": "mnuUndo_Click",
+                "shortcut": "Mod+Z"
+              },
+              {
+                "caption": "Redo",
+                "altShortcut": "Mod+Shift+Z",
+                "onClick": "mnuRedo_Click",
+                "shortcut": "Mod+Y"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Clear map",
+                "onClick": "mnuClear_Click",
+                "shortcut": "Mod+Delete"
+              }
+            ]
+          },
+          {
+            "caption": "Tools",
+            "items": [
+              {
+                "caption": "Paint",
+                "checked": true,
+                "onClick": "mnuPaint_Click",
+                "shortcut": "Mod+1",
+                "name": "mniPaint"
+              },
+              {
+                "caption": "Select",
+                "onClick": "mnuSelect_Click",
+                "shortcut": "Mod+2",
+                "name": "mniSelect"
+              }
+            ]
+          },
+          {
+            "caption": "View",
+            "items": [
+              {
+                "caption": "Zoom in",
+                "onClick": "mnuZoomIn_Click",
+                "shortcut": "Mod+Up"
+              },
+              {
+                "caption": "Zoom out",
+                "onClick": "mnuZoomOut_Click",
+                "shortcut": "Mod+Down"
+              },
+              {
+                "caption": "Reset view",
+                "onClick": "mnuResetView_Click",
+                "shortcut": "Mod+0"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Show grid",
+                "checked": true,
+                "onClick": "mnuShowGrid_Click",
+                "name": "mniShowGrid"
+              },
+              {
+                "caption": "Map properties",
+                "onClick": "mnuMapProps_Click",
+                "shortcut": "F4"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "class": "ToolBar",
+        "name": "tbMain",
+        "children": [
+          {
+            "class": "Button",
+            "name": "btnNew",
+            "caption": "New",
+            "height": 26,
+            "onClick": "btnNew_Click",
+            "tabStop": true,
+            "width": 50
+          },
+          {
+            "class": "Button",
+            "name": "btnOpen",
+            "caption": "Open",
+            "height": 26,
+            "onClick": "btnOpen_Click",
+            "tabStop": true,
+            "width": 56
+          },
+          {
+            "class": "Button",
+            "name": "btnSave",
+            "caption": "Save",
+            "height": 26,
+            "onClick": "btnSave_Click",
+            "tabStop": true,
+            "width": 56
+          },
+          {
+            "class": "ToolSeparator",
+            "name": "ToolSeparator1"
+          },
+          {
+            "class": "Button",
+            "name": "btnUndo",
+            "caption": "Undo",
+            "height": 26,
+            "onClick": "btnUndo_Click",
+            "tabStop": true,
+            "width": 56
+          },
+          {
+            "class": "Button",
+            "name": "btnRedo",
+            "caption": "Redo",
+            "height": 26,
+            "onClick": "btnRedo_Click",
+            "tabStop": true,
+            "width": 56
+          },
+          {
+            "class": "ToolSeparator",
+            "name": "ToolSeparator2"
+          },
+          {
+            "class": "Button",
+            "name": "btnPaint",
+            "caption": "Paint",
+            "height": 26,
+            "onClick": "btnPaint_Click",
+            "tabStop": true,
+            "width": 62
+          },
+          {
+            "class": "Button",
+            "name": "btnSelect",
+            "caption": "Select",
+            "height": 26,
+            "onClick": "btnSelect_Click",
+            "tabStop": true,
+            "width": 72
+          },
+          {
+            "class": "ToolSeparator",
+            "name": "ToolSeparator3"
+          },
+          {
+            "class": "Button",
+            "name": "btnClear",
+            "caption": "Clear",
+            "height": 26,
+            "onClick": "btnClear_Click",
+            "tabStop": true,
+            "width": 62
+          },
+          {
+            "class": "Button",
+            "name": "btnMapProps",
+            "caption": "Map props",
+            "height": 26,
+            "onClick": "btnMapProps_Click",
+            "tabStop": true,
+            "width": 100
+          }
+        ]
+      },
+      {
+        "class": "Panel",
+        "name": "pnlStatus",
+        "align": "bottom",
+        "height": 26,
+        "children": [
+          {
+            "class": "Label",
+            "name": "lblStatus",
+            "caption": "",
+            "anchors": [
+              "left",
+              "top",
+              "right"
+            ],
+            "left": 4,
+            "top": 2,
+            "width": 1016
+          }
+        ]
+      },
+      {
+        "class": "Panel",
+        "name": "pnlPalette",
+        "align": "left",
+        "width": 150,
+        "children": [
+          {
+            "class": "Label",
+            "name": "lblTiles",
+            "caption": "Tiles",
+            "align": "top",
+            "height": 28,
+            "margin": {
+              "l": 8,
+              "t": 0,
+              "r": 0,
+              "b": 0
+            },
+            "layout": "center"
+          },
+          {
+            "class": "ListBox",
+            "name": "lstTiles",
+            "align": "client",
+            "margin": {
+              "l": 4,
+              "t": 0,
+              "r": 4,
+              "b": 4
+            },
+            "onChange": "lstTiles_Change",
+            "onDrawItem": "lstTiles_DrawItem"
+          }
+        ]
+      },
+      {
+        "class": "Splitter",
+        "name": "splPalette",
+        "align": "left",
+        "minSize": 90
+      },
+      {
+        "class": "Panel",
+        "name": "pnlInspector",
+        "align": "right",
+        "width": 300,
+        "children": [
+          {
+            "class": "Label",
+            "name": "lblInspector",
+            "caption": "Map properties",
+            "align": "top",
+            "height": 24,
+            "margin": {
+              "l": 8,
+              "t": 0,
+              "r": 0,
+              "b": 0
+            },
+            "layout": "center"
+          },
+          {
+            "class": "PropertyGrid",
+            "name": "gridProps",
+            "align": "client",
+            "margin": {
+              "b": 4,
+              "l": 4,
+              "r": 4,
+              "t": 0
+            },
+            "nameWidth": 120,
+            "onChange": "gridProps_Change"
+          }
+        ]
+      },
+      {
+        "class": "Splitter",
+        "name": "splInspector",
+        "align": "right",
+        "minSize": 160
+      },
+      {
+        "class": "PaintBox",
+        "name": "vpMap",
+        "align": "client",
+        "onPaint": "vpMap_Draw",
+        "onMouseDown": "vpMap_MouseDown",
+        "onMouseMove": "vpMap_MouseMove",
+        "onMouseUp": "vpMap_MouseUp",
+        "onMouseWheel": "vpMap_Wheel"
+      },
+      {
+        "class": "OpenDialog",
+        "name": "dlgOpen",
+        "filter": "Tile maps|*.tilemap|All files|*.*",
+        "title": "Open map",
+        "left": 180,
+        "top": 120
+      },
+      {
+        "class": "SaveDialog",
+        "name": "dlgSave",
+        "filter": "Tile maps|*.tilemap",
+        "title": "Save map",
+        "left": 220,
+        "top": 120
+      },
+      {
+        "class": "MapInfo",
+        "name": "mapInfo",
+        "left": 260,
+        "top": 120
+      }
+    ]
+  }
+}

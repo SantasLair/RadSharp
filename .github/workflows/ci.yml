@@ -25,4 +25,6 @@ jobs:
           name: golden-failures-${{ matrix.os }}
           path: tests/**/golden-failures/
       - name: NativeAOT smoke build
-        run: dotnet publish samples/Hello --configuration Release --use-current-runtime --output artifacts/hello
+        run: |
+          dotnet publish samples/Hello --configuration Release --use-current-runtime --output artifacts/hello
+          dotnet publish samples/TileEditor --configuration Release --use-current-runtime --output artifacts/tile-editor

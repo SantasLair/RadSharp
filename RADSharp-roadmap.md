@@ -171,6 +171,26 @@ NativeAOT; save → load → save is byte-identical.
 
 **Done when:** the GMForms tile-editor form (`tile_editor.gmform.json`, converted) can be rebuilt in RadSharp by hand.
 
+**Status:** done. `samples/TileEditor` is the GMForms tile editor rebuilt: its form was converted by
+`tools/convert_gmform.py` and is used as-is by the form generator; the code-behind paints, selects, undoes, zooms,
+opens/saves maps through native dialogs and edits a custom `MapInfo` component in the inspector. NativeAOT: 3.9 MB.
+- Lists and values: ListBox (owner draw via `onDrawItem`), ComboBox (drop-down list in the popup layer), ColorBox,
+  TrackBar, ProgressBar, SpinEdit.
+- Containers: PageControl/TabSheet (inactive sheets hidden through `IsShown`, so `visible` isn't written),
+  StatusBar, ToolBar/ToolButton/ToolSeparator, PaintBox (`onPaint`), Image/ImageList (`Picture`: data URI,
+  embedded resource or file; SVG not supported yet).
+- Menus: `MenuItem` trees under `"items"` (generator binds items by path; named items get fields), MainMenu,
+  PopupMenu with right-click context menus (`popupMenu` property), submenus, keyboard navigation, shortcuts.
+- Non-visual `Component`s: Timer (form clock), OpenDialog/SaveDialog/FolderDialog (SDL native dialogs; the callback
+  is marshalled to the UI thread), `Dialogs.MessageDlg/ShowMessage` (custom-drawn modal form).
+- Windows: `IPlatformServices`/`PlatformHost`; the SDL host now runs any number of windows, `Show`, `ShowModal`
+  (nested loop; other windows blocked), `Close` with `CloseQuery`, `ModalResult` (+ `Button.ModalResult`).
+- PropertyGrid (the Object Inspector for M7): properties or events from the metadata, inline editing in the popup
+  layer (text, enum/bool lists, string-list memo), `EventDoubleClick` for handler creation; components show only
+  their own members. ListView (report style, resizable columns) and TreeView (runtime data).
+- Known wart: inside a `Form` subclass, `Color` means the form's `Color?` property, so the type needs a
+  qualified name or alias (`using Rgb = RadSharp.Drawing.Color;`). Worth revisiting (e.g. a `Colors` helper).
+
 ## M7: Designer MVP (XL)
 
 - Design canvas: a live form instance whose input is intercepted; selection, move/resize handles, multi-select,
