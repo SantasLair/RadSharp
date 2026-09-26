@@ -1,0 +1,66 @@
+[
+  {
+    "name": "D.3a Constraints on a client panel",
+    "form": {
+      "format": "radform",
+      "version": "1.0",
+      "generator": "hand-written",
+      "root": {
+        "class": "Form",
+        "name": "frmConstraints",
+        "height": 300,
+        "width": 400,
+        "children": [
+          { "class": "Panel", "name": "pnlC", "align": "client", "maxWidth": 150, "minHeight": 500 }
+        ]
+      }
+    },
+    "steps": [
+      { "expect": { "pnlC": [0, 0, 150, 500] } }
+    ]
+  },
+  {
+    "name": "D.3b Form smaller than its aligned children",
+    "form": {
+      "format": "radform",
+      "version": "1.0",
+      "generator": "hand-written",
+      "root": {
+        "class": "Form",
+        "name": "frmAlign",
+        "height": 700,
+        "width": 1024,
+        "children": [
+          { "class": "Panel", "name": "pnlToolbar", "align": "top", "height": 40 },
+          { "class": "Panel", "name": "pnlStatus", "align": "bottom", "height": 26 },
+          { "class": "Panel", "name": "pnlPalette", "align": "left", "width": 180 },
+          {
+            "class": "Panel",
+            "name": "pnlInspector",
+            "align": "right",
+            "width": 220,
+            "children": [
+              { "class": "Label", "name": "lblInspector", "align": "top", "height": 24 },
+              { "class": "Panel", "name": "pnlInspectorBody", "align": "client", "margin": { "l": 6, "t": 0, "r": 6, "b": 48 } }
+            ]
+          },
+          { "class": "Panel", "name": "pnlClient", "align": "client" }
+        ]
+      }
+    },
+    "steps": [
+      { "do": "resize", "width": 300, "height": 50 },
+      {
+        "expect": {
+          "pnlToolbar": [0, 0, 300, 40],
+          "pnlStatus": [0, 24, 300, 26],
+          "pnlPalette": [0, 40, 180, 0],
+          "pnlInspector": [80, 40, 220, 0],
+          "pnlClient": [180, 40, 0, 0],
+          "lblInspector": [0, 0, 220, 24],
+          "pnlInspectorBody": [6, 24, 208, 0]
+        }
+      }
+    ]
+  }
+]

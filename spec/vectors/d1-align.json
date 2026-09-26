@@ -1,0 +1,61 @@
+{
+  "name": "D.1 Align, margins and nesting",
+  "form": {
+    "format": "radform",
+    "version": "1.0",
+    "generator": "hand-written",
+    "root": {
+      "class": "Form",
+      "name": "frmAlign",
+      "height": 700,
+      "width": 1024,
+      "children": [
+        { "class": "Panel", "name": "pnlToolbar", "align": "top", "height": 40 },
+        { "class": "Panel", "name": "pnlStatus", "align": "bottom", "height": 26 },
+        { "class": "Panel", "name": "pnlPalette", "align": "left", "width": 180 },
+        {
+          "class": "Panel",
+          "name": "pnlInspector",
+          "align": "right",
+          "width": 220,
+          "children": [
+            { "class": "Label", "name": "lblInspector", "align": "top", "height": 24 },
+            { "class": "Panel", "name": "pnlInspectorBody", "align": "client", "margin": { "l": 6, "t": 0, "r": 6, "b": 48 } }
+          ]
+        },
+        { "class": "Panel", "name": "pnlClient", "align": "client" }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "expect": {
+        "pnlToolbar": [0, 0, 1024, 40],
+        "pnlStatus": [0, 674, 1024, 26],
+        "pnlPalette": [0, 40, 180, 634],
+        "pnlInspector": [804, 40, 220, 634],
+        "pnlClient": [180, 40, 624, 634],
+        "lblInspector": [0, 0, 220, 24],
+        "pnlInspectorBody": [6, 24, 208, 562]
+      }
+    },
+    { "do": "resize", "width": 1400, "height": 900 },
+    {
+      "expect": {
+        "pnlToolbar": [0, 0, 1400, 40],
+        "pnlStatus": [0, 874, 1400, 26],
+        "pnlPalette": [0, 40, 180, 834],
+        "pnlInspector": [1180, 40, 220, 834],
+        "pnlClient": [180, 40, 1000, 834],
+        "lblInspector": [0, 0, 220, 24],
+        "pnlInspectorBody": [6, 24, 208, 762]
+      }
+    },
+    { "do": "set", "control": "pnlPalette", "property": "visible", "value": false },
+    {
+      "expect": {
+        "pnlClient": [0, 40, 1180, 834]
+      }
+    }
+  ]
+}

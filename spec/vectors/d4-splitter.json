@@ -1,0 +1,66 @@
+[
+  {
+    "name": "D.4a Left splitter",
+    "form": {
+      "format": "radform",
+      "version": "1.0",
+      "generator": "hand-written",
+      "root": {
+        "class": "Form",
+        "name": "frmSplitLeft",
+        "height": 300,
+        "width": 600,
+        "children": [
+          { "class": "Panel", "name": "palLeft", "align": "left", "width": 200 },
+          { "class": "Splitter", "name": "splLeft", "align": "left", "minSize": 40, "width": 4 },
+          { "class": "Panel", "name": "cliMain", "align": "client" }
+        ]
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "palLeft": [0, 0, 200, 300],
+          "splLeft": [200, 0, 4, 300],
+          "cliMain": [204, 0, 396, 300]
+        }
+      },
+      { "do": "dragSplitter", "control": "splLeft", "delta": 30 },
+      { "expect": { "palLeft": [0, 0, 230, 300], "splLeft": [230, 0, 4, 300], "cliMain": [234, 0, 366, 300] } },
+      { "do": "dragSplitter", "control": "splLeft", "delta": -1000 },
+      { "expect": { "palLeft": [0, 0, 40, 300] } },
+      { "do": "dragSplitter", "control": "splLeft", "delta": 1000 },
+      { "expect": { "palLeft": [0, 0, 556, 300], "cliMain": [560, 0, 40, 300] } }
+    ]
+  },
+  {
+    "name": "D.4b Right splitter (mirror case)",
+    "form": {
+      "format": "radform",
+      "version": "1.0",
+      "generator": "hand-written",
+      "root": {
+        "class": "Form",
+        "name": "frmSplitRight",
+        "height": 300,
+        "width": 600,
+        "children": [
+          { "class": "Panel", "name": "pnlRight", "align": "right", "width": 260 },
+          { "class": "Splitter", "name": "splRight", "align": "right", "minSize": 40, "width": 4 },
+          { "class": "Panel", "name": "cliMain", "align": "client" }
+        ]
+      }
+    },
+    "steps": [
+      {
+        "expect": {
+          "pnlRight": [340, 0, 260, 300],
+          "splRight": [336, 0, 4, 300],
+          "cliMain": [0, 0, 336, 300]
+        }
+      },
+      { "do": "dragSplitter", "control": "splRight", "delta": 10 },
+      { "expect": { "pnlRight": [350, 0, 250, 300], "splRight": [346, 0, 4, 300], "cliMain": [0, 0, 346, 300] } }
+    ]
+  }
+]

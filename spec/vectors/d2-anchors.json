@@ -1,0 +1,84 @@
+{
+  "name": "D.2 Anchors",
+  "form": {
+    "format": "radform",
+    "version": "1.0",
+    "generator": "hand-written",
+    "root": {
+      "class": "Form",
+      "name": "frmAnchors",
+      "height": 700,
+      "width": 1024,
+      "children": [
+        { "class": "Panel", "name": "pnlToolbar", "align": "top", "height": 40 },
+        { "class": "Panel", "name": "pnlStatus", "align": "bottom", "height": 26 },
+        { "class": "Panel", "name": "pnlPalette", "align": "left", "width": 180 },
+        { "class": "Panel", "name": "pnlInspector", "align": "right", "width": 220 },
+        {
+          "class": "Panel",
+          "name": "pnlClient",
+          "align": "client",
+          "children": [
+            { "class": "Button", "name": "btnTL", "height": 28, "left": 16, "top": 46, "width": 130 },
+            { "class": "Button", "name": "btnTR", "anchors": ["top", "right"], "height": 28, "left": 478, "top": 46, "width": 130 },
+            { "class": "Button", "name": "btnBL", "anchors": ["left", "bottom"], "height": 28, "left": 16, "top": 588, "width": 130 },
+            { "class": "Button", "name": "btnBR", "anchors": ["right", "bottom"], "height": 28, "left": 478, "top": 588, "width": 130 },
+            { "class": "Button", "name": "btnStretch", "anchors": ["left", "top", "right"], "height": 28, "left": 16, "top": 84, "width": 592 },
+            {
+              "class": "Panel",
+              "name": "pnlBox",
+              "anchors": ["left", "top", "right", "bottom"],
+              "height": 450,
+              "left": 16,
+              "top": 124,
+              "width": 592,
+              "children": [
+                { "class": "Button", "name": "btnCentre", "anchors": [], "height": 28, "left": 176, "top": 211, "width": 240 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "steps": [
+    {
+      "expect": {
+        "pnlClient": [180, 40, 624, 634],
+        "btnTL": [16, 46, 130, 28],
+        "btnTR": [478, 46, 130, 28],
+        "btnBL": [16, 588, 130, 28],
+        "btnBR": [478, 588, 130, 28],
+        "btnStretch": [16, 84, 592, 28],
+        "pnlBox": [16, 124, 592, 450],
+        "btnCentre": [176, 211, 240, 28]
+      }
+    },
+    { "do": "resize", "width": 1400, "height": 900 },
+    {
+      "expect": {
+        "pnlClient": [180, 40, 1000, 834],
+        "btnTL": [16, 46, 130, 28],
+        "btnTR": [854, 46, 130, 28],
+        "btnBL": [16, 788, 130, 28],
+        "btnBR": [854, 788, 130, 28],
+        "btnStretch": [16, 84, 968, 28],
+        "pnlBox": [16, 124, 968, 650],
+        "btnCentre": [364, 311, 240, 28]
+      }
+    },
+    { "do": "resize", "width": 1024, "height": 700 },
+    {
+      "expect": {
+        "pnlClient": [180, 40, 624, 634],
+        "btnTL": [16, 46, 130, 28],
+        "btnTR": [478, 46, 130, 28],
+        "btnBL": [16, 588, 130, 28],
+        "btnBR": [478, 588, 130, 28],
+        "btnStretch": [16, 84, 592, 28],
+        "pnlBox": [16, 124, 592, 450],
+        "btnCentre": [176, 211, 240, 28]
+      }
+    }
+  ]
+}
