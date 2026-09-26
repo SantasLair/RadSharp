@@ -298,6 +298,13 @@ publish packages to nuget.org, get signing certificates, and try the designer by
 
 ---
 
+## Hardening plan (M10–M18)
+
+A capability review found gaps that block real applications (threading, exception handling, grids and list
+controls, canvas, fonts, window/DPI model, frames, cross-OS verification). They are analysed in
+[docs/gap-analysis.md](docs/gap-analysis.md) and scheduled as milestones M10–M18 in
+[docs/gap-plan.md](docs/gap-plan.md). Web (WebAssembly) is not part of 1.0; its no-regret prerequisites are in M11.
+
 ## After 1.0
 
 - **Data binding** (`"text": "{doc.title}"`) and a DataModule-style non-visual container.

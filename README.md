@@ -40,7 +40,8 @@ dotnet run --project src/RadSharp.Designer    # the designer
 
 Read [docs/getting-started.md](docs/getting-started.md), the [control reference](docs/controls.md), the
 [spec](docs/spec.md) and the [distribution notes](docs/distribution.md). The design background is in
-[future-framework-brainstorm.md](future-framework-brainstorm.md).
+[future-framework-brainstorm.md](future-framework-brainstorm.md). Known gaps and the plan to close them:
+[docs/gap-analysis.md](docs/gap-analysis.md) (including a WebAssembly assessment) and [docs/gap-plan.md](docs/gap-plan.md).
 
 ## Licences
 
