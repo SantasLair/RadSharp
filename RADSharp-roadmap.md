@@ -110,6 +110,25 @@ C# events use Delphi-style signatures (`NotifyEvent(Control sender)`, `MouseEven
 **Done when:** a template app with a hand-written form and `MainForm.cs` runs with F5 in VS Code and publishes with
 NativeAOT; save → load → save is byte-identical.
 
+**Status:** done.
+- `RadSharp.Generators` (analyzer, shipped inside the RadSharp.Core package):
+  - `MetadataGenerator`: for every control class, a module initializer registers a `ComponentClass` with a factory and
+    AOT-safe accessors for its `[Published]` properties and events. Defaults come from a prototype instance, so
+    constructor defaults (Button 80 × 28) need no annotations. Unsupported property types are error RAD0002.
+  - `FormGenerator`: `X.radform.json` → `partial class X` with typed `internal` fields, `DesignedClassName` and
+    `InitializeComponent()` (streams the embedded file in, binds handlers with `+=`). Diagnostics point into the JSON
+    file: RAD1000 invalid file, **RAD1001 missing handler (error, with the stub signature)**, RAD1002 unknown class,
+    RAD1003 unknown event, RAD1004 invalid name, RAD1005 duplicate name.
+- The hand-written `ReadProperty` overrides are gone; `FormReader` and the new deterministic `FormWriter` are driven
+  by the metadata. Serialization vectors live in `spec/vectors/serialization/` (canonical files must round-trip
+  byte for byte; `*.input.json` must normalize to their canonical file).
+- `build/RadSharp.Core.targets` (build + buildTransitive): every `**/*.radform.json` becomes an AdditionalFile and an
+  embedded resource. `RadSharpFormsExclude` / `EnableRadSharpForms=false` opt out.
+- `Form.DefaultScale` is what generated code loads at; `Application.Initialize()` sets it to the display scale.
+- `templates/radsharp-app`: `dotnet new radsharp-app` (MainForm.radform.json + MainForm.cs + VS Code launch/tasks).
+  Verified end to end in isolation: packages from `dotnet pack` → template → build → run → NativeAOT publish (3.1 MB exe).
+- Deferred to M9: publishing the template as a NuGet template package.
+
 ## M5: Text editing (XL; biggest risk)
 
 - Edit and Memo: caret, selection, mouse/keyboard navigation, clipboard, undo/redo, scrolling.

@@ -36,6 +36,7 @@ public partial class Control
     bool _enabled = true;
 
     /// <summary>Disabled controls (and everything inside them) get no input and paint greyed.</summary>
+    [Published(Category = "Behavior")]
     public bool Enabled
     {
         get => _enabled;
@@ -48,9 +49,9 @@ public partial class Control
         }
     }
 
-    public bool TabStop { get; set; }
-    public int TabOrder { get; set; } = -1;
-    public string Hint { get; set; } = "";
+    [Published(Category = "Behavior")] public bool TabStop { get; set; }
+    [Published(Category = "Behavior")] public int TabOrder { get; set; } = -1;
+    [Published(Category = "Behavior")] public string Hint { get; set; } = "";
 
     // ---- Tree ----
 
@@ -91,10 +92,10 @@ public partial class Control
 
     // ---- Bounds ----
 
-    public int Left { get => _left; set => SetBounds(value, _top, _width, _height); }
-    public int Top { get => _top; set => SetBounds(_left, value, _width, _height); }
-    public int Width { get => _width; set => SetBounds(_left, _top, value, _height); }
-    public int Height { get => _height; set => SetBounds(_left, _top, _width, value); }
+    [Published(Category = "Layout")] public int Left { get => _left; set => SetBounds(value, _top, _width, _height); }
+    [Published(Category = "Layout")] public int Top { get => _top; set => SetBounds(_left, value, _width, _height); }
+    [Published(Category = "Layout")] public int Width { get => _width; set => SetBounds(_left, _top, value, _height); }
+    [Published(Category = "Layout")] public int Height { get => _height; set => SetBounds(_left, _top, _width, value); }
 
     /// <summary>Bounds relative to the parent.</summary>
     public Rect Bounds => new(_left, _top, _width, _height);
@@ -148,35 +149,40 @@ public partial class Control
 
     // ---- Layout properties ----
 
+    [Published(Category = "Layout")]
     public Align Align
     {
         get => _align;
         set { if (_align == value) return; _align = value; Recapture(); Parent?.InvalidateLayout(); }
     }
 
+    [Published(Category = "Layout")]
     public Anchors Anchors
     {
         get => _anchors;
         set { if (_anchors == value) return; _anchors = value; Recapture(); Parent?.InvalidateLayout(); }
     }
 
+    [Published(Category = "Layout")]
     public Thickness Margin
     {
         get => _margin;
         set { if (_margin == value) return; _margin = value; Parent?.InvalidateLayout(); }
     }
 
+    [Published(Category = "Layout")]
     public Thickness Padding
     {
         get => _padding;
         set { if (_padding == value) return; _padding = value; InvalidateLayout(); }
     }
 
-    public int MinWidth { get => _minWidth; set { _minWidth = Math.Max(0, value); Parent?.InvalidateLayout(); } }
-    public int MinHeight { get => _minHeight; set { _minHeight = Math.Max(0, value); Parent?.InvalidateLayout(); } }
-    public int MaxWidth { get => _maxWidth; set { _maxWidth = Math.Max(0, value); Parent?.InvalidateLayout(); } }
-    public int MaxHeight { get => _maxHeight; set { _maxHeight = Math.Max(0, value); Parent?.InvalidateLayout(); } }
+    [Published(Category = "Layout")] public int MinWidth { get => _minWidth; set { _minWidth = Math.Max(0, value); Parent?.InvalidateLayout(); } }
+    [Published(Category = "Layout")] public int MinHeight { get => _minHeight; set { _minHeight = Math.Max(0, value); Parent?.InvalidateLayout(); } }
+    [Published(Category = "Layout")] public int MaxWidth { get => _maxWidth; set { _maxWidth = Math.Max(0, value); Parent?.InvalidateLayout(); } }
+    [Published(Category = "Layout")] public int MaxHeight { get => _maxHeight; set { _maxHeight = Math.Max(0, value); Parent?.InvalidateLayout(); } }
 
+    [Published(Category = "Behavior")]
     public bool Visible
     {
         get => _visible;
@@ -424,41 +430,8 @@ public partial class Control
         return (LayoutMath.Round((a + size / 2.0) * p / p0 - size / 2.0), size);
     }
 
-    // ---- Published properties (hand-written until the source generator exists, roadmap M4) ----
+    // ---- Published properties ----
 
-    /// <summary>
-    /// Sets a published property from its form-file JSON value. Returns false if this class doesn't
-    /// publish a property with that name. Throws <see cref="FormatException"/> for a wrong value type.
-    /// </summary>
-    public virtual bool ReadProperty(string name, JsonElement value)
-    {
-        switch (name)
-        {
-            case "left": Left = JsonValues.Int(value); return true;
-            case "top": Top = JsonValues.Int(value); return true;
-            case "width": Width = JsonValues.Int(value); return true;
-            case "height": Height = JsonValues.Int(value); return true;
-            case "align": Align = JsonValues.Enum<Align>(value); return true;
-            case "anchors": Anchors = JsonValues.AnchorSet(value); return true;
-            case "margin": Margin = JsonValues.Thickness(value); return true;
-            case "padding": Padding = JsonValues.Thickness(value); return true;
-            case "minWidth": MinWidth = JsonValues.Int(value); return true;
-            case "minHeight": MinHeight = JsonValues.Int(value); return true;
-            case "maxWidth": MaxWidth = JsonValues.Int(value); return true;
-            case "maxHeight": MaxHeight = JsonValues.Int(value); return true;
-            case "visible": Visible = JsonValues.Bool(value); return true;
-            case "enabled": Enabled = JsonValues.Bool(value); return true;
-            case "tabStop": TabStop = JsonValues.Bool(value); return true;
-            case "tabOrder": TabOrder = JsonValues.Int(value); return true;
-            case "hint": Hint = JsonValues.String(value); return true;
-        }
-        if (IsEventName(name))
-        {
-            EventHandlers[name] = JsonValues.String(value);
-            return true;
-        }
-        return false;
-    }
-
-    static bool IsEventName(string name) => name.Length > 2 && name.StartsWith("on", StringComparison.Ordinal) && char.IsUpper(name[2]);
+    /// <summary>Sets a published property or event handler name from form-file JSON (see <see cref="FormReader.SetProperty"/>).</summary>
+    public bool ReadProperty(string name, JsonElement value) => FormReader.SetProperty(this, name, value);
 }

@@ -3,6 +3,7 @@
   <PropertyGroup>
     <RootNamespace>RadSharp</RootNamespace>
     <IsAotCompatible>true</IsAotCompatible>
+    <Description>RADSharp core: Delphi-style controls with Align + Anchors layout, pixel-perfect Skia rendering, form files and the form source generator.</Description>
   </PropertyGroup>
 
   <ItemGroup>
@@ -13,8 +14,15 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\RadSharp.Generators\RadSharp.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
     <EmbeddedResource Include="Fonts\*.ttf" LogicalName="RadSharp.Fonts.%(Filename)%(Extension)" />
     <None Include="Fonts\Inter-LICENSE.txt" Pack="true" PackagePath="licenses" />
+    <!-- Form files: MSBuild wiring (also for projects that get RadSharp.Core transitively) and the generators. -->
+    <None Include="build\RadSharp.Core.targets" Pack="true" PackagePath="build;buildTransitive" />
+    <None Include="..\RadSharp.Generators\bin\$(Configuration)\netstandard2.0\RadSharp.Generators.dll" Pack="true" PackagePath="analyzers/dotnet/cs" Visible="false" />
   </ItemGroup>
 
 </Project>

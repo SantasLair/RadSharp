@@ -2,6 +2,8 @@
 
   <PropertyGroup>
     <IsPackable>false</IsPackable>
+    <!-- Golden/ holds form files used as test data, not as app forms. -->
+    <RadSharpFormsExclude>Golden\**</RadSharpFormsExclude>
   </PropertyGroup>
 
   <ItemGroup>
@@ -12,10 +14,13 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\RadSharp.Core\RadSharp.Core.csproj" />
+    <ProjectReference Include="..\..\src\RadSharp.Generators\RadSharp.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
 
+  <Import Project="..\..\src\RadSharp.Core\build\RadSharp.Core.targets" />
+
   <ItemGroup>
-    <None Include="..\..\spec\vectors\*.json" LinkBase="vectors" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\spec\vectors\**\*.json" LinkBase="vectors" CopyToOutputDirectory="PreserveNewest" />
     <None Include="Golden\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 

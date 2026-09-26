@@ -1,4 +1,3 @@
-using System.Text.Json;
 using RadSharp.Drawing;
 
 namespace RadSharp;
@@ -106,13 +105,14 @@ public class ScrollBar : Control
         TabStop = true;
     }
 
-    public ScrollBarKind Kind { get => _kind; set { _kind = value; Invalidate(); } }
-    public int Min { get => _axis.Min; set { _axis.Min = value; Clamp(); } }
-    public int Max { get => _axis.Max; set { _axis.Max = value; Clamp(); } }
-    public int PageSize { get => _axis.PageSize; set { _axis.PageSize = Math.Max(0, value); Clamp(); } }
-    public int SmallChange { get; set; } = 1;
-    public int LargeChange { get; set; } = 10;
+    [Published(Category = "Appearance")] public ScrollBarKind Kind { get => _kind; set { _kind = value; Invalidate(); } }
+    [Published(Category = "Behavior")] public int Min { get => _axis.Min; set { _axis.Min = value; Clamp(); } }
+    [Published(Category = "Behavior")] public int Max { get => _axis.Max; set { _axis.Max = value; Clamp(); } }
+    [Published(Category = "Behavior")] public int PageSize { get => _axis.PageSize; set { _axis.PageSize = Math.Max(0, value); Clamp(); } }
+    [Published(Category = "Behavior")] public int SmallChange { get; set; } = 1;
+    [Published(Category = "Behavior")] public int LargeChange { get; set; } = 10;
 
+    [Published(Category = "Behavior")]
     public int Position
     {
         get => _axis.Position;
@@ -120,7 +120,7 @@ public class ScrollBar : Control
     }
 
     /// <summary>Raised when <see cref="Position"/> changes.</summary>
-    public event NotifyEvent? Change;
+    [Published] public event NotifyEvent? Change;
 
     void Clamp() { if (_axis.Clamp()) Changed(); else Invalidate(); }
 
@@ -186,20 +186,6 @@ public class ScrollBar : Control
         if (Focused && OwningForm is { ShowFocusCues: true }) canvas.DrawBorder(r, canvas.Theme.FocusRing, canvas.Px(1));
     }
 
-    public override bool ReadProperty(string name, JsonElement value)
-    {
-        switch (name)
-        {
-            case "kind": Kind = JsonValues.Enum<ScrollBarKind>(value); return true;
-            case "min": Min = JsonValues.Int(value); return true;
-            case "max": Max = JsonValues.Int(value); return true;
-            case "pageSize": PageSize = JsonValues.Int(value); return true;
-            case "position": Position = JsonValues.Int(value); return true;
-            case "smallChange": SmallChange = JsonValues.Int(value); return true;
-            case "largeChange": LargeChange = JsonValues.Int(value); return true;
-        }
-        return base.ReadProperty(name, value);
-    }
 }
 
 /// <summary>
@@ -221,8 +207,8 @@ public class ScrollBox : Control
         SetDefaultSize(200, 150);
     }
 
-    public BorderStyle BorderStyle { get; set; } = BorderStyle.Single;
-    public Color? Color { get; set; }
+    [Published(Category = "Appearance")] public BorderStyle BorderStyle { get; set; } = BorderStyle.Single;
+    [Published(Category = "Appearance")] public Color? Color { get; set; }
 
     public int ScrollX { get => _h.Position; set { if (_h.SetPosition(value)) Scrolled(); } }
     public int ScrollY { get => _v.Position; set { if (_v.SetPosition(value)) Scrolled(); } }
@@ -368,13 +354,4 @@ public class ScrollBox : Control
             canvas.FillRect(new Rect(VBar.X, HBar.Y, BarSize, BarSize), canvas.Theme.ScrollTrack);
     }
 
-    public override bool ReadProperty(string name, JsonElement value)
-    {
-        switch (name)
-        {
-            case "borderStyle": BorderStyle = JsonValues.Enum<BorderStyle>(value); return true;
-            case "color": Color = JsonValues.Color(value); return true;
-        }
-        return base.ReadProperty(name, value);
-    }
 }

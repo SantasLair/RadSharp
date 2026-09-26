@@ -1,0 +1,24 @@
+{
+  "$schema": "http://json.schemastore.org/template",
+  "author": "RADSharp contributors",
+  "classifications": ["Desktop", "RADSharp"],
+  "identity": "RadSharp.App.CSharp",
+  "name": "RADSharp App",
+  "description": "A cross-platform desktop app with a designed form (MainForm.radform.json) and its code-behind.",
+  "shortName": "radsharp-app",
+  "sourceName": "RadSharpApp",
+  "preferNameDirectory": true,
+  "tags": {
+    "language": "C#",
+    "type": "project"
+  },
+  "symbols": {
+    "RadSharpVersion": {
+      "type": "parameter",
+      "datatype": "string",
+      "defaultValue": "0.1.0-dev",
+      "replaces": "RADSHARP_VERSION",
+      "description": "The RADSharp package version to reference."
+    }
+  }
+}

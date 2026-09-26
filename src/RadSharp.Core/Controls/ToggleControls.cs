@@ -1,4 +1,3 @@
-using System.Text.Json;
 using RadSharp.Drawing;
 
 namespace RadSharp;
@@ -15,8 +14,9 @@ public abstract class ToggleControl : Control
         TabStop = true;
     }
 
-    public string Caption { get => _caption; set { _caption = value; Invalidate(); } }
+    [Published(Category = "Appearance")] public string Caption { get => _caption; set { _caption = value; Invalidate(); } }
 
+    [Published(Category = "Behavior")]
     public bool Checked
     {
         get => _checked;
@@ -31,7 +31,7 @@ public abstract class ToggleControl : Control
     }
 
     /// <summary>Raised when <see cref="Checked"/> changes (by the user or from code).</summary>
-    public event NotifyEvent? Change;
+    [Published] public event NotifyEvent? Change;
 
     protected virtual void OnChange() => Change?.Invoke(this);
     protected virtual void OnCheckedChanged() { }
@@ -68,15 +68,6 @@ public abstract class ToggleControl : Control
         canvas.DrawText(Caption, canvas.DefaultFont, color, new Rect(x, 0, Width - x, Height), TextAlign.Left, VerticalAlign.Center);
     }
 
-    public override bool ReadProperty(string name, JsonElement value)
-    {
-        switch (name)
-        {
-            case "caption": Caption = JsonValues.String(value); return true;
-            case "checked": Checked = JsonValues.Bool(value); return true;
-        }
-        return base.ReadProperty(name, value);
-    }
 }
 
 public class CheckBox : ToggleControl
@@ -147,7 +138,7 @@ public class GroupBox : Control
 
     public GroupBox() => SetDefaultSize(200, 120);
 
-    public string Caption { get => _caption; set { _caption = value; Invalidate(); } }
+    [Published(Category = "Appearance")] public string Caption { get => _caption; set { _caption = value; Invalidate(); } }
 
     int HeaderHeight => LayoutMath.Round(CurrentTheme.FontSize * 1.6 * UiScale);
 
@@ -168,9 +159,4 @@ public class GroupBox : Control
             new Rect(canvas.Px(2), 0, Width - canvas.Px(4), header), TextAlign.Left, VerticalAlign.Center);
     }
 
-    public override bool ReadProperty(string name, JsonElement value)
-    {
-        if (name == "caption") { Caption = JsonValues.String(value); return true; }
-        return base.ReadProperty(name, value);
-    }
 }

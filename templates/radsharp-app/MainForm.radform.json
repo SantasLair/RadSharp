@@ -1,0 +1,33 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmMain",
+    "caption": "RadSharpApp",
+    "height": 240,
+    "width": 400,
+    "children": [
+      {
+        "class": "Label",
+        "name": "lblMessage",
+        "caption": "Hello from RADSharp!",
+        "height": 24,
+        "left": 24,
+        "top": 32,
+        "width": 352
+      },
+      {
+        "class": "Button",
+        "name": "btnHello",
+        "caption": "Click me",
+        "default": true,
+        "left": 24,
+        "onClick": "btnHello_Click",
+        "top": 72,
+        "width": 120
+      }
+    ]
+  }
+}

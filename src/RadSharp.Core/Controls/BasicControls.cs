@@ -1,4 +1,3 @@
-using System.Text.Json;
 using RadSharp.Drawing;
 
 namespace RadSharp;
@@ -9,9 +8,9 @@ public class Panel : Control
 {
     string _caption = "";
 
-    public string Caption { get => _caption; set { _caption = value; Invalidate(); } }
-    public Color? Color { get; set; }
-    public BorderStyle BorderStyle { get; set; } = BorderStyle.Single;
+    [Published(Category = "Appearance")] public string Caption { get => _caption; set { _caption = value; Invalidate(); } }
+    [Published(Category = "Appearance")] public Color? Color { get; set; }
+    [Published(Category = "Appearance")] public BorderStyle BorderStyle { get; set; } = BorderStyle.Single;
 
     protected override void Paint(Canvas canvas)
     {
@@ -21,16 +20,6 @@ public class Panel : Control
         canvas.DrawText(Caption, canvas.DefaultFont, canvas.Theme.Text, r, TextAlign.Center, VerticalAlign.Center);
     }
 
-    public override bool ReadProperty(string name, JsonElement value)
-    {
-        switch (name)
-        {
-            case "caption": Caption = JsonValues.String(value); return true;
-            case "color": Color = JsonValues.Color(value); return true;
-            case "borderStyle": BorderStyle = JsonValues.Enum<BorderStyle>(value); return true;
-        }
-        return base.ReadProperty(name, value);
-    }
 }
 
 public class Label : Control
@@ -39,9 +28,9 @@ public class Label : Control
 
     public Label() => SetDefaultSize(80, 20);
 
-    public string Caption { get => _caption; set { _caption = value; Invalidate(); } }
-    public TextAlign Alignment { get; set; }
-    public VerticalAlign Layout { get; set; }
+    [Published(Category = "Appearance")] public string Caption { get => _caption; set { _caption = value; Invalidate(); } }
+    [Published(Category = "Appearance")] public TextAlign Alignment { get; set; }
+    [Published(Category = "Appearance")] public VerticalAlign Layout { get; set; }
 
     protected override void Paint(Canvas canvas)
     {
@@ -49,16 +38,6 @@ public class Label : Control
         canvas.DrawText(Caption, canvas.DefaultFont, color, new Rect(0, 0, Width, Height), Alignment, Layout);
     }
 
-    public override bool ReadProperty(string name, JsonElement value)
-    {
-        switch (name)
-        {
-            case "caption": Caption = JsonValues.String(value); return true;
-            case "alignment": Alignment = JsonValues.Enum<TextAlign>(value); return true;
-            case "layout": Layout = JsonValues.Enum<VerticalAlign>(value); return true;
-        }
-        return base.ReadProperty(name, value);
-    }
 }
 
 public class Button : Control
@@ -72,13 +51,13 @@ public class Button : Control
         TabStop = true;
     }
 
-    public string Caption { get => _caption; set { _caption = value; Invalidate(); } }
+    [Published(Category = "Appearance")] public string Caption { get => _caption; set { _caption = value; Invalidate(); } }
 
     /// <summary>Enter clicks this button when no control handled the key (Delphi's <c>Default</c>).</summary>
-    public bool Default { get; set; }
+    [Published(Category = "Behavior")] public bool Default { get; set; }
 
     /// <summary>Escape clicks this button when no control handled the key (Delphi's <c>Cancel</c>).</summary>
-    public bool Cancel { get; set; }
+    [Published(Category = "Behavior")] public bool Cancel { get; set; }
 
     /// <summary>True while the button is shown pushed in (mouse held over it, or Space held).</summary>
     public bool IsPressed => (_mouseDown && IsHovered) || _spaceDown;
@@ -150,16 +129,6 @@ public class Button : Control
         canvas.DrawText(Caption, canvas.DefaultFont, enabled ? t.Text : t.TextDisabled, r, TextAlign.Center, VerticalAlign.Center);
     }
 
-    public override bool ReadProperty(string name, JsonElement value)
-    {
-        switch (name)
-        {
-            case "caption": Caption = JsonValues.String(value); return true;
-            case "default": Default = JsonValues.Bool(value); return true;
-            case "cancel": Cancel = JsonValues.Bool(value); return true;
-        }
-        return base.ReadProperty(name, value);
-    }
 }
 
 /// <summary>
@@ -177,7 +146,7 @@ public class Splitter : Control
     }
 
     /// <summary>The smallest size of the target, and of the client space left beside it.</summary>
-    public int MinSize { get; set; } = 30;
+    [Published(Category = "Behavior")] public int MinSize { get; set; } = 30;
 
     bool Horizontal => Align is Align.Left or Align.Right;
 
@@ -251,9 +220,4 @@ public class Splitter : Control
 
     protected override void ScaleOwnLengths(double scale) => MinSize = LayoutMath.Round(MinSize * scale);
 
-    public override bool ReadProperty(string name, JsonElement value)
-    {
-        if (name == "minSize") { MinSize = JsonValues.Int(value); return true; }
-        return base.ReadProperty(name, value);
-    }
 }

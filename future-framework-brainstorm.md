@@ -254,7 +254,8 @@ A form file is UTF-8 JSON:
 
 **Events**
 - Events are properties whose name starts with `on` (`"onClick": "btnSave_Click"`). The value is a handler *name*.
-- In an app, the source generator binds names to methods **at compile time**; a missing method is a compile error.
+- In an app, the source generator binds names to methods **at compile time**; a missing method is a compile error
+  (RAD1001, reported at the handler name in the form file, with the method signature to add).
 - When a form is loaded without generated bindings (as the designer does), names are kept on the control
   so re-saving doesn't lose them.
 - Handler convention: the **first argument is always the sender**, e.g.
@@ -304,9 +305,15 @@ with only non-default values written.
 | `onClick`, `onMouseDown`, `onMouseUp`, `onMouseMove`, `onMouseEnter`, `onMouseLeave`, `onMouseWheel`, `onKeyDown`, `onKeyUp`, `onFocus`, `onBlur`, `onChange`, `onResize` | event | none |
 
 **Metadata entry shape** (emitted per class by the source generator from `[Published]` attributes;
-ordered; a subclass entry with the same name overrides the inherited one):
+ordered by name; a subclass entry with the same name overrides the inherited one; defaults are read from a
+freshly constructed prototype of the class, so constructor defaults need no annotation):
 `{ name, type, defaultValue, values?, labels?, min?, max?, step?, category?, readOnly? }`.
 Types: `string, int, real, bool, enum, color, image, font, anchors, struct, array, event, menus`.
+Enum values are written camelCased (`Align.Client` → `"client"`, `Cursor.SizeWE` → `"sizeWE"`).
+
+**Generated form classes.** For `MainForm.radform.json` the generator emits `partial class MainForm : Form` with
+an `internal` field per named control, `InitializeComponent()` and `DesignedClassName` (the file's root class,
+which the writer saves instead of `MainForm`). The file is embedded as resource `MainForm.radform.json`.
 
 ## Appendix B: Layout rules (Delphi Align + Anchors)
 

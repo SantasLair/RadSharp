@@ -1,4 +1,3 @@
-using System.Text.Json;
 using RadSharp.Drawing;
 
 namespace RadSharp;
@@ -25,13 +24,14 @@ public class Form : Control
         Simulate = new InputSimulator(this);
     }
 
+    [Published(Category = "Appearance")]
     public string Caption { get => _caption; set { _caption = value; CaptionChanged?.Invoke(this); } }
 
     /// <summary>Raised when <see cref="Caption"/> changes, so a host can retitle its window.</summary>
     public event Action<Form>? CaptionChanged;
 
     /// <summary>Background colour; null uses the theme's.</summary>
-    public Color? Color { get; set; }
+    [Published(Category = "Appearance")] public Color? Color { get; set; }
 
     /// <summary>The form's size as designed (at 100 %); set when the form is loaded.</summary>
     public int DesignWidth { get; internal set; }
@@ -41,6 +41,20 @@ public class Form : Control
     public double Scale { get; internal set; } = 1;
 
     public Theme Theme { get; set; } = Theme.Default;
+
+    /// <summary>
+    /// The scale generated <c>InitializeComponent()</c> code loads forms at. Hosts set it at startup
+    /// (the SDL host uses the display's content scale).
+    /// </summary>
+    public static double DefaultScale { get; set; } = 1;
+
+    /// <summary>
+    /// For a form class generated from a form file: the root class the file was designed as (e.g. "Form").
+    /// The writer saves that class name and compares against its defaults, not the generated subclass's.
+    /// </summary>
+    protected virtual string? DesignedClassName => null;
+
+    internal string? DesignedClass => DesignedClassName;
 
     /// <summary>Feeds synthetic input through the same code paths as real input (for tests).</summary>
     public InputSimulator Simulate { get; }
@@ -62,15 +76,6 @@ public class Form : Control
     protected override void Paint(Canvas canvas) =>
         canvas.FillRect(new Rect(0, 0, Width, Height), Color ?? canvas.Theme.FormBackground);
 
-    public override bool ReadProperty(string name, JsonElement value)
-    {
-        switch (name)
-        {
-            case "caption": Caption = JsonValues.String(value); return true;
-            case "color": Color = JsonValues.Color(value); return true;
-        }
-        return base.ReadProperty(name, value);
-    }
 
     // =====================================================================
     // Repaint tracking (form coordinates)

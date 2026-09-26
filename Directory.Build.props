@@ -6,4 +6,12 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
+
+  <!-- Packaging. RADSharp is a working title; the released name is still to be decided. -->
+  <PropertyGroup>
+    <Version>0.1.0-dev</Version>
+    <Authors>RADSharp contributors</Authors>
+    <PackageOutputPath>$(MSBuildThisFileDirectory)artifacts/packages</PackageOutputPath>
+    <PackageTags>rad;forms;designer;delphi;skia;sdl;ui</PackageTags>
+  </PropertyGroup>
 </Project>

@@ -15,7 +15,7 @@
         "align": "top",
         "height": 40,
         "children": [
-          { "class": "Button", "name": "btnNew", "caption": "New", "left": 6, "top": 6 },
+          { "class": "Button", "name": "btnNew", "caption": "New", "left": 6, "onClick": "btnNew_Click", "top": 6 },
           { "class": "Button", "name": "btnOpen", "caption": "Open…", "left": 92, "top": 6 },
           { "class": "Button", "name": "btnSave", "caption": "Save", "enabled": false, "left": 178, "top": 6 }
         ]
@@ -44,7 +44,7 @@
           { "class": "Label", "name": "lblDisabled", "caption": "Disabled label", "enabled": false, "height": 20, "left": 16, "top": 100, "width": 300 },
           { "class": "Label", "name": "lblAccents", "caption": "Café, naïve, Ångström, Øre, Ĳssel", "height": 20, "left": 16, "top": 128, "width": 300 },
           { "class": "Button", "name": "btnOk", "anchors": ["right", "bottom"], "caption": "OK", "height": 28, "left": 146, "top": 180, "width": 80 },
-          { "class": "Button", "name": "btnCancel", "anchors": ["right", "bottom"], "caption": "Cancel", "height": 28, "left": 234, "top": 180, "width": 80 }
+          { "class": "Button", "name": "btnCancel", "anchors": ["right", "bottom"], "caption": "Cancel", "onClick": "btnCancel_Click", "height": 28, "left": 234, "top": 180, "width": 80 }
         ]
       }
     ]

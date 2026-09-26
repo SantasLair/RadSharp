@@ -4,22 +4,22 @@ public partial class Control
 {
     // ---- Events (sender first, Delphi style) ----
 
-    public event NotifyEvent? Click;
-    public event MouseEvent? MouseDown;
-    public event MouseEvent? MouseUp;
-    public event MouseEvent? MouseMove;
-    public event NotifyEvent? MouseEnter;
-    public event NotifyEvent? MouseLeave;
-    public event MouseWheelEvent? MouseWheel;
-    public event KeyEvent? KeyDown;
-    public event KeyEvent? KeyUp;
-    public event TextInputEvent? TextInput;
-    public event NotifyEvent? GotFocus;
-    public event NotifyEvent? LostFocus;
-    public event NotifyEvent? Resized;
+    [Published] public event NotifyEvent? Click;
+    [Published] public event MouseEvent? MouseDown;
+    [Published] public event MouseEvent? MouseUp;
+    [Published] public event MouseEvent? MouseMove;
+    [Published] public event NotifyEvent? MouseEnter;
+    [Published] public event NotifyEvent? MouseLeave;
+    [Published] public event MouseWheelEvent? MouseWheel;
+    [Published] public event KeyEvent? KeyDown;
+    [Published] public event KeyEvent? KeyUp;
+    [Published] public event TextInputEvent? TextInput;
+    [Published("onFocus")] public event NotifyEvent? GotFocus;
+    [Published("onBlur")] public event NotifyEvent? LostFocus;
+    [Published("onResize")] public event NotifyEvent? Resized;
 
     /// <summary>The mouse cursor shown while the pointer is over this control.</summary>
-    public Cursor Cursor { get; set; } = Cursor.Default;
+    [Published(Category = "Appearance")] public Cursor Cursor { get; set; } = Cursor.Default;
 
     /// <summary>True while the pointer is over this control (and no other control has captured the mouse).</summary>
     public bool IsHovered { get; private set; }

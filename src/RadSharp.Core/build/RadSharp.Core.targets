@@ -1,0 +1,21 @@
+<Project>
+
+  <!--
+    Every *.radform.json in the project is a designed form:
+    - an AdditionalFile, so the RADSharp form generator emits its partial class (fields + InitializeComponent);
+    - an EmbeddedResource named after the file, which InitializeComponent streams in at run time.
+    Set RadSharpFormsExclude (a glob) to leave some form files out, or EnableRadSharpForms=false to turn this off.
+  -->
+  <ItemGroup Condition="'$(EnableRadSharpForms)' != 'false'">
+    <RadSharpForm Include="**\*.radform.json" Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder);$(RadSharpFormsExclude)" />
+    <AdditionalFiles Include="@(RadSharpForm)" />
+    <EmbeddedResource Include="@(RadSharpForm)" LogicalName="%(Filename)%(Extension)" />
+    <None Remove="@(RadSharpForm)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Lets generated forms default to the project's namespace when there is no user half of the class yet. -->
+    <CompilerVisibleProperty Include="RootNamespace" />
+  </ItemGroup>
+
+</Project>

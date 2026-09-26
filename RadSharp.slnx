@@ -4,9 +4,11 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/RadSharp.Core/RadSharp.Core.csproj" />
+    <Project Path="src/RadSharp.Generators/RadSharp.Generators.csproj" />
     <Project Path="src/RadSharp.Platform.Sdl/RadSharp.Platform.Sdl.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/RadSharp.Core.Tests/RadSharp.Core.Tests.csproj" />
+    <Project Path="tests/RadSharp.Generators.Tests/RadSharp.Generators.Tests.csproj" />
   </Folder>
 </Solution>

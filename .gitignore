@@ -2,6 +2,6 @@ bin/
 obj/
 *.user
 .vs/
-.vscode/
+/.vscode/
 TestResults/
 artifacts/

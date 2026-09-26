@@ -1,0 +1,52 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmNormalize",
+    "caption": "Normalize me",
+    "height": 300,
+    "width": 480,
+    "children": [
+      {
+        "class": "Panel",
+        "name": "pnlTop",
+        "align": "top",
+        "height": 40
+      },
+      {
+        "class": "Panel",
+        "name": "pnlClient",
+        "align": "client",
+        "margin": { "l": 1, "t": 0, "r": 0, "b": 4 }
+      },
+      {
+        "class": "Button",
+        "name": "btnDefaults",
+        "left": 10,
+        "top": 50
+      },
+      {
+        "class": "Button",
+        "name": "btnAnchored",
+        "caption": "Go",
+        "anchors": ["left", "right", "bottom"],
+        "left": 10,
+        "onClick": "btnAnchored_Click",
+        "top": 90
+      },
+      {
+        "class": "Label",
+        "name": "lblText",
+        "caption": "Quote \" backslash \\ tab \t newline \n slash / é ✓ 😀",
+        "left": 10,
+        "top": 130
+      },
+      {
+        "class": "Splitter",
+        "name": "splLeft"
+      }
+    ]
+  }
+}

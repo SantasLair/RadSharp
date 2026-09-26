@@ -1,0 +1,41 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmOrder",
+    "caption": "Order",
+    "height": 200,
+    "onResize": "frmOrder_Resize",
+    "width": 300,
+    "children": [
+      {
+        "class": "CheckBox",
+        "name": "chkGift",
+        "caption": "Gift wrap",
+        "left": 12,
+        "onChange": "chkGift_Change",
+        "top": 12
+      },
+      {
+        "class": "Panel",
+        "name": "pnlButtons",
+        "align": "bottom",
+        "height": 44,
+        "children": [
+          {
+            "class": "Button",
+            "name": "btnOrder",
+            "caption": "Order",
+            "anchors": ["top", "right"],
+            "default": true,
+            "left": 208,
+            "onClick": "btnOrder_Click",
+            "top": 8
+          }
+        ]
+      }
+    ]
+  }
+}

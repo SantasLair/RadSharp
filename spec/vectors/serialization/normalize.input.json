@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "format": "radform",
+  "generator": "some other tool",
+  "root": {
+    "width": 480,
+    "class": "Form",
+    "height": 300,
+    "name": "frmNormalize",
+    "caption": "Normalize me",
+    "children": [
+      { "name": "pnlTop", "class": "Panel", "align": "top", "height": 40, "left": 5, "top": 7, "width": 999, "visible": true },
+      { "class": "Panel", "name": "pnlClient", "align": "client", "left": 1, "top": 2, "width": 3, "height": 4, "margin": { "b": 4, "l": 1 } },
+      { "class": "Button", "name": "btnDefaults", "caption": "", "width": 80, "height": 28, "left": 10, "top": 50, "tabStop": true, "anchors": ["top", "left"] },
+      { "class": "Button", "name": "btnAnchored", "anchors": ["bottom", "right", "left"], "caption": "Go", "left": 10, "top": 90, "onClick": "btnAnchored_Click" },
+      { "class": "Gizmo", "name": "gizUnknown", "children": [ { "class": "Button", "name": "btnLost" } ] },
+      { "class": "Label", "name": "lblText", "caption": "Quote \" backslash \\ tab \t newline \n slash / é ✓ 😀", "left": 10, "top": 130 },
+      { "class": "Splitter", "name": "splLeft", "align": "left", "width": 4 }
+    ]
+  }
+}

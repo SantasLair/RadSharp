@@ -13,13 +13,18 @@ public static unsafe class Application
 {
     static bool _initialized;
 
-    /// <summary>Initializes SDL. Call before <see cref="Scale"/> or <see cref="Run"/>.</summary>
+    /// <summary>
+    /// Initializes SDL and sets <see cref="Form.DefaultScale"/> to <see cref="Scale"/>, so forms
+    /// created afterwards (their generated <c>InitializeComponent()</c>) load at the display's scale.
+    /// Call before creating forms.
+    /// </summary>
     public static void Initialize()
     {
         if (_initialized) return;
         if (!SDL_Init(SDL_InitFlags.SDL_INIT_VIDEO))
             throw new InvalidOperationException($"SDL_Init failed: {SDL_GetError()}");
         _initialized = true;
+        Form.DefaultScale = Scale;
     }
 
     /// <summary>
