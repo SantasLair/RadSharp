@@ -274,6 +274,16 @@ without leaving the designer except to type code.
   into `RadSharp.Core`.
 - Added along the way: `Label.FontSize/FontBold/FontColor`; the screenshot hook closes forms without `CloseQuery`.
 
+**After 1.0 — project-centred designer (Delphi/Lazarus parity):** the designer always works on a project. A welcome
+page (New Application, Open Project, recent projects) replaces loose-form editing; open forms have tabs, each with
+its own surface and undo; File/Project menus as in Delphi (New Form, Reopen, Save All, Close Project, Remove Form,
+Set as Main Form, F12 to the code); F9 runs the application from its main form with every open form's unsaved
+state. Code goes to the IDE of your choice, Unity style (Tools › Options: VS Code, Visual Studio, Rider — detected —
+or a custom command; Project › Open in IDE opens the folder or a generated `.sln`). Dev packages get unique
+versions and projects reference `0.1.0-dev*`, so NuGet never serves a stale local package.
+Tested by driving the designer form itself (`tests/RadSharp.Designer.Tests`). Follow-up: a Visual Studio helper
+(DTE automation, as Unity does) to open handlers at their line.
+
 **Left for a person:** vet and choose the product name (then rename packages and namespaces), choose a licence,
 publish packages to nuget.org, get signing certificates, and try the designer by hand on macOS and Linux
 (IME in particular).

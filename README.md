@@ -32,7 +32,7 @@ codebase: tested on Windows; macOS and Linux run in CI.
 ## Quick start
 
 ```sh
-dotnet test                                   # 146 tests: layout vectors, golden images, input, editors, generators, designer
+dotnet test                                   # 153 tests: layout vectors, golden images, input, editors, generators, designer
 dotnet run --project samples/TileEditor       # a sample
 dotnet run --project src/RadSharp.Designer    # the designer
 ```

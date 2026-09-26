@@ -16,7 +16,7 @@
     "RadSharpVersion": {
       "type": "parameter",
       "datatype": "string",
-      "defaultValue": "0.1.0-dev",
+      "defaultValue": "0.1.0-dev*",
       "replaces": "RADSHARP_VERSION",
       "description": "The RADSharp package version to reference."
     }

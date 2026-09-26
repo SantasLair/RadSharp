@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.CSharp.Syntax;
@@ -106,33 +105,4 @@ public static class CodeIntegration
     /// <summary>The conventional handler name: <c>btnSave_Click</c>.</summary>
     public static string HandlerName(Control control, Form form, EventMeta ev) =>
         $"{(control.Name.Length > 0 ? control.Name : form.Name)}_{ev.Name[2..]}";
-}
-
-/// <summary>Opens a file at a line in the user's editor (VS Code by default).</summary>
-public static class ExternalEditor
-{
-    /// <summary>
-    /// A command template with {file} and {line}, from the RADSHARP_EDITOR environment variable;
-    /// the default runs <c>code -g "{file}:{line}"</c>.
-    /// </summary>
-    public static string Template => Environment.GetEnvironmentVariable("RADSHARP_EDITOR") is { Length: > 0 } t ? t : "code -g \"{file}:{line}\"";
-
-    public static bool Open(string file, int line)
-    {
-        var command = Template.Replace("{file}", file).Replace("{line}", line.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        int split = command.StartsWith('"') ? command.IndexOf('"', 1) + 1 : command.IndexOf(' ');
-        var exe = split > 0 ? command[..split].Trim('"') : command;
-        var args = split > 0 ? command[split..].Trim() : "";
-        try
-        {
-            Process.Start(new ProcessStartInfo(exe, args) { UseShellExecute = OperatingSystem.IsWindows(), CreateNoWindow = true });
-            return true;
-        }
-        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)
-        {
-            // No such editor: fall back to whatever the OS opens .cs files with.
-            try { Process.Start(new ProcessStartInfo(file) { UseShellExecute = true }); return true; }
-            catch (Exception) { return false; }
-        }
-    }
 }

@@ -9,7 +9,8 @@
 
   <!-- Packaging. RADSharp is a working title; the released name is still to be decided. -->
   <PropertyGroup>
-    <Version>0.1.0-dev</Version>
+    <!-- A unique pre-release per build: projects reference 0.1.0-dev* and always get the newest local pack. -->
+    <Version>0.1.0-dev.$([System.DateTime]::UtcNow.ToString(yyyyMMddHHmm))</Version>
     <Authors>RADSharp contributors</Authors>
     <PackageOutputPath>$(MSBuildThisFileDirectory)artifacts/packages</PackageOutputPath>
     <PackageTags>rad;forms;designer;delphi;skia;sdl;ui</PackageTags>

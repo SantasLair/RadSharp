@@ -18,6 +18,7 @@
     <Project Path="tests/RadSharp.Core.Tests/RadSharp.Core.Tests.csproj" />
     <Project Path="tests/RadSharp.Design.Code.Tests/RadSharp.Design.Code.Tests.csproj" />
     <Project Path="tests/RadSharp.Design.Tests/RadSharp.Design.Tests.csproj" />
+    <Project Path="tests/RadSharp.Designer.Tests/RadSharp.Designer.Tests.csproj" />
     <Project Path="tests/RadSharp.Generators.Tests/RadSharp.Generators.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">

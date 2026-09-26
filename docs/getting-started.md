@@ -14,14 +14,23 @@ a handler, press F9 to run it, press Build to get a native executable for Window
 
 ## The designer
 
-Run the designer (`src/RadSharp.Designer`, or the published app):
+Run the designer (`dotnet run --project src/RadSharp.Designer`, or the published app). As in Delphi and Lazarus,
+you always work in a **project**: the designer starts on a welcome page with **New Application…**,
+**Open Project…** and your recent projects (also under **File › Reopen**). You can pass a `.csproj` on the command line.
 
-1. **File › New project…** and pick an empty folder. You get a `.csproj`, `Program.cs`, `MainForm.radform.json`
-   (the designed form), `MainForm.cs` (your code) and a GitHub Actions workflow for cross-platform builds.
-2. Pick a control in the **Components** palette and click (or drag a rectangle) on the form.
-3. Set properties in the **Object Inspector**; rename the control in the **Name** box.
-4. **Double-click** the control (or an event on the **Events** tab). The designer writes the handler into
-   `MainForm.cs` and opens your editor on it:
+1. **New Application…** asks for a name and a location and creates the project: `.csproj`, `.sln`,
+   `Program.cs`, `MainForm.radform.json` (the designed form), `MainForm.cs` (your code), a `.gitignore` and a
+   GitHub Actions workflow for cross-platform builds. When the designer runs from the RADSharp repository it finds
+   the local packages in `artifacts/packages` (run `dotnet pack` for `src/RadSharp.Core` and
+   `src/RadSharp.Platform.Sdl` first); otherwise projects restore RADSharp from nuget.org.
+2. Each open form has a **tab**. **File › New Form** (Ctrl+N) adds `FormN.radform.json` + `FormN.cs`; the
+   **Project** tab of the inspector lists every form (double-click to open one). **Project › Set as Main Form**
+   changes which form `Program.cs` starts with.
+3. Pick a control in the **Components** palette and click (or drag a rectangle) on the form. Set properties in
+   the **Object Inspector** and rename the control in the **Name** box (its field and handlers follow in the code).
+4. **Double-click** the control (or an event on the **Events** tab): the designer writes the handler into the
+   form's `.cs` file and opens your IDE there. **F12** opens the form's code; **Project › Open in IDE** opens the
+   whole project (the folder in VS Code, the `.sln` in Visual Studio or Rider).
 
    ```csharp
    void Button1_Click(Control sender)
@@ -30,14 +39,19 @@ Run the designer (`src/RadSharp.Designer`, or the published app):
    }
    ```
 
-5. **Run › Run (F9)** compiles the project in memory — including unsaved changes to the form — and opens the
-   form with your handlers live. Close it to go back to designing.
-6. **Run › Build (Ctrl+F9)** publishes a native executable for the current OS (NativeAOT) and shows where it went.
+5. **Run › Run (F9)** compiles the application in memory — including unsaved changes to every open form — and
+   starts it from its main form, handlers live. Close it to go back to designing.
+6. **Run › Build (Ctrl+F9)** saves all forms and publishes a native executable for the current OS (NativeAOT).
    Push the project to GitHub and the included workflow builds Windows, macOS and Linux versions.
 
-Other designer tools: **Component › Menu editor** (for MainMenu/PopupMenu), **Tab order**, bring to
-front/send to back, copy/paste of controls, undo/redo, grid and edge snapping (hold **Alt** to place freely),
-arrow keys to nudge (**Shift** resizes, **Ctrl** moves by the grid).
+**Tools › Options** chooses the code editor, Unity style: Visual Studio Code, Visual Studio or JetBrains Rider (the
+designer detects which are installed), or a custom command with `{file}`, `{line}`, `{folder}` and `{solution}`.
+VS Code and Rider open handlers at their line; Visual Studio opens the file (it can't take a line number from the
+command line). Debug, refactor and build the code in your IDE as usual — the project is an ordinary .NET project.
+
+Other designer tools: **Component › Menu Editor** (for MainMenu/PopupMenu), **Tab Order**, bring to
+front/send to back, copy/paste of controls, undo/redo per form, grid and edge snapping (hold **Alt** to place
+freely), arrow keys to nudge (**Shift** resizes, **Ctrl** moves by the grid).
 
 ## Without the designer
 
@@ -45,7 +59,7 @@ Until the packages are on nuget.org, build them with `dotnet pack` (they land in
 install the template from there:
 
 ```sh
-dotnet new install artifacts/packages/RadSharp.Templates.0.1.0-dev.nupkg
+dotnet new install artifacts/packages/RadSharp.Templates.*.nupkg
 dotnet new radsharp-app -n MyApp
 cd MyApp
 dotnet run            # or F5 in VS Code

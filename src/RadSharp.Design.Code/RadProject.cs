@@ -55,7 +55,7 @@ public sealed class RadProject
     /// Creates a new app project in <paramref name="directory"/>: .csproj, Program.cs and a main form.
     /// <paramref name="packageSource"/> (a folder of RADSharp packages) is written to a nuget.config.
     /// </summary>
-    public static RadProject Create(string directory, string name, string radSharpVersion = "0.1.0-dev", string? packageSource = null)
+    public static RadProject Create(string directory, string name, string radSharpVersion = "0.1.0-dev*", string? packageSource = null)
     {
         System.IO.Directory.CreateDirectory(directory);
         var ns = Sanitize(name);
@@ -90,6 +90,9 @@ public sealed class RadProject
             File.WriteAllText(Path.Combine(directory, "nuget.config"), $"""
                 <?xml version="1.0" encoding="utf-8"?>
                 <configuration>
+                  <config>
+                    <add key="globalPackagesFolder" value="packages" />
+                  </config>
                   <packageSources>
                     <add key="radsharp-local" value="{packageSource}" />
                     <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
@@ -97,13 +100,90 @@ public sealed class RadProject
                 </configuration>
 
                 """);
+        File.WriteAllText(Path.Combine(directory, ".gitignore"), "bin/\nobj/\npackages/\n");
         var workflows = Path.Combine(directory, ".github", "workflows");
         System.IO.Directory.CreateDirectory(workflows);
         File.WriteAllText(Path.Combine(workflows, "build.yml"), CrossPlatformWorkflow);
         var project = new RadProject(Path.Combine(directory, name + ".csproj"));
         project.AddForm("MainForm", name);
+        project.EnsureSolution();
         return project;
     }
+
+    // ---- Main form (Delphi: Project > Options > Forms > Main form) ----
+
+    string ProgramFile => Path.Combine(Directory, "Program.cs");
+
+    /// <summary>The class <c>Program.cs</c> passes to <c>Application.Run(new X())</c>, or null.</summary>
+    public string? MainFormClass
+    {
+        get
+        {
+            if (!File.Exists(ProgramFile)) return null;
+            var m = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(ProgramFile), @"Application\.Run\(\s*new\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(");
+            return m.Success ? m.Groups[1].Value : null;
+        }
+    }
+
+    /// <summary>Makes <paramref name="className"/> the form <c>Application.Run</c> starts with.</summary>
+    public bool SetMainForm(string className)
+    {
+        if (!File.Exists(ProgramFile)) return false;
+        var text = File.ReadAllText(ProgramFile);
+        var updated = System.Text.RegularExpressions.Regex.Replace(text, @"(Application\.Run\(\s*new\s+)[A-Za-z_][A-Za-z0-9_]*(\s*\()", "${1}" + className + "${2}");
+        if (updated == text) return false;
+        File.WriteAllText(ProgramFile, updated);
+        return true;
+    }
+
+    /// <summary>Deletes a form and its code-behind (in an SDK-style project, every file in the folder is compiled).</summary>
+    public void RemoveForm(string formFile)
+    {
+        File.Delete(formFile);
+        var code = CodeFileFor(formFile);
+        if (File.Exists(code)) File.Delete(code);
+    }
+
+    /// <summary>
+    /// The project's solution file (for Visual Studio and Rider), written next to the project if there is
+    /// none yet, as Unity does for "Open C# Project".
+    /// </summary>
+    public string EnsureSolution()
+    {
+        var existing = System.IO.Directory.EnumerateFiles(Directory, "*.sln").Concat(System.IO.Directory.EnumerateFiles(Directory, "*.slnx")).FirstOrDefault();
+        if (existing != null) return existing;
+        var path = Path.Combine(Directory, Name + ".sln");
+        var id = "{" + Guid.NewGuid().ToString().ToUpperInvariant() + "}";
+        const string csharp = "{9A19103F-16F7-4668-BE54-9A1E7A4F7556}";
+        var lines = new[]
+        {
+            "",
+            "Microsoft Visual Studio Solution File, Format Version 12.00",
+            "# Visual Studio Version 17",
+            "VisualStudioVersion = 17.0.31903.59",
+            "MinimumVisualStudioVersion = 10.0.40219.1",
+            $"Project(\"{csharp}\") = \"{Name}\", \"{Name}.csproj\", \"{id}\"",
+            "EndProject",
+            "Global",
+            "\tGlobalSection(SolutionConfigurationPlatforms) = preSolution",
+            "\t\tDebug|Any CPU = Debug|Any CPU",
+            "\t\tRelease|Any CPU = Release|Any CPU",
+            "\tEndGlobalSection",
+            "\tGlobalSection(ProjectConfigurationPlatforms) = postSolution",
+            $"\t\t{id}.Debug|Any CPU.ActiveCfg = Debug|Any CPU",
+            $"\t\t{id}.Debug|Any CPU.Build.0 = Debug|Any CPU",
+            $"\t\t{id}.Release|Any CPU.ActiveCfg = Release|Any CPU",
+            $"\t\t{id}.Release|Any CPU.Build.0 = Release|Any CPU",
+            "\tEndGlobalSection",
+            "EndGlobal",
+        };
+        File.WriteAllText(path, string.Join("\r\n", lines) + "\r\n");
+        return path;
+    }
+
+    /// <summary>The form file for a class name, if the project has it.</summary>
+    public string? FormFileFor(string className) =>
+        FormFiles.FirstOrDefault(f => FormClassName(f) == className);
 
     /// <summary>A GitHub Actions workflow that builds the app natively on Windows, macOS and Linux.</summary>
     public const string CrossPlatformWorkflow = """

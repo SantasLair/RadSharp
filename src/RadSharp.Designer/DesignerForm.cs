@@ -1,24 +1,39 @@
-using RadSharp;
 using RadSharp.Design;
+using RadSharp.Design.Code;
 
 namespace RadSharp.Designer;
 
 /// <summary>
-/// The RADSharp form designer — itself a RADSharp form (DesignerForm.radform.json). Palette on the left,
-/// design surface in the middle, Object Inspector (properties, events, structure) on the right.
+/// The RADSharp IDE — itself a RADSharp form (DesignerForm.radform.json). As in Delphi and Lazarus, the
+/// designer always works on a project: with none open it shows the welcome page (new application, open
+/// project, recent projects); with one open, each open form has a tab with its own design surface.
 /// </summary>
 public partial class DesignerForm : Form
 {
-    readonly DesignDocument _doc = new();
+    /// <summary>A form open in the designer: its file, document and design surface on a tab.</summary>
+    public sealed class OpenForm(string path, DesignDocument doc, DesignSurface surface, TabSheet sheet)
+    {
+        public string Path { get; } = path;
+        public DesignDocument Document { get; } = doc;
+        public DesignSurface Surface { get; } = surface;
+        public TabSheet Sheet { get; } = sheet;
+        public string ClassName => RadProject.FormClassName(Path);
+    }
+
+    readonly List<OpenForm> _forms = [];
+    OpenForm? _active;
+    RadProject? _project;
+    readonly DesignerSettings _settings;
+    readonly string? _settingsPath;
     readonly List<ComponentClass> _palette;
     bool _syncing;
 
-    public DesignerForm(string? path = null)
+    public DesignerForm(string? projectFile = null, string? settingsPath = null)
     {
         InitializeComponent();
-        surface.Document = _doc;
-        surface.Created += _ => lstPalette.ItemIndex = -1;
-        surface.DoubleClicked += OnSurfaceDoubleClicked;
+        _settingsPath = settingsPath;
+        _settings = DesignerSettings.Load(settingsPath);
+        _settings.RemoveMissing();
 
         _palette = [.. ComponentRegistry.All
             .Where(c => c.CanCreate && c.Type != typeof(Control) && !typeof(Form).IsAssignableFrom(c.Type) && c.Type != typeof(DesignSurface))
@@ -27,98 +42,252 @@ public partial class DesignerForm : Form
 
         foreach (var grid in new[] { gridProps, gridEvents })
         {
-            grid.PropertyChanging += (_, _) => _doc.Snapshot();
-            grid.PropertyChanged += (_, _) => _doc.NotifyChanged();
+            grid.PropertyChanging += (_, _) => Document?.Snapshot();
+            grid.PropertyChanged += (_, _) => Document?.NotifyChanged();
         }
-        gridEvents.EventDoubleClick += (_, ev) => EditHandler(_doc.Primary, ev);
+        gridEvents.EventDoubleClick += (_, ev) => { if (Document is { } d) EditHandler(d.Primary, ev); };
 
-        _doc.SelectionChanged += UpdateInspector;
-        _doc.Changed += () => { gridProps.RefreshValues(); gridEvents.RefreshValues(); RebuildStructure(); UpdateTitle(); };
-        _doc.FormReplaced += () => { UpdateInspector(); RebuildStructure(); };
-
-        if (path != null && path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) && File.Exists(path)) OpenProject(path);
-        else if (path != null && File.Exists(path)) OpenFile(path);
-        UpdateInspector();
-        RebuildStructure();
-        UpdateTitle();
+        if (projectFile != null && File.Exists(projectFile)) OpenProject(projectFile);
+        UpdateUi();
         Shown += _ => CheckSdk();
     }
 
-    public DesignDocument Document => _doc;
+    // ---- State (also used by tests) ----
 
-    // ---- Files ----
+    public RadProject? Project => _project;
+    public IReadOnlyList<OpenForm> OpenForms => _forms;
+    public OpenForm? ActiveForm => _active;
+    public DesignDocument? Document => _active?.Document;
+    public DesignerSettings Settings => _settings;
+    public bool WelcomeVisible => pnlWelcome.Visible;
 
-    void OpenFile(string path)
+    void SaveSettings()
     {
-        try
-        {
-            var warnings = _doc.Load(File.ReadAllText(path));
-            _doc.FileName = path;
-            if (warnings.Count > 0) Dialogs.ShowMessage("The form loaded with warnings:\n" + string.Join("\n", warnings.Take(12)), this);
-        }
-        catch (Exception e) when (e is IOException or FormFileException or UnauthorizedAccessException)
-        {
-            Dialogs.MessageDlg($"Could not open {Path.GetFileName(path)}:\n{e.Message}", MessageType.Error, owner: this);
-        }
-        UpdateTitle();
+        try { _settings.Save(_settingsPath); }
+        catch (IOException) { }
     }
 
-    bool SaveTo(string? path)
+    // ---- Projects ----
+
+    /// <summary>Opens a project (closing the current one first), then its main form.</summary>
+    public bool OpenProject(string projectFile)
     {
-        if (path == null)
+        if (_project != null && !CloseProject()) return false;
+        try { _project = new RadProject(projectFile); }
+        catch (IOException e)
         {
-            dlgSave.FileName = _doc.Form.Name.Length > 0 ? _doc.Form.Name + ".radform.json" : "Form1.radform.json";
-            if (!dlgSave.Execute()) return false;
-            path = dlgSave.FileName;
-            if (!path.EndsWith(".radform.json", StringComparison.OrdinalIgnoreCase)) path += ".radform.json";
+            Dialogs.MessageDlg($"Could not open the project:\n{e.Message}", MessageType.Error, owner: this);
+            return false;
         }
-        File.WriteAllText(path, _doc.Save());
-        _doc.FileName = path;
-        _doc.MarkSaved();
-        UpdateTitle();
-        RefreshProject();
-        sbMain.SimpleText = "Saved " + path;
+        _settings.AddRecent(_project.ProjectFile);
+        SaveSettings();
+        var main = _project.MainFormClass is { } cls ? _project.FormFileFor(cls) : null;
+        if ((main ?? _project.FormFiles.FirstOrDefault()) is { } first) OpenFormFile(first);
+        UpdateUi();
+        Output($"Opened project {_project.ProjectFile}");
         return true;
     }
 
-    /// <summary>Asks to save unsaved changes; returns false if the user cancelled.</summary>
-    bool ConfirmDiscard()
+    /// <summary>Closes every form (asking to save changes) and returns to the welcome page.</summary>
+    public bool CloseProject()
     {
-        if (!_doc.Modified) return true;
-        return Dialogs.MessageDlg($"Save changes to {DocumentTitle}?", MessageType.Confirmation, MessageButtons.YesNoCancel, this) switch
-        {
-            ModalResult.Yes => SaveTo(_doc.FileName),
-            ModalResult.No => true,
-            _ => false,
-        };
+        if (!ConfirmSave(_forms)) return false;
+        CloseLiveForm();
+        foreach (var f in _forms.ToList()) RemoveTab(f);
+        _project = null;
+        UpdateUi();
+        return true;
     }
 
-    string DocumentTitle => _doc.FileName != null ? Path.GetFileName(_doc.FileName) : "Untitled";
+    // ---- Forms and tabs ----
 
-    void UpdateTitle() => Caption = $"RADSharp Designer — {DocumentTitle}{(_doc.Modified ? " *" : "")}";
+    /// <summary>Opens a form of the project in its own tab (or switches to it if it is open).</summary>
+    public OpenForm? OpenFormFile(string path)
+    {
+        path = System.IO.Path.GetFullPath(path);
+        if (_forms.FirstOrDefault(f => string.Equals(f.Path, path, StringComparison.OrdinalIgnoreCase)) is { } open)
+        {
+            Activate(open);
+            return open;
+        }
+        var doc = new DesignDocument();
+        try
+        {
+            var warnings = doc.Load(File.ReadAllText(path));
+            doc.FileName = path;
+            if (warnings.Count > 0) Output($"{System.IO.Path.GetFileName(path)}: " + string.Join("; ", warnings.Take(5)));
+        }
+        catch (Exception e) when (e is IOException or FormFileException or UnauthorizedAccessException)
+        {
+            Dialogs.MessageDlg($"Could not open {System.IO.Path.GetFileName(path)}:\n{e.Message}", MessageType.Error, owner: this);
+            return null;
+        }
+
+        var sheet = new TabSheet { Caption = RadProject.FormClassName(path) };
+        var surface = new DesignSurface { Document = doc, Align = Align.Client, ShowGrid = mniShowGrid.Checked };
+        sheet.Add(surface);
+        pgForms.Add(sheet);
+        var form = new OpenForm(path, doc, surface, sheet);
+        _forms.Add(form);
+
+        surface.Created += _ => lstPalette.ItemIndex = -1;
+        surface.DoubleClicked += c => { if (CodeIntegration.DefaultEvent(c) is { } ev) EditHandler(c, ev); };
+        doc.SelectionChanged += () => { if (_active == form) UpdateInspector(); };
+        doc.FormReplaced += () => { if (_active == form) { UpdateInspector(); RebuildStructure(); } };
+        doc.Changed += () =>
+        {
+            sheet.Caption = form.ClassName + (doc.Modified ? " *" : "");
+            if (_active != form) return;
+            gridProps.RefreshValues();
+            gridEvents.RefreshValues();
+            RebuildStructure();
+            UpdateTitle();
+        };
+        Activate(form);
+        return form;
+    }
+
+    void Activate(OpenForm form)
+    {
+        _active = form;
+        int i = pgForms.Pages.ToList().IndexOf(form.Sheet);
+        if (i >= 0 && pgForms.ActivePageIndex != i) pgForms.ActivePageIndex = i;
+        form.Surface.PendingClass = lstPalette.ItemIndex >= 0 ? _palette[lstPalette.ItemIndex] : null;
+        UpdateInspector();
+        RebuildStructure();
+        UpdateTitle();
+        form.Surface.Focus();
+    }
+
+    void pgForms_Change(Control sender)
+    {
+        if (_forms.FirstOrDefault(f => f.Sheet == pgForms.ActivePage) is { } f && f != _active) Activate(f);
+    }
+
+    /// <summary>Closes a form's tab, asking to save its changes first.</summary>
+    public bool CloseForm(OpenForm form)
+    {
+        if (!ConfirmSave([form])) return false;
+        RemoveTab(form);
+        return true;
+    }
+
+    void RemoveTab(OpenForm form)
+    {
+        _forms.Remove(form);
+        pgForms.Remove(form.Sheet);
+        if (_active == form)
+        {
+            _active = null;
+            if (_forms.Count > 0) Activate(_forms[^1]);
+        }
+        UpdateUi();
+    }
+
+    public bool Save(OpenForm form)
+    {
+        File.WriteAllText(form.Path, form.Document.Save());
+        form.Document.MarkSaved();
+        form.Sheet.Caption = form.ClassName;
+        UpdateTitle();
+        return true;
+    }
+
+    public void SaveAll()
+    {
+        foreach (var f in _forms.Where(f => f.Document.Modified)) Save(f);
+        sbMain.SimpleText = "All forms saved";
+    }
+
+    /// <summary>Asks once about all modified forms in <paramref name="forms"/>; false if the user cancelled.</summary>
+    bool ConfirmSave(IEnumerable<OpenForm> forms)
+    {
+        var modified = forms.Where(f => f.Document.Modified).ToList();
+        if (modified.Count == 0) return true;
+        var names = string.Join(", ", modified.Select(f => f.ClassName));
+        switch (Dialogs.MessageDlg($"Save changes to {names}?", MessageType.Confirmation, MessageButtons.YesNoCancel, this))
+        {
+            case ModalResult.Yes: foreach (var f in modified) Save(f); return true;
+            case ModalResult.No: return true;
+            default: return false;
+        }
+    }
+
+    // ---- UI state ----
+
+    void UpdateUi()
+    {
+        bool hasProject = _project != null;
+        pnlWelcome.Visible = !hasProject;
+        pgForms.Visible = hasProject;
+        pnlPalette.Enabled = hasProject && _active != null;
+        pnlInspector.Enabled = hasProject && _active != null;
+        foreach (var b in new Control[] { btnSaveAll, btnNewForm, btnUndo, btnRedo, btnToggleCode, btnOpenInIde, btnRun, btnBuild })
+            b.Enabled = hasProject;
+        mniNewForm.Enabled = mniSave.Enabled = mniSaveAll.Enabled = mniCloseForm.Enabled = mniCloseProject.Enabled = hasProject;
+
+        lblProject.Caption = _project?.Name ?? "";
+        lstForms.Items = _project == null ? [] : [.. _project.FormFiles.Select(f =>
+            RadProject.FormClassName(f) + (RadProject.FormClassName(f) == _project.MainFormClass ? "   (main form)" : ""))];
+
+        lstRecent.Items = [.. _settings.RecentProjects.Select(p => $"{System.IO.Path.GetFileNameWithoutExtension(p)}   —   {System.IO.Path.GetDirectoryName(p)}")];
+        var source = _settings.EffectivePackageSource;
+        lblPackages.Caption = source != null
+            ? $"RADSharp packages for new projects: {source}"
+            : "RADSharp packages: none found locally, so new projects use nuget.org (run dotnet pack in the RADSharp repository).";
+
+        mniReopen.Items.Clear();
+        foreach (var p in _settings.RecentProjects)
+        {
+            var path = p;
+            mniReopen.Items.Add(new MenuItem(System.IO.Path.GetFileNameWithoutExtension(p), _ => OpenProject(path)));
+        }
+        if (mniReopen.Items.Count == 0) mniReopen.Items.Add(new MenuItem("(none)") { Enabled = false });
+
+        if (!hasProject || _active == null)
+        {
+            gridProps.Target = null;
+            gridEvents.Target = null;
+            tvStructure.Nodes.Clear();
+            edtName.Text = "";
+        }
+        UpdateTitle();
+        InvalidateAll();
+    }
+
+    void UpdateTitle()
+    {
+        if (_project == null) { Caption = "RADSharp"; return; }
+        Caption = _active == null
+            ? $"RADSharp — {_project.Name}"
+            : $"RADSharp — {_project.Name} — {_active.ClassName}{(_active.Document.Modified ? " *" : "")}";
+    }
 
     // ---- Inspector, name, structure ----
 
     void UpdateInspector()
     {
+        if (Document is not { } doc) return;
         _syncing = true;
-        var target = _doc.Primary;
+        var target = doc.Primary;
         gridProps.Target = target;
         gridEvents.Target = target;
         edtName.Text = target.Name;
         tvStructure.Selected = FindNode(tvStructure.Nodes, target);
-        sbMain.SimpleText = _doc.Selection.Count > 1
-            ? $"{_doc.Selection.Count} controls selected"
+        sbMain.SimpleText = doc.Selection.Count > 1
+            ? $"{doc.Selection.Count} controls selected"
             : $"{target.Name}: {ComponentRegistry.Of(target).Name}  —  {target.Bounds}";
         _syncing = false;
-        surface.Invalidate();
+        _active!.Surface.Invalidate();
+        pnlPalette.Enabled = pnlInspector.Enabled = true;
     }
 
     void RebuildStructure()
     {
+        if (Document is not { } doc) return;
         _syncing = true;
         tvStructure.Nodes.Clear();
-        var root = new TreeNode(Label(_doc.Form)) { Tag = _doc.Form, Expanded = true };
+        var root = new TreeNode(Label(doc.Form)) { Tag = doc.Form, Expanded = true };
         void Add(TreeNode node, Control c)
         {
             foreach (var child in c.Children)
@@ -129,9 +298,9 @@ public partial class DesignerForm : Form
                 Add(n, child);
             }
         }
-        Add(root, _doc.Form);
+        Add(root, doc.Form);
         tvStructure.Nodes.Add(root);
-        tvStructure.Selected = FindNode(tvStructure.Nodes, _doc.Primary);
+        tvStructure.Selected = FindNode(tvStructure.Nodes, doc.Primary);
         tvStructure.Invalidate();
         _syncing = false;
     }
@@ -150,8 +319,8 @@ public partial class DesignerForm : Form
 
     void tvStructure_Change(Control sender)
     {
-        if (_syncing || tvStructure.Selected?.Tag is not Control c) return;
-        _doc.Select(c == _doc.Form ? null : c);
+        if (_syncing || Document is not { } doc || tvStructure.Selected?.Tag is not Control c) return;
+        doc.Select(c == doc.Form ? null : c);
     }
 
     void edtName_KeyDown(Control sender, KeyEventArgs e)
@@ -165,11 +334,12 @@ public partial class DesignerForm : Form
 
     void ApplyName()
     {
-        var target = _doc.Primary;
+        if (Document is not { } doc) return;
+        var target = doc.Primary;
         var name = edtName.Text.Trim();
         if (name == target.Name) return;
         var old = target.Name;
-        if (!_doc.Rename(target, name))
+        if (!doc.Rename(target, name))
         {
             sbMain.SimpleText = $"\"{name}\" is not a valid, unused name";
             edtName.Text = target.Name;
@@ -180,81 +350,80 @@ public partial class DesignerForm : Form
 
     void pgInspector_Change(Control sender) => UpdateInspector();
 
-    // ---- Palette ----
-
     void lstPalette_Change(Control sender)
     {
-        surface.PendingClass = lstPalette.ItemIndex >= 0 ? _palette[lstPalette.ItemIndex] : null;
-        if (surface.PendingClass is { } cls) sbMain.SimpleText = $"Click or drag on the form to place a {cls.Name} (Shift keeps it selected)";
+        if (_active == null) return;
+        _active.Surface.PendingClass = lstPalette.ItemIndex >= 0 ? _palette[lstPalette.ItemIndex] : null;
+        if (_active.Surface.PendingClass is { } cls) sbMain.SimpleText = $"Click or drag on the form to place a {cls.Name} (Shift keeps it selected)";
     }
 
-    // ---- Commands (menu items and tool buttons share these handlers) ----
-
-    void mnuNew_Click(object sender)
+    void lstForms_DblClick(Control sender)
     {
-        if (!ConfirmDiscard()) return;
-        _doc.New();
-        UpdateTitle();
+        if (_project == null || lstForms.ItemIndex < 0) return;
+        OpenFormFile(_project.FormFiles[lstForms.ItemIndex]);
     }
 
-    void mnuOpen_Click(object sender)
+    void lstRecent_DblClick(Control sender)
     {
-        if (!ConfirmDiscard() || !dlgOpen.Execute()) return;
-        OpenFile(dlgOpen.FileName);
+        if (lstRecent.ItemIndex >= 0 && lstRecent.ItemIndex < _settings.RecentProjects.Count)
+            OpenProject(_settings.RecentProjects[lstRecent.ItemIndex]);
     }
 
-    void mnuSave_Click(object sender) => SaveTo(_doc.FileName);
-    void mnuSaveAs_Click(object sender) => SaveTo(null);
-    void mnuExit_Click(object sender) => Close();
-    void mnuUndo_Click(object sender) => _doc.Undo();
-    void mnuRedo_Click(object sender) => _doc.Redo();
-    void mnuCut_Click(object sender) { surface.CopySelection(); _doc.DeleteSelection(); }
-    void mnuCopy_Click(object sender) => surface.CopySelection();
-    void mnuPaste_Click(object sender) => surface.PasteClipboard();
-    void mnuDelete_Click(object sender) => _doc.DeleteSelection();
-    void mnuSelectAll_Click(object sender) => _doc.SelectMany(_doc.PasteTarget().Children.Where(c => c.IsShown || c is Component));
+    // ---- Edit and component commands (menu items and tool buttons share these handlers) ----
+
+    void mnuUndo_Click(object sender) => Document?.Undo();
+    void mnuRedo_Click(object sender) => Document?.Redo();
+    void mnuCut_Click(object sender) { _active?.Surface.CopySelection(); Document?.DeleteSelection(); }
+    void mnuCopy_Click(object sender) => _active?.Surface.CopySelection();
+    void mnuPaste_Click(object sender) => _active?.Surface.PasteClipboard();
+    void mnuDelete_Click(object sender) => Document?.DeleteSelection();
+
+    void mnuSelectAll_Click(object sender)
+    {
+        if (Document is { } doc) doc.SelectMany(doc.PasteTarget().Children.Where(c => c.IsShown || c is Component));
+    }
 
     void mnuMenuEditor_Click(object sender)
     {
-        var menu = _doc.Primary as IMenuOwner ?? _doc.Form.Descendants().OfType<IMenuOwner>().FirstOrDefault();
-        if (menu == null)
-        {
-            Dialogs.ShowMessage("Add a MainMenu or PopupMenu to the form first.", this);
-            return;
-        }
-        MenuEditor.Edit(_doc, menu, this);
+        if (Document is not { } doc) return;
+        var menu = doc.Primary as IMenuOwner ?? doc.Form.Descendants().OfType<IMenuOwner>().FirstOrDefault();
+        if (menu == null) { Dialogs.ShowMessage("Add a MainMenu or PopupMenu to the form first.", this); return; }
+        MenuEditor.Edit(doc, menu, this);
     }
 
-    void mnuTabOrder_Click(object sender) => TabOrderEditor.Edit(_doc, _doc.PasteTarget(), this);
+    void mnuTabOrder_Click(object sender)
+    {
+        if (Document is { } doc) TabOrderEditor.Edit(doc, doc.PasteTarget(), this);
+    }
 
     void mnuBringToFront_Click(object sender) => Reorder(toFront: true);
     void mnuSendToBack_Click(object sender) => Reorder(toFront: false);
 
     void Reorder(bool toFront)
     {
-        var targets = _doc.Selection.Where(c => c.Parent != null).ToList();
+        if (Document is not { } doc) return;
+        var targets = doc.Selection.Where(c => c.Parent != null).ToList();
         if (targets.Count == 0) return;
-        _doc.Snapshot();
+        doc.Snapshot();
         foreach (var c in targets)
         {
             var parent = c.Parent!;
             parent.Remove(c);
             parent.Insert(toFront ? parent.Children.Count : 0, c);
         }
-        _doc.SelectMany(targets);
-        _doc.NotifyChanged();
+        doc.SelectMany(targets);
+        doc.NotifyChanged();
     }
 
     void mnuShowGrid_Click(object sender)
     {
-        surface.ShowGrid = !surface.ShowGrid;
-        mniShowGrid.Checked = surface.ShowGrid;
-        surface.Invalidate();
+        mniShowGrid.Checked = !mniShowGrid.Checked;
+        foreach (var f in _forms) { f.Surface.ShowGrid = mniShowGrid.Checked; f.Surface.Invalidate(); }
     }
 
     void frmDesigner_CloseQuery(Control sender, CloseQueryEventArgs e)
     {
-        e.CanClose = ConfirmDiscard();
+        e.CanClose = ConfirmSave(_forms);
         if (e.CanClose) CloseLiveForm();
     }
 }

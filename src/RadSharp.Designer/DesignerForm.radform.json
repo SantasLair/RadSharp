@@ -5,9 +5,9 @@
   "root": {
     "class": "Form",
     "name": "frmDesigner",
-    "caption": "RADSharp Designer",
-    "width": 1180,
-    "height": 760,
+    "caption": "RADSharp",
+    "width": 1220,
+    "height": 780,
     "onCloseQuery": "frmDesigner_CloseQuery",
     "children": [
       {
@@ -18,41 +18,61 @@
             "caption": "File",
             "items": [
               {
-                "caption": "New project…",
-                "onClick": "mnuNewProject_Click"
+                "caption": "New Application…",
+                "onClick": "mnuNewApplication_Click",
+                "shortcut": "Mod+Shift+N"
               },
               {
-                "caption": "Open project…",
-                "onClick": "mnuOpenProject_Click",
-                "shortcut": "Mod+Shift+O"
-              },
-              {
-                "caption": "New form",
-                "onClick": "mnuNewForm_Click"
+                "caption": "New Form",
+                "onClick": "mnuNewForm_Click",
+                "shortcut": "Mod+N",
+                "name": "mniNewForm"
               },
               {
                 "caption": "-",
                 "separator": true
               },
               {
-                "caption": "New",
-                "onClick": "mnuNew_Click",
-                "shortcut": "Mod+N"
+                "caption": "Open Project…",
+                "onClick": "mnuOpenProject_Click",
+                "shortcut": "Mod+O"
               },
               {
-                "caption": "Open…",
-                "onClick": "mnuOpen_Click",
-                "shortcut": "Mod+O"
+                "caption": "Reopen",
+                "name": "mniReopen",
+                "items": [
+                  {
+                    "caption": "(none)",
+                    "enabled": false
+                  }
+                ]
+              },
+              {
+                "caption": "-",
+                "separator": true
               },
               {
                 "caption": "Save",
                 "onClick": "mnuSave_Click",
-                "shortcut": "Mod+S"
+                "shortcut": "Mod+S",
+                "name": "mniSave"
               },
               {
-                "caption": "Save as…",
-                "onClick": "mnuSaveAs_Click",
-                "shortcut": "Mod+Shift+S"
+                "caption": "Save All",
+                "onClick": "mnuSaveAll_Click",
+                "shortcut": "Mod+Shift+S",
+                "name": "mniSaveAll"
+              },
+              {
+                "caption": "Close Form",
+                "onClick": "mnuCloseForm_Click",
+                "shortcut": "Ctrl+F4",
+                "name": "mniCloseForm"
+              },
+              {
+                "caption": "Close Project",
+                "onClick": "mnuCloseProject_Click",
+                "name": "mniCloseProject"
               },
               {
                 "caption": "-",
@@ -107,35 +127,51 @@
                 "separator": true
               },
               {
-                "caption": "Select all",
+                "caption": "Select All",
                 "onClick": "mnuSelectAll_Click",
                 "shortcut": "Mod+A"
               }
             ]
           },
           {
-            "caption": "Component",
+            "caption": "View",
             "items": [
               {
-                "caption": "Menu editor…",
-                "onClick": "mnuMenuEditor_Click",
-                "shortcut": "Mod+M"
+                "caption": "Toggle Form/Code",
+                "onClick": "mnuToggleCode_Click",
+                "shortcut": "F12"
               },
               {
-                "caption": "Tab order…",
-                "onClick": "mnuTabOrder_Click"
+                "caption": "Show Grid",
+                "onClick": "mnuShowGrid_Click",
+                "name": "mniShowGrid",
+                "checked": true
+              }
+            ]
+          },
+          {
+            "caption": "Project",
+            "items": [
+              {
+                "caption": "Add New Form",
+                "onClick": "mnuNewForm_Click"
+              },
+              {
+                "caption": "Remove Form from Project…",
+                "onClick": "mnuRemoveForm_Click"
+              },
+              {
+                "caption": "Set as Main Form",
+                "onClick": "mnuSetMainForm_Click"
               },
               {
                 "caption": "-",
                 "separator": true
               },
               {
-                "caption": "Bring to front",
-                "onClick": "mnuBringToFront_Click"
-              },
-              {
-                "caption": "Send to back",
-                "onClick": "mnuSendToBack_Click"
+                "caption": "Open in IDE",
+                "onClick": "mnuOpenInIde_Click",
+                "shortcut": "Mod+Shift+E"
               }
             ]
           },
@@ -155,13 +191,37 @@
             ]
           },
           {
-            "caption": "View",
+            "caption": "Component",
             "items": [
               {
-                "caption": "Show grid",
-                "name": "mniShowGrid",
-                "onClick": "mnuShowGrid_Click",
-                "checked": true
+                "caption": "Menu Editor…",
+                "onClick": "mnuMenuEditor_Click",
+                "shortcut": "Mod+M"
+              },
+              {
+                "caption": "Tab Order…",
+                "onClick": "mnuTabOrder_Click"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Bring to Front",
+                "onClick": "mnuBringToFront_Click"
+              },
+              {
+                "caption": "Send to Back",
+                "onClick": "mnuSendToBack_Click"
+              }
+            ]
+          },
+          {
+            "caption": "Tools",
+            "items": [
+              {
+                "caption": "Options…",
+                "onClick": "mnuOptions_Click"
               }
             ]
           }
@@ -173,24 +233,17 @@
         "children": [
           {
             "class": "ToolButton",
-            "name": "btnNew",
-            "caption": "New",
-            "onClick": "mnuNew_Click",
-            "width": 52
+            "name": "btnOpenProject",
+            "caption": "Open Project",
+            "onClick": "mnuOpenProject_Click",
+            "width": 100
           },
           {
             "class": "ToolButton",
-            "name": "btnOpen",
-            "caption": "Open",
-            "onClick": "mnuOpen_Click",
-            "width": 56
-          },
-          {
-            "class": "ToolButton",
-            "name": "btnSave",
-            "caption": "Save",
-            "onClick": "mnuSave_Click",
-            "width": 56
+            "name": "btnSaveAll",
+            "caption": "Save All",
+            "onClick": "mnuSaveAll_Click",
+            "width": 72
           },
           {
             "class": "ToolSeparator",
@@ -198,17 +251,24 @@
           },
           {
             "class": "ToolButton",
+            "name": "btnNewForm",
+            "caption": "New Form",
+            "onClick": "mnuNewForm_Click",
+            "width": 80
+          },
+          {
+            "class": "ToolButton",
             "name": "btnUndo",
             "caption": "Undo",
             "onClick": "mnuUndo_Click",
-            "width": 56
+            "width": 52
           },
           {
             "class": "ToolButton",
             "name": "btnRedo",
             "caption": "Redo",
             "onClick": "mnuRedo_Click",
-            "width": 56
+            "width": 52
           },
           {
             "class": "ToolSeparator",
@@ -216,17 +276,17 @@
           },
           {
             "class": "ToolButton",
-            "name": "btnMenuEditor",
-            "caption": "Menu editor",
-            "onClick": "mnuMenuEditor_Click",
-            "width": 96
+            "name": "btnToggleCode",
+            "caption": "Code (F12)",
+            "onClick": "mnuToggleCode_Click",
+            "width": 88
           },
           {
             "class": "ToolButton",
-            "name": "btnTabOrder",
-            "caption": "Tab order",
-            "onClick": "mnuTabOrder_Click",
-            "width": 84
+            "name": "btnOpenInIde",
+            "caption": "Open in IDE",
+            "onClick": "mnuOpenInIde_Click",
+            "width": 96
           },
           {
             "class": "ToolSeparator",
@@ -432,7 +492,7 @@
                   {
                     "class": "Label",
                     "name": "lblProject",
-                    "caption": "No project open",
+                    "caption": "",
                     "align": "top",
                     "height": 26,
                     "margin": {
@@ -441,7 +501,8 @@
                       "r": 0,
                       "b": 0
                     },
-                    "layout": "center"
+                    "layout": "center",
+                    "fontBold": true
                   },
                   {
                     "class": "ListBox",
@@ -462,24 +523,99 @@
         "minSize": 220
       },
       {
-        "class": "DesignSurface",
-        "name": "surface",
-        "align": "client"
+        "class": "Panel",
+        "name": "pnlWelcome",
+        "align": "client",
+        "borderStyle": "none",
+        "color": "#FFFFFF",
+        "children": [
+          {
+            "class": "Label",
+            "name": "lblWelcome",
+            "caption": "RADSharp",
+            "fontSize": 30,
+            "fontBold": true,
+            "left": 48,
+            "top": 40,
+            "width": 520,
+            "height": 44
+          },
+          {
+            "class": "Label",
+            "name": "lblWelcomeHint",
+            "caption": "Create or open a project to start designing.",
+            "fontColor": "#6B7280",
+            "left": 48,
+            "top": 88,
+            "width": 520,
+            "height": 24
+          },
+          {
+            "class": "Button",
+            "name": "btnNewApplication",
+            "caption": "New Application…",
+            "default": true,
+            "left": 48,
+            "top": 132,
+            "width": 170,
+            "height": 34,
+            "onClick": "mnuNewApplication_Click"
+          },
+          {
+            "class": "Button",
+            "name": "btnOpenProjectWelcome",
+            "caption": "Open Project…",
+            "left": 230,
+            "top": 132,
+            "width": 150,
+            "height": 34,
+            "onClick": "mnuOpenProject_Click"
+          },
+          {
+            "class": "Label",
+            "name": "lblRecent",
+            "caption": "Recent projects",
+            "fontBold": true,
+            "left": 48,
+            "top": 192,
+            "width": 300,
+            "height": 24
+          },
+          {
+            "class": "ListBox",
+            "name": "lstRecent",
+            "itemHeight": 28,
+            "left": 48,
+            "top": 220,
+            "width": 560,
+            "height": 240,
+            "onDblClick": "lstRecent_DblClick"
+          },
+          {
+            "class": "Label",
+            "name": "lblPackages",
+            "caption": "",
+            "fontColor": "#6B7280",
+            "left": 48,
+            "top": 472,
+            "width": 700,
+            "height": 22
+          }
+        ]
+      },
+      {
+        "class": "PageControl",
+        "name": "pgForms",
+        "align": "client",
+        "visible": false,
+        "onChange": "pgForms_Change"
       },
       {
         "class": "OpenDialog",
-        "name": "dlgOpen",
-        "filter": "RADSharp forms|*.radform.json|All files|*.*",
-        "title": "Open form",
+        "name": "dlgOpenProject",
+        "filter": "C# projects|*.csproj",
+        "title": "Open project",
         "left": 400,
-        "top": 300
-      },
-      {
-        "class": "SaveDialog",
-        "name": "dlgSave",
-        "filter": "RADSharp forms|*.radform.json",
-        "title": "Save form",
-        "left": 440,
         "top": 300
       }
     ]
