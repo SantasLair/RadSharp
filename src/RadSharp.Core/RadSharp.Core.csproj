@@ -5,4 +5,16 @@
     <IsAotCompatible>true</IsAotCompatible>
   </PropertyGroup>
 
+  <ItemGroup>
+    <PackageReference Include="HarfBuzzSharp" Version="14.2.1.201" />
+    <PackageReference Include="HarfBuzzSharp.NativeAssets.Linux" Version="14.2.1.201" />
+    <PackageReference Include="SkiaSharp" Version="4.152.1" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="4.152.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="Fonts\*.ttf" LogicalName="RadSharp.Fonts.%(Filename)%(Extension)" />
+    <None Include="Fonts\Inter-LICENSE.txt" Pack="true" PackagePath="licenses" />
+  </ItemGroup>
+
 </Project>

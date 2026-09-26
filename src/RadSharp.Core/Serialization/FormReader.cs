@@ -28,6 +28,13 @@ public sealed class FormFileException(string message) : Exception(message);
 
 public sealed record FormLoadResult(Form Form, IReadOnlyList<string> Warnings);
 
+public sealed record FormLoadOptions
+{
+    public ClassRegistry? Registry { get; init; }
+    /// <summary>UI scale factor; stored lengths are multiplied by it and rounded before the first layout.</summary>
+    public double Scale { get; init; } = 1;
+}
+
 /// <summary>Reads form files (spec, Appendix A).</summary>
 public static class FormReader
 {
@@ -37,9 +44,13 @@ public static class FormReader
     /// <summary>
     /// Loads a form and lays it out once at its design size, so anchors capture design-time distances.
     /// </summary>
-    public static FormLoadResult Load(string json, ClassRegistry? registry = null)
+    public static FormLoadResult Load(string json, ClassRegistry? registry = null) =>
+        Load(json, new FormLoadOptions { Registry = registry });
+
+    public static FormLoadResult Load(string json, FormLoadOptions options)
     {
-        registry ??= ClassRegistry.CreateDefault();
+        if (options.Scale <= 0) throw new ArgumentOutOfRangeException(nameof(options), "Scale must be positive.");
+        var registry = options.Registry ?? ClassRegistry.CreateDefault();
         var warnings = new List<string>();
 
         using var doc = ParseDocument(json);
@@ -58,6 +69,8 @@ public static class FormReader
 
         form.DesignWidth = form.Width;
         form.DesignHeight = form.Height;
+        if (options.Scale != 1) form.ScaleLengths(options.Scale);
+        form.Scale = options.Scale;
         form.PerformLayout();
         return new FormLoadResult(form, warnings);
     }

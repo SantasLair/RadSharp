@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <IsPackable>false</IsPackable>
+    <PublishAot>true</PublishAot>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="MainForm.radform.json" LogicalName="MainForm.radform.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RadSharp.Platform.Sdl\RadSharp.Platform.Sdl.csproj" />
+  </ItemGroup>
+
+</Project>

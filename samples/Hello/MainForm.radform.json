@@ -1,0 +1,52 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "hand-written",
+  "root": {
+    "class": "Form",
+    "name": "frmMain",
+    "caption": "Hello RADSharp",
+    "height": 300,
+    "width": 480,
+    "children": [
+      {
+        "class": "Panel",
+        "name": "pnlToolbar",
+        "align": "top",
+        "height": 40,
+        "children": [
+          { "class": "Button", "name": "btnNew", "caption": "New", "left": 6, "top": 6 },
+          { "class": "Button", "name": "btnOpen", "caption": "Open…", "left": 92, "top": 6 },
+          { "class": "Button", "name": "btnSave", "caption": "Save", "enabled": false, "left": 178, "top": 6 }
+        ]
+      },
+      {
+        "class": "Panel",
+        "name": "pnlStatus",
+        "align": "bottom",
+        "height": 24,
+        "children": [
+          { "class": "Label", "name": "lblStatus", "caption": "Ready — 3 items", "align": "client", "layout": "center", "margin": { "l": 8, "t": 0, "r": 8, "b": 0 } }
+        ]
+      },
+      { "class": "Panel", "name": "pnlPalette", "caption": "Palette", "align": "left", "width": 120 },
+      { "class": "Splitter", "name": "splPalette", "align": "left", "minSize": 40, "width": 4 },
+      {
+        "class": "Panel",
+        "name": "pnlClient",
+        "align": "client",
+        "borderStyle": "none",
+        "color": "#FFFFFF",
+        "children": [
+          { "class": "Label", "name": "lblLeft", "caption": "Left aligned", "height": 20, "left": 16, "top": 16, "width": 300 },
+          { "class": "Label", "name": "lblCentre", "caption": "Centred: Wavy AVAWAY fi ffl", "alignment": "center", "height": 20, "left": 16, "top": 44, "width": 300 },
+          { "class": "Label", "name": "lblRight", "caption": "Right aligned 0123456789", "alignment": "right", "height": 20, "left": 16, "top": 72, "width": 300 },
+          { "class": "Label", "name": "lblDisabled", "caption": "Disabled label", "enabled": false, "height": 20, "left": 16, "top": 100, "width": 300 },
+          { "class": "Label", "name": "lblAccents", "caption": "Café, naïve, Ångström, Øre, Ĳssel", "height": 20, "left": 16, "top": 128, "width": 300 },
+          { "class": "Button", "name": "btnOk", "anchors": ["right", "bottom"], "caption": "OK", "height": 28, "left": 146, "top": 180, "width": 80 },
+          { "class": "Button", "name": "btnCancel", "anchors": ["right", "bottom"], "caption": "Cancel", "height": 28, "left": 234, "top": 180, "width": 80 }
+        ]
+      }
+    ]
+  }
+}

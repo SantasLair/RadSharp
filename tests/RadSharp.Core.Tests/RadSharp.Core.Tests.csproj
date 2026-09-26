@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <None Include="..\..\spec\vectors\*.json" LinkBase="vectors" CopyToOutputDirectory="PreserveNewest" />
+    <None Include="Golden\*" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>

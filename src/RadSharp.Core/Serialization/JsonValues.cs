@@ -50,6 +50,11 @@ internal static class JsonValues
         return new Thickness(Field("l"), Field("t"), Field("r"), Field("b"));
     }
 
+    public static Drawing.Color Color(JsonElement v) =>
+        v.ValueKind == JsonValueKind.String && Drawing.Color.TryParse(v.GetString(), out var c)
+            ? c
+            : throw Wrong(v, "a colour \"#RRGGBB\" or \"#RRGGBBAA\"");
+
     static FormatException Wrong(JsonElement v, string expected) =>
         new($"expected {expected}, got {v.GetRawText()}");
 }

@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsAotCompatible>true</IsAotCompatible>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="ppy.SDL3-CS" Version="2026.722.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RadSharp.Core\RadSharp.Core.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,4 +1,5 @@
 using System.Text.Json;
+using RadSharp.Drawing;
 
 namespace RadSharp;
 
@@ -51,6 +52,7 @@ public class Control
         child.Parent = this;
         child._captured = false;
         InvalidateLayout();
+        InvalidateForm();
     }
 
     public bool Remove(Control child)
@@ -58,6 +60,7 @@ public class Control
         if (!_children.Remove(child)) return false;
         child.Parent = null;
         InvalidateLayout();
+        InvalidateForm();
         return true;
     }
 
@@ -116,6 +119,8 @@ public class Control
     /// <summary>Stores bounds computed by layout (no re-capture, no parent invalidation).</summary>
     void ApplyBounds(int left, int top, int width, int height)
     {
+        if (left == _left && top == _top && width == _width && height == _height) return;
+        InvalidateForm();
         _left = left;
         _top = top;
         if (width == _width && height == _height) return;
@@ -161,8 +166,54 @@ public class Control
     public bool Visible
     {
         get => _visible;
-        set { if (_visible == value) return; _visible = value; Parent?.InvalidateLayout(); }
+        set { if (_visible == value) return; _visible = value; Parent?.InvalidateLayout(); InvalidateForm(); }
     }
+
+    // ---- Painting ----
+
+    /// <summary>Requests a repaint of this control's area.</summary>
+    public void Invalidate()
+    {
+        if (Root is Form form) form.InvalidateRect(new Rect(AbsoluteLeft, AbsoluteTop, _width, _height));
+    }
+
+    /// <summary>Requests a repaint of the whole form (bounds or tree changed).</summary>
+    void InvalidateForm()
+    {
+        if (Root is Form form) form.InvalidateAll();
+    }
+
+    /// <summary>
+    /// Paints the control in its own coordinates (0, 0 is its top-left corner), clipped to its bounds.
+    /// Children are painted afterwards, on top.
+    /// </summary>
+    protected virtual void Paint(Canvas canvas) { }
+
+    internal void PaintControl(Canvas canvas) => Paint(canvas);
+
+    // ---- Scaling ----
+
+    /// <summary>
+    /// Multiplies every stored length by <paramref name="scale"/> and rounds (spec, Appendix B,
+    /// "Scaling"). Runs on a freshly loaded tree, before its first layout.
+    /// </summary>
+    internal void ScaleLengths(double scale)
+    {
+        static int S(int v, double k) => LayoutMath.Round(v * k);
+        static Thickness T(Thickness t, double k) => new(S(t.L, k), S(t.T, k), S(t.R, k), S(t.B, k));
+        _left = S(_left, scale); _top = S(_top, scale);
+        _width = S(_width, scale); _height = S(_height, scale);
+        _margin = T(_margin, scale); _padding = T(_padding, scale);
+        _minWidth = S(_minWidth, scale); _minHeight = S(_minHeight, scale);
+        _maxWidth = S(_maxWidth, scale); _maxHeight = S(_maxHeight, scale);
+        _captured = false;
+        _needsArrange = true;
+        ScaleOwnLengths(scale);
+        foreach (var c in _children) c.ScaleLengths(scale);
+    }
+
+    /// <summary>Scales lengths a subclass adds (e.g. a splitter's minimum size).</summary>
+    protected virtual void ScaleOwnLengths(double scale) { }
 
     // ---- Layout ----
 

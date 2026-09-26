@@ -132,7 +132,7 @@ it → only dirty rectangles are redrawn, which keeps CPU drawing fast enough fo
 | Source of differences | Rule |
 |---|---|
 | System fonts differ by OS | **Bundle fonts** with the framework; never use system fonts by default |
-| OS text rendering (DirectWrite, CoreText, FreeType) | All text drawn by Skia with fixed settings: grayscale anti-aliasing, fixed hinting, no LCD subpixel; shaping by HarfBuzz |
+| OS text rendering (DirectWrite, CoreText, FreeType) | No OS font engine at all: HarfBuzz shapes, glyph outlines are read from the TrueType file by our own code, and Skia fills them as anti-aliased paths (no hinting, no LCD subpixel). Even Skia's `GetGlyphPath` is avoided, since it goes through the OS engine |
 | Blurry 1 px lines | Pixel snapping: layout rounds to whole pixels (Appendix B), 1 px strokes on half-pixel centres, fills on whole pixels |
 | Fractional DPI (125 %, 150 %) | Scale first, then round, per value (Appendix B). Optional strict mode with whole-number scales only |
 | GPU vs CPU differences | CPU raster only. A GPU backend may come later as an option, without the pixel-exact guarantee |

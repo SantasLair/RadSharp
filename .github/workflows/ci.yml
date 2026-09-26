@@ -16,4 +16,13 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - run: dotnet test --configuration Release
+      - name: Test (layout vectors, golden images)
+        run: dotnet test --configuration Release
+      - name: Upload golden-image failures
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: golden-failures-${{ matrix.os }}
+          path: tests/**/golden-failures/
+      - name: NativeAOT smoke build
+        run: dotnet publish samples/Hello --configuration Release --use-current-runtime --output artifacts/hello

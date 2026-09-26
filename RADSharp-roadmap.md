@@ -70,6 +70,17 @@ Fix the spec issues from the review, then set up the repo so every later milesto
 
 **Done when:** a hand-written form renders, reflows on resize, and the golden images match on three OSes; the AOT sample runs.
 
+**Status:** done on Windows (x64); CI will show whether the golden images match on macOS and Linux.
+- Text: HarfBuzz shapes, glyph outlines come from our own TrueType `glyf` reader (`TrueTypeOutlines`), and Skia fills
+  the paths. No OS font engine is involved. Bundled faces: Inter Regular/Bold 4.1 (OFL).
+- `Canvas` (crisp non-AA rects and borders, AA round rects and text), `Theme` tokens, `FormRenderer`, dirty-rect tracking,
+  load-time scaling; Form, Panel, Label, Button and Splitter paint themselves.
+- `RadSharp.Platform.Sdl`: `Application.Initialize/Scale/Run`; CPU frame uploaded to an SDL texture (dirty region only).
+- `samples/Hello` publishes with NativeAOT with no warnings (2.9 MB exe + SDL3, Skia and HarfBuzz native libraries);
+  its screenshot is byte-identical to the JIT build's. On Windows, `vswhere.exe` must be on PATH (it isn't in Git Bash).
+- Controls live in `RadSharp.Core` for now; splitting out `RadSharp.Controls` can wait until the control set grows.
+- Deferred: strict whole-number scale mode.
+
 ## M3: Input, focus and popups (M)
 
 - Hit testing, mouse capture, click rules, hover, wheel bubbling.
