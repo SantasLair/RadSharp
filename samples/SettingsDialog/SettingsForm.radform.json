@@ -1,0 +1,163 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "hand-written",
+  "root": {
+    "class": "Form",
+    "name": "frmSettings",
+    "caption": "Settings",
+    "width": 420,
+    "height": 330,
+    "children": [
+      {
+        "class": "PageControl",
+        "name": "pgSettings",
+        "left": 12,
+        "top": 12,
+        "width": 396,
+        "height": 256,
+        "anchors": [
+          "left",
+          "top",
+          "right",
+          "bottom"
+        ],
+        "children": [
+          {
+            "class": "TabSheet",
+            "name": "tsGeneral",
+            "caption": "General",
+            "children": [
+              {
+                "class": "Label",
+                "name": "lblUser",
+                "caption": "User name",
+                "left": 16,
+                "top": 20,
+                "width": 100,
+                "height": 24
+              },
+              {
+                "class": "Edit",
+                "name": "edtUser",
+                "left": 120,
+                "top": 18,
+                "width": 240,
+                "height": 26,
+                "placeholder": "Your name"
+              },
+              {
+                "class": "Label",
+                "name": "lblTheme",
+                "caption": "Theme",
+                "left": 16,
+                "top": 60,
+                "width": 100,
+                "height": 24
+              },
+              {
+                "class": "ComboBox",
+                "name": "cboTheme",
+                "items": [
+                  "Light",
+                  "Dark",
+                  "System"
+                ],
+                "itemIndex": 0,
+                "left": 120,
+                "top": 58,
+                "width": 160,
+                "height": 26
+              },
+              {
+                "class": "CheckBox",
+                "name": "chkAutosave",
+                "caption": "Save automatically",
+                "left": 120,
+                "top": 100,
+                "width": 220,
+                "height": 22
+              }
+            ]
+          },
+          {
+            "class": "TabSheet",
+            "name": "tsAdvanced",
+            "caption": "Advanced",
+            "children": [
+              {
+                "class": "Label",
+                "name": "lblVolume",
+                "caption": "Volume",
+                "left": 16,
+                "top": 22,
+                "width": 100,
+                "height": 24
+              },
+              {
+                "class": "TrackBar",
+                "name": "trkVolume",
+                "max": 10,
+                "position": 7,
+                "left": 120,
+                "top": 18,
+                "width": 240,
+                "height": 32
+              },
+              {
+                "class": "Label",
+                "name": "lblHistory",
+                "caption": "History size",
+                "left": 16,
+                "top": 66,
+                "width": 100,
+                "height": 24
+              },
+              {
+                "class": "SpinEdit",
+                "name": "spnHistory",
+                "minValue": 0,
+                "maxValue": 500,
+                "value": 50,
+                "left": 120,
+                "top": 64,
+                "width": 100,
+                "height": 26
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "class": "Button",
+        "name": "btnOk",
+        "caption": "OK",
+        "default": true,
+        "modalResult": "ok",
+        "anchors": [
+          "right",
+          "bottom"
+        ],
+        "left": 236,
+        "top": 286,
+        "width": 80,
+        "height": 30
+      },
+      {
+        "class": "Button",
+        "name": "btnCancel",
+        "caption": "Cancel",
+        "cancel": true,
+        "modalResult": "cancel",
+        "anchors": [
+          "right",
+          "bottom"
+        ],
+        "left": 324,
+        "top": 286,
+        "width": 84,
+        "height": 30
+      }
+    ]
+  }
+}

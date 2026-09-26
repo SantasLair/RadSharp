@@ -1,0 +1,131 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "hand-written",
+  "root": {
+    "class": "Form",
+    "name": "frmEditor",
+    "caption": "Untitled — Text Editor",
+    "width": 720,
+    "height": 480,
+    "onCloseQuery": "frmEditor_CloseQuery",
+    "children": [
+      {
+        "class": "MainMenu",
+        "name": "mnuMain",
+        "items": [
+          {
+            "caption": "File",
+            "items": [
+              {
+                "caption": "New",
+                "onClick": "mnuNew_Click",
+                "shortcut": "Mod+N"
+              },
+              {
+                "caption": "Open…",
+                "onClick": "mnuOpen_Click",
+                "shortcut": "Mod+O"
+              },
+              {
+                "caption": "Save",
+                "onClick": "mnuSave_Click",
+                "shortcut": "Mod+S"
+              },
+              {
+                "caption": "Save as…",
+                "onClick": "mnuSaveAs_Click",
+                "shortcut": "Mod+Shift+S"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Exit",
+                "onClick": "mnuExit_Click"
+              }
+            ]
+          },
+          {
+            "caption": "Edit",
+            "items": [
+              {
+                "caption": "Undo",
+                "onClick": "mnuUndo_Click",
+                "shortcut": "Mod+Z"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Cut",
+                "onClick": "mnuCut_Click",
+                "shortcut": "Mod+X"
+              },
+              {
+                "caption": "Copy",
+                "onClick": "mnuCopy_Click",
+                "shortcut": "Mod+C"
+              },
+              {
+                "caption": "Paste",
+                "onClick": "mnuPaste_Click",
+                "shortcut": "Mod+V"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Select all",
+                "onClick": "mnuSelectAll_Click",
+                "shortcut": "Mod+A"
+              }
+            ]
+          },
+          {
+            "caption": "Format",
+            "items": [
+              {
+                "caption": "Word wrap",
+                "onClick": "mnuWordWrap_Click",
+                "name": "mniWordWrap",
+                "checked": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "class": "StatusBar",
+        "name": "sbMain"
+      },
+      {
+        "class": "Memo",
+        "name": "memText",
+        "align": "client",
+        "borderStyle": "none",
+        "onChange": "memText_Change",
+        "onKeyUp": "memText_KeyUp",
+        "onMouseUp": "memText_MouseUp",
+        "placeholder": "Start typing…"
+      },
+      {
+        "class": "OpenDialog",
+        "name": "dlgOpen",
+        "filter": "Text files|*.txt;*.md|All files|*.*",
+        "left": 20,
+        "top": 60
+      },
+      {
+        "class": "SaveDialog",
+        "name": "dlgSave",
+        "filter": "Text files|*.txt|All files|*.*",
+        "left": 60,
+        "top": 60
+      }
+    ]
+  }
+}

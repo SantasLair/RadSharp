@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Writes docs/controls.md from the generated component metadata (run this project from the repo root). -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RadSharp.Core\RadSharp.Core.csproj" />
+  </ItemGroup>
+
+</Project>

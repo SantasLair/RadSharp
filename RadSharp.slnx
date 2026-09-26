@@ -1,6 +1,9 @@
 <Solution>
   <Folder Name="/samples/">
+    <Project Path="samples/Calculator/Calculator.csproj" />
     <Project Path="samples/Hello/Hello.csproj" />
+    <Project Path="samples/SettingsDialog/SettingsDialog.csproj" />
+    <Project Path="samples/TextEditor/TextEditor.csproj" />
     <Project Path="samples/TileEditor/TileEditor.csproj" />
   </Folder>
   <Folder Name="/src/">
@@ -16,5 +19,8 @@
     <Project Path="tests/RadSharp.Design.Code.Tests/RadSharp.Design.Code.Tests.csproj" />
     <Project Path="tests/RadSharp.Design.Tests/RadSharp.Design.Tests.csproj" />
     <Project Path="tests/RadSharp.Generators.Tests/RadSharp.Generators.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/RadSharp.DocGen/RadSharp.DocGen.csproj" />
   </Folder>
 </Solution>

@@ -66,7 +66,7 @@ public static unsafe class Application
             if (!string.IsNullOrEmpty(screenshot) && !first && Windows.TryGetValue(mainForm, out var w))
             {
                 w.SaveScreenshot(screenshot);
-                mainForm.Close();
+                CloseForm(mainForm);   // a test hook: no CloseQuery prompts
             }
             first = false;
             return Windows.ContainsKey(mainForm);

@@ -62,6 +62,7 @@ public class CodeIntegrationTests
     public void New_project_drop_button_double_click_handler_live_run()
     {
         var project = RadProject.Create(TempDir(), "HelloApp");
+        Assert.True(File.Exists(Path.Combine(project.Directory, ".github", "workflows", "build.yml")));
         var formFile = project.FormFiles.Single();
         var codeFile = RadProject.CodeFileFor(formFile);
 

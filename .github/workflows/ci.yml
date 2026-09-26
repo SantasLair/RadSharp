@@ -16,7 +16,7 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      - name: Test (layout vectors, golden images)
+      - name: Test (layout vectors, golden images, input, editors, generators, designer)
         run: dotnet test --configuration Release
       - name: Upload golden-image failures
         if: failure()
@@ -24,7 +24,32 @@ jobs:
         with:
           name: golden-failures-${{ matrix.os }}
           path: tests/**/golden-failures/
-      - name: NativeAOT smoke build
+      - name: NativeAOT builds of the samples
+        shell: bash
         run: |
-          dotnet publish samples/Hello --configuration Release --use-current-runtime --output artifacts/hello
-          dotnet publish samples/TileEditor --configuration Release --use-current-runtime --output artifacts/tile-editor
+          for s in Hello Calculator TextEditor SettingsDialog TileEditor; do
+            dotnet publish samples/$s --configuration Release --use-current-runtime --output artifacts/samples/$s
+          done
+      - name: Designer (self-contained; it hosts Roslyn, so it runs on the JIT)
+        run: dotnet publish src/RadSharp.Designer --configuration Release --use-current-runtime --self-contained --output artifacts/designer
+      - uses: actions/upload-artifact@v4
+        with:
+          name: designer-${{ matrix.os }}
+          path: artifacts/designer/
+
+  packages:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Pack
+        run: |
+          dotnet pack src/RadSharp.Core --configuration Release
+          dotnet pack src/RadSharp.Platform.Sdl --configuration Release
+          dotnet pack templates/RadSharp.Templates.csproj --configuration Release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: packages
+          path: artifacts/packages/

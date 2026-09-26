@@ -1,0 +1,241 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "hand-written",
+  "root": {
+    "class": "Form",
+    "name": "frmCalculator",
+    "caption": "Calculator",
+    "width": 296,
+    "height": 348,
+    "onShow": "frmCalculator_Show",
+    "children": [
+      {
+        "class": "Label",
+        "name": "lblHistory",
+        "caption": "",
+        "alignment": "right",
+        "left": 12,
+        "top": 6,
+        "width": 264,
+        "height": 20,
+        "fontColor": "#6B7280"
+      },
+      {
+        "class": "Label",
+        "name": "lblDisplay",
+        "caption": "0",
+        "alignment": "right",
+        "layout": "center",
+        "left": 12,
+        "top": 24,
+        "width": 264,
+        "height": 40,
+        "fontSize": 32,
+        "fontBold": false
+      },
+      {
+        "class": "Button",
+        "name": "btnClear",
+        "caption": "C",
+        "left": 12,
+        "top": 76,
+        "width": 60,
+        "height": 44,
+        "onClick": "btnClear_Click",
+        "cancel": true
+      },
+      {
+        "class": "Button",
+        "name": "btnSign",
+        "caption": "±",
+        "left": 80,
+        "top": 76,
+        "width": 60,
+        "height": 44,
+        "onClick": "btnSign_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btnPercent",
+        "caption": "%",
+        "left": 148,
+        "top": 76,
+        "width": 60,
+        "height": 44,
+        "onClick": "btnPercent_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btnDiv",
+        "caption": "÷",
+        "left": 216,
+        "top": 76,
+        "width": 60,
+        "height": 44,
+        "onClick": "op_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btn7",
+        "caption": "7",
+        "left": 12,
+        "top": 128,
+        "width": 60,
+        "height": 44,
+        "onClick": "digit_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btn8",
+        "caption": "8",
+        "left": 80,
+        "top": 128,
+        "width": 60,
+        "height": 44,
+        "onClick": "digit_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btn9",
+        "caption": "9",
+        "left": 148,
+        "top": 128,
+        "width": 60,
+        "height": 44,
+        "onClick": "digit_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btnMul",
+        "caption": "×",
+        "left": 216,
+        "top": 128,
+        "width": 60,
+        "height": 44,
+        "onClick": "op_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btn4",
+        "caption": "4",
+        "left": 12,
+        "top": 180,
+        "width": 60,
+        "height": 44,
+        "onClick": "digit_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btn5",
+        "caption": "5",
+        "left": 80,
+        "top": 180,
+        "width": 60,
+        "height": 44,
+        "onClick": "digit_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btn6",
+        "caption": "6",
+        "left": 148,
+        "top": 180,
+        "width": 60,
+        "height": 44,
+        "onClick": "digit_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btnSub",
+        "caption": "−",
+        "left": 216,
+        "top": 180,
+        "width": 60,
+        "height": 44,
+        "onClick": "op_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btn1",
+        "caption": "1",
+        "left": 12,
+        "top": 232,
+        "width": 60,
+        "height": 44,
+        "onClick": "digit_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btn2",
+        "caption": "2",
+        "left": 80,
+        "top": 232,
+        "width": 60,
+        "height": 44,
+        "onClick": "digit_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btn3",
+        "caption": "3",
+        "left": 148,
+        "top": 232,
+        "width": 60,
+        "height": 44,
+        "onClick": "digit_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btnAdd",
+        "caption": "+",
+        "left": 216,
+        "top": 232,
+        "width": 60,
+        "height": 44,
+        "onClick": "op_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btn0",
+        "caption": "0",
+        "left": 12,
+        "top": 284,
+        "width": 60,
+        "height": 44,
+        "onClick": "digit_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btnPoint",
+        "caption": ".",
+        "left": 80,
+        "top": 284,
+        "width": 60,
+        "height": 44,
+        "onClick": "digit_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btnBack",
+        "caption": "⌫",
+        "left": 148,
+        "top": 284,
+        "width": 60,
+        "height": 44,
+        "onClick": "btnBack_Click"
+      },
+      {
+        "class": "Button",
+        "name": "btnEquals",
+        "caption": "=",
+        "left": 216,
+        "top": 284,
+        "width": 60,
+        "height": 44,
+        "onClick": "btnEquals_Click",
+        "default": true
+      }
+    ]
+  }
+}

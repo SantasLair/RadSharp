@@ -15,6 +15,28 @@ public partial class DesignerForm
 
     public RadProject? Project => _project;
 
+    /// <summary>Run and Build need a .NET 10 SDK; say so once, at startup, if there isn't one.</summary>
+    async void CheckSdk()
+    {
+        string sdks;
+        try
+        {
+            var psi = new System.Diagnostics.ProcessStartInfo("dotnet", "--list-sdks")
+            { RedirectStandardOutput = true, UseShellExecute = false, CreateNoWindow = true };
+            using var p = System.Diagnostics.Process.Start(psi)!;
+            sdks = await p.StandardOutput.ReadToEndAsync();
+            await p.WaitForExitAsync();
+        }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException) { sdks = ""; }
+        bool ok = sdks.Split('\n').Any(l => l.StartsWith("10.", StringComparison.Ordinal));
+        Application.Post(() =>
+        {
+            if (ok) return;
+            Output("No .NET 10 SDK found: designing works, but Run (F9) and Build need it. Get it from https://dot.net.");
+            sbMain.SimpleText = "Install the .NET 10 SDK to run and build apps";
+        });
+    }
+
     // ---- Projects ----
 
     public void OpenProject(string projectFile)

@@ -41,6 +41,7 @@ public partial class DesignerForm : Form
         UpdateInspector();
         RebuildStructure();
         UpdateTitle();
+        Shown += _ => CheckSdk();
     }
 
     public DesignDocument Document => _doc;

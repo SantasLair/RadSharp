@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Packs templates/radsharp-app as a `dotnet new` template package: dotnet new install RadSharp.Templates -->
+  <PropertyGroup>
+    <PackageType>Template</PackageType>
+    <PackageId>RadSharp.Templates</PackageId>
+    <Title>RADSharp templates</Title>
+    <Description>dotnet new templates for RADSharp apps (radsharp-app).</Description>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <IncludeContentInPack>true</IncludeContentInPack>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <ContentTargetFolders>content</ContentTargetFolders>
+    <NoDefaultExcludes>true</NoDefaultExcludes>
+    <NoWarn>$(NoWarn);NU5128</NoWarn>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Content Include="radsharp-app\**\*" Exclude="radsharp-app\**\bin\**;radsharp-app\**\obj\**" />
+    <Compile Remove="**\*" />
+  </ItemGroup>
+
+</Project>

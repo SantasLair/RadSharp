@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <IsPackable>false</IsPackable>
+    <PublishAot>true</PublishAot>
+    <RootNamespace>Calculator</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RadSharp.Platform.Sdl\RadSharp.Platform.Sdl.csproj" />
+    <!-- In a packaged app these come from the RadSharp.Core NuGet package. -->
+    <ProjectReference Include="..\..\src\RadSharp.Generators\RadSharp.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Import Project="..\..\src\RadSharp.Core\build\RadSharp.Core.targets" />
+
+</Project>

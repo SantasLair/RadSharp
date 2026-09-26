@@ -97,10 +97,42 @@ public sealed class RadProject
                 </configuration>
 
                 """);
+        var workflows = Path.Combine(directory, ".github", "workflows");
+        System.IO.Directory.CreateDirectory(workflows);
+        File.WriteAllText(Path.Combine(workflows, "build.yml"), CrossPlatformWorkflow);
         var project = new RadProject(Path.Combine(directory, name + ".csproj"));
         project.AddForm("MainForm", name);
         return project;
     }
+
+    /// <summary>A GitHub Actions workflow that builds the app natively on Windows, macOS and Linux.</summary>
+    public const string CrossPlatformWorkflow = """
+        name: Build
+
+        # Builds a native executable for Windows, macOS and Linux (NativeAOT builds for the OS it runs on).
+        on:
+          push:
+          workflow_dispatch:
+
+        jobs:
+          build:
+            strategy:
+              matrix:
+                os: [windows-latest, macos-latest, ubuntu-latest]
+            runs-on: ${{ matrix.os }}
+            steps:
+              - uses: actions/checkout@v4
+              - uses: actions/setup-dotnet@v4
+                with:
+                  dotnet-version: 10.0.x
+              - run: dotnet publish -c Release --use-current-runtime -o out
+              - uses: actions/upload-artifact@v4
+                with:
+                  name: app-${{ matrix.os }}
+                  path: out/
+        # Before shipping: sign the Windows .exe (SmartScreen warns about unsigned apps) and sign and
+        # notarize the macOS app (Gatekeeper blocks unsigned downloads). See the RADSharp docs.
+        """;
 
     /// <summary>Adds an empty form and its code-behind; returns the form file.</summary>
     public string AddForm(string className, string? caption = null)

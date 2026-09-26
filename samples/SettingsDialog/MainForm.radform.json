@@ -1,0 +1,42 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "hand-written",
+  "root": {
+    "class": "Form",
+    "name": "frmMain",
+    "caption": "Settings dialog sample",
+    "width": 420,
+    "height": 220,
+    "children": [
+      {
+        "class": "Label",
+        "name": "lblSummary",
+        "caption": "Press the button to edit the settings.",
+        "left": 20,
+        "top": 24,
+        "width": 380,
+        "height": 24
+      },
+      {
+        "class": "Label",
+        "name": "lblDetails",
+        "caption": "",
+        "left": 20,
+        "top": 52,
+        "width": 380,
+        "height": 24
+      },
+      {
+        "class": "Button",
+        "name": "btnSettings",
+        "caption": "Settings…",
+        "default": true,
+        "left": 20,
+        "top": 96,
+        "width": 120,
+        "onClick": "btnSettings_Click"
+      }
+    ]
+  }
+}
