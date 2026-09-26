@@ -305,6 +305,9 @@ public partial class Control
     /// <summary>Offset applied to children when positioning, painting and hit testing (scrolling).</summary>
     protected internal virtual (int X, int Y) ChildOffset => (0, 0);
 
+    /// <summary>Where this control's child coordinates start, relative to its top-left (scrolling, viewports).</summary>
+    public (int X, int Y) ContentOffset => ChildOffset;
+
     /// <summary>The area (in this control's coordinates) children are clipped to.</summary>
     protected internal virtual Rect ChildClipRect => new(0, 0, _width, _height);
 

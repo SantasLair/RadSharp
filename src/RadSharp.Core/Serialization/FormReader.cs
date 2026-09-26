@@ -45,6 +45,19 @@ public static class FormReader
         LoadInto(form, reader.ReadToEnd());
     }
 
+    /// <summary>Reads controls written by <see cref="FormWriter.SaveFragment"/> (a JSON array of nodes).</summary>
+    public static (List<Control> Controls, List<string> Warnings) LoadFragment(string json)
+    {
+        var warnings = new List<string>();
+        var controls = new List<Control>();
+        using var doc = ParseDocument(json);
+        if (doc.RootElement.ValueKind != JsonValueKind.Array) throw new FormFileException("A fragment must be a JSON array of controls.");
+        int i = 0;
+        foreach (var node in doc.RootElement.EnumerateArray())
+            if (ReadNode(node, warnings, $"[{i++}]") is { } c) controls.Add(c);
+        return (controls, warnings);
+    }
+
     /// <summary>Receives warnings from <c>LoadInto</c> (unknown classes, properties...).</summary>
     public static Action<string>? Warning { get; set; } = w => System.Diagnostics.Debug.WriteLine("RADSharp: " + w);
 

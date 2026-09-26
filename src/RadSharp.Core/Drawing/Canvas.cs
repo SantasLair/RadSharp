@@ -131,6 +131,19 @@ public sealed class Canvas
         _sk.DrawImage(picture.Image, ToSK(dest), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
     }
 
+    /// <summary>
+    /// Paints another form (at its own scale) at (<paramref name="x"/>, <paramref name="y"/>), magnified by
+    /// <paramref name="zoom"/>: how the designer shows the form being designed.
+    /// </summary>
+    public void DrawForm(Form form, int x, int y, double zoom)
+    {
+        _sk.Save();
+        _sk.Translate(x, y);
+        _sk.Scale((float)zoom);
+        FormRenderer.Render(form, _sk);
+        _sk.Restore();
+    }
+
     // ---- Text ----
 
     /// <summary>Draws one line of text with its baseline at <paramref name="baseline"/> (rounded to whole pixels).</summary>

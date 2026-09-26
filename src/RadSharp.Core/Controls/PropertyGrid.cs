@@ -40,6 +40,8 @@ public class PropertyGrid : Control
 
     /// <summary>Raised after the user changed a value.</summary>
     [Published] public event NotifyEvent? Change;
+    /// <summary>Raised just before the user's edit is applied (the designer records an undo step here).</summary>
+    public event PropertyChangedEvent? PropertyChanging;
     public event PropertyChangedEvent? PropertyChanged;
     /// <summary>Raised when an event row is double-clicked (the designer creates the handler).</summary>
     public event EventRowEvent? EventDoubleClick;
@@ -221,14 +223,16 @@ public class PropertyGrid : Control
         {
             text = text.Trim();
             if (_target.EventHandlers.GetValueOrDefault(ev.Name, "") == text) return true;
+            PropertyChanging?.Invoke(this, name);
             if (text.Length == 0) _target.EventHandlers.Remove(ev.Name);
             else _target.EventHandlers[ev.Name] = text;
         }
         else
         {
             var before = prop!.FormatValue(_target);
+            if (text == before) return true;
+            PropertyChanging?.Invoke(this, name);
             if (!prop.TryParseValue(_target, text)) return false;
-            if (prop.FormatValue(_target) == before) return true;
         }
         _target.OwningForm?.InvalidateAll();
         Invalidate();

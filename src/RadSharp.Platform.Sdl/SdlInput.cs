@@ -72,6 +72,8 @@ internal static class SdlInput
         Cursor.Hand => SDL_SystemCursor.SDL_SYSTEM_CURSOR_POINTER,
         Cursor.SizeWE => SDL_SystemCursor.SDL_SYSTEM_CURSOR_EW_RESIZE,
         Cursor.SizeNS => SDL_SystemCursor.SDL_SYSTEM_CURSOR_NS_RESIZE,
+        Cursor.SizeNWSE => SDL_SystemCursor.SDL_SYSTEM_CURSOR_NWSE_RESIZE,
+        Cursor.SizeNESW => SDL_SystemCursor.SDL_SYSTEM_CURSOR_NESW_RESIZE,
         Cursor.SizeAll => SDL_SystemCursor.SDL_SYSTEM_CURSOR_MOVE,
         Cursor.Wait => SDL_SystemCursor.SDL_SYSTEM_CURSOR_WAIT,
         Cursor.NotAllowed => SDL_SystemCursor.SDL_SYSTEM_CURSOR_NOT_ALLOWED,

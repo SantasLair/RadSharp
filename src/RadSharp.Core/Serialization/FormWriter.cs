@@ -38,6 +38,23 @@ public static class FormWriter
         }
     }
 
+    /// <summary>
+    /// Writes controls (not a whole form) as a JSON array of form-file nodes: what the designer puts on
+    /// the clipboard. Read it back with <see cref="FormReader.LoadFragment"/>.
+    /// </summary>
+    public static string SaveFragment(IEnumerable<Control> controls)
+    {
+        var writer = new FormJsonWriter();
+        writer.BeginArray();
+        foreach (var c in controls)
+        {
+            writer.NextElement();
+            WriteNode(writer, c, isRoot: false);
+        }
+        writer.EndArray();
+        return writer + "\n";
+    }
+
     static readonly string[] BoundsKeys = ["left", "top", "width", "height"];
 
     /// <summary>Which bounds a control saves: aligned controls save only the size their align doesn't compute.</summary>

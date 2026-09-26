@@ -25,7 +25,7 @@ public enum Key
     Minus, Equals, Comma, Period, Slash, Backslash, Semicolon, Apostrophe, LeftBracket, RightBracket, Grave,
 }
 
-public enum Cursor { Default, IBeam, Hand, SizeWE, SizeNS, SizeAll, Wait, NotAllowed, Crosshair }
+public enum Cursor { Default, IBeam, Hand, SizeWE, SizeNS, SizeNWSE, SizeNESW, SizeAll, Wait, NotAllowed, Crosshair }
 
 public class MouseEventArgs(int x, int y, MouseButton button, KeyModifiers modifiers, int clicks = 1) : EventArgs
 {
