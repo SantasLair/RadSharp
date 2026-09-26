@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d//**)",
+      "Bash(xargs grep -l \"MOUSE_FOCUS_CLICKTHROUGH\")"
+    ]
+  }
+}
