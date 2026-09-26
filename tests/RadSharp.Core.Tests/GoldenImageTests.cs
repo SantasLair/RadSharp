@@ -28,6 +28,27 @@ public class GoldenImageTests
         CompareOrUpdate(actual, imageName);
     }
 
+    [Fact]
+    public void Controls_in_live_states_match_golden_image()
+    {
+        var json = File.ReadAllText(Path.Combine(OutputGoldenDir, "controls.radform.json"));
+        var (form, warnings) = FormReader.Load(json);
+        Assert.Empty(warnings);
+
+        form.Simulate.Key(Key.Tab);             // keyboard focus (with focus cues) on the first tab stop: chkWrap
+        form.Simulate.Key(Key.Tab);             // ...then chkRuler
+        var cancel = form.FindControl("btnCancel")!;
+        form.Simulate.MoveTo(cancel.AbsoluteLeft + 10, cancel.AbsoluteTop + 10);  // hover
+        ((ScrollBox)form.FindControl("sbxList")!).ScrollY = 30;
+
+        var popup = new Panel { Caption = "Popup", Color = Theme.Default.PopupBackground };
+        popup.SetBounds(0, 0, 140, 60);
+        form.OpenPopup(popup, 40, 190);
+
+        using var actual = FormRenderer.RenderToBitmap(form);
+        CompareOrUpdate(actual, "controls@100%-460x320.png");
+    }
+
     static void CompareOrUpdate(SKBitmap actual, string imageName, [CallerFilePath] string testFile = "")
     {
         var sourceGoldenDir = Path.Combine(Path.GetDirectoryName(testFile)!, "Golden");

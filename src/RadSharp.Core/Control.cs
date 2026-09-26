@@ -7,7 +7,7 @@ namespace RadSharp;
 /// Base class of every control: a node in the retained control tree with bounds, Align + Anchors
 /// layout (spec, Appendix B) and published properties.
 /// </summary>
-public class Control
+public partial class Control
 {
     readonly List<Control> _children = [];
 
@@ -33,7 +33,21 @@ public class Control
     /// <summary>Event handler names by event property (<c>"onClick" → "btnSave_Click"</c>).</summary>
     public Dictionary<string, string> EventHandlers { get; } = [];
 
-    public bool Enabled { get; set; } = true;
+    bool _enabled = true;
+
+    /// <summary>Disabled controls (and everything inside them) get no input and paint greyed.</summary>
+    public bool Enabled
+    {
+        get => _enabled;
+        set
+        {
+            if (_enabled == value) return;
+            _enabled = value;
+            InvalidateForm();
+            if (!value) OwningForm?.ControlBecameUnavailable(this);
+        }
+    }
+
     public bool TabStop { get; set; }
     public int TabOrder { get; set; } = -1;
     public string Hint { get; set; } = "";
@@ -57,10 +71,12 @@ public class Control
 
     public bool Remove(Control child)
     {
+        var form = OwningForm;
         if (!_children.Remove(child)) return false;
         child.Parent = null;
         InvalidateLayout();
         InvalidateForm();
+        form?.ControlBecameUnavailable(child);
         return true;
     }
 
@@ -130,8 +146,6 @@ public class Control
         OnResize();
     }
 
-    protected virtual void OnResize() { }
-
     // ---- Layout properties ----
 
     public Align Align
@@ -166,7 +180,14 @@ public class Control
     public bool Visible
     {
         get => _visible;
-        set { if (_visible == value) return; _visible = value; Parent?.InvalidateLayout(); InvalidateForm(); }
+        set
+        {
+            if (_visible == value) return;
+            _visible = value;
+            Parent?.InvalidateLayout();
+            InvalidateForm();
+            if (!value) OwningForm?.ControlBecameUnavailable(this);
+        }
     }
 
     // ---- Painting ----
@@ -174,13 +195,13 @@ public class Control
     /// <summary>Requests a repaint of this control's area.</summary>
     public void Invalidate()
     {
-        if (Root is Form form) form.InvalidateRect(new Rect(AbsoluteLeft, AbsoluteTop, _width, _height));
+        OwningForm?.InvalidateRect(new Rect(AbsoluteLeft, AbsoluteTop, _width, _height));
     }
 
     /// <summary>Requests a repaint of the whole form (bounds or tree changed).</summary>
     void InvalidateForm()
     {
-        if (Root is Form form) form.InvalidateAll();
+        OwningForm?.InvalidateAll();
     }
 
     /// <summary>
@@ -239,18 +260,76 @@ public class Control
     /// <summary>Lays out this subtree: arranges dirty containers top-down and refreshes absolute positions.</summary>
     public void PerformLayout()
     {
-        if (_needsArrange)
+        if (Parent == null) { AbsoluteLeft = _left; AbsoluteTop = _top; }
+        for (int pass = 0; _needsArrange && pass < 3; pass++)
         {
             _needsArrange = false;
             ArrangeChildren();
+            if (AfterArrange()) _needsArrange = true;
         }
+        _needsArrange = false;
+        var (ox, oy) = ChildOffset;
         foreach (var c in _children)
         {
             if (!c._visible) continue;
-            c.AbsoluteLeft = AbsoluteLeft + c._left;
-            c.AbsoluteTop = AbsoluteTop + c._top;
+            c.AbsoluteLeft = AbsoluteLeft + ox + c._left;
+            c.AbsoluteTop = AbsoluteTop + oy + c._top;
             c.PerformLayout();
         }
+    }
+
+    /// <summary>
+    /// Called after the children were arranged. Return true to arrange once more (e.g. a scroll box
+    /// whose scroll bars appeared and shrank its client area).
+    /// </summary>
+    protected virtual bool AfterArrange() => false;
+
+    /// <summary>Offset applied to children when positioning, painting and hit testing (scrolling).</summary>
+    protected internal virtual (int X, int Y) ChildOffset => (0, 0);
+
+    /// <summary>The area (in this control's coordinates) children are clipped to.</summary>
+    protected internal virtual Rect ChildClipRect => new(0, 0, _width, _height);
+
+    // ---- Form and theme ----
+
+    internal Form? PopupForm;
+
+    /// <summary>The form this control is on (also for controls shown in the form's popup layer).</summary>
+    public Form? OwningForm
+    {
+        get
+        {
+            var root = Root;
+            return root as Form ?? root.PopupForm;
+        }
+    }
+
+    /// <summary>The owning form's theme, or the default theme.</summary>
+    protected Theme CurrentTheme => OwningForm?.Theme ?? Theme.Default;
+
+    /// <summary>The owning form's UI scale factor.</summary>
+    protected double UiScale => OwningForm?.Scale ?? 1;
+
+    /// <summary>Scales a length given at 100 % to whole pixels at the form's scale.</summary>
+    protected int Px(int length) => LayoutMath.Round(length * UiScale);
+
+    /// <summary>True if this control and all its ancestors are visible.</summary>
+    public bool IsEffectivelyVisible
+    {
+        get { for (var c = this; c != null; c = c.Parent) if (!c._visible) return false; return true; }
+    }
+
+    /// <summary>True if this control and all its ancestors are enabled.</summary>
+    public bool IsEffectivelyEnabled
+    {
+        get { for (var c = this; c != null; c = c.Parent) if (!c._enabled) return false; return true; }
+    }
+
+    /// <summary>True if <paramref name="ancestor"/> is this control or one of its ancestors.</summary>
+    public bool IsSelfOrDescendantOf(Control ancestor)
+    {
+        for (var c = this; c != null; c = c.Parent) if (c == ancestor) return true;
+        return false;
     }
 
     int ConstrainWidth(int w)

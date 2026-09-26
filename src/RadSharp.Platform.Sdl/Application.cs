@@ -57,6 +57,7 @@ public static unsafe class Application
                 {
                     if (!window.HandleEvent(ref e)) running = false;
                 } while (SDL_PollEvent(&e));
+                window.UpdateCursor();
             }
             window.RenderIfDirty();
 
@@ -95,8 +96,15 @@ internal sealed unsafe class FormWindow : IDisposable
         SDL_SetRenderVSync(_renderer, 1);
 
         form.CaptionChanged += f => SDL_SetWindowTitle(_window, f.Caption);
+        SDL_StartTextInput(_window);
         SyncSizeToWindow();
     }
+
+    readonly Dictionary<Cursor, nint> _cursors = [];
+    Cursor _currentCursor = Cursor.Default;
+
+    float Density => Math.Max(1f, SDL_GetWindowPixelDensity(_window));
+    int Px(float points) => (int)MathF.Floor(points * Density);
 
     public void Show() => SDL_ShowWindow(_window);
 
@@ -114,8 +122,48 @@ internal sealed unsafe class FormWindow : IDisposable
             case SDL_EventType.SDL_EVENT_WINDOW_EXPOSED:
                 _form.InvalidateAll();
                 break;
+            case SDL_EventType.SDL_EVENT_MOUSE_MOTION:
+                _form.ProcessMouseMove(Px(e.motion.x), Px(e.motion.y), SdlInput.Modifiers(SDL_GetModState()));
+                break;
+            case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN:
+            case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP:
+                if (SdlInput.Button(e.button.button) is { } button)
+                {
+                    var mods = SdlInput.Modifiers(SDL_GetModState());
+                    if (e.button.down) _form.ProcessMouseDown(Px(e.button.x), Px(e.button.y), button, mods, e.button.clicks);
+                    else _form.ProcessMouseUp(Px(e.button.x), Px(e.button.y), button, mods);
+                }
+                break;
+            case SDL_EventType.SDL_EVENT_MOUSE_WHEEL:
+                float flip = e.wheel.direction == SDL_MouseWheelDirection.SDL_MOUSEWHEEL_FLIPPED ? -1 : 1;
+                _form.ProcessMouseWheel(Px(e.wheel.mouse_x), Px(e.wheel.mouse_y), e.wheel.x * flip, e.wheel.y * flip,
+                    SdlInput.Modifiers(SDL_GetModState()));
+                break;
+            case SDL_EventType.SDL_EVENT_KEY_DOWN:
+                _form.ProcessKeyDown(SdlInput.Key(e.key.key), SdlInput.Modifiers(e.key.mod), e.key.repeat);
+                break;
+            case SDL_EventType.SDL_EVENT_KEY_UP:
+                _form.ProcessKeyUp(SdlInput.Key(e.key.key), SdlInput.Modifiers(e.key.mod));
+                break;
+            case SDL_EventType.SDL_EVENT_TEXT_INPUT:
+                _form.ProcessTextInput(System.Runtime.InteropServices.Marshal.PtrToStringUTF8((nint)e.text.text) ?? "");
+                break;
         }
         return true;
+    }
+
+    /// <summary>Shows the cursor of the control under the pointer.</summary>
+    public void UpdateCursor()
+    {
+        var wanted = _form.CurrentCursor;
+        if (wanted == _currentCursor) return;
+        _currentCursor = wanted;
+        if (!_cursors.TryGetValue(wanted, out var handle))
+        {
+            handle = (nint)SDL_CreateSystemCursor(SdlInput.SystemCursor(wanted));
+            _cursors[wanted] = handle;
+        }
+        SDL_SetCursor((SDL_Cursor*)handle);
     }
 
     void SyncSizeToWindow()
@@ -161,6 +209,8 @@ internal sealed unsafe class FormWindow : IDisposable
     public void Dispose()
     {
         if (_texture != null) SDL_DestroyTexture(_texture);
+        foreach (var c in _cursors.Values) SDL_DestroyCursor((SDL_Cursor*)c);
+        SDL_StopTextInput(_window);
         SDL_DestroyRenderer(_renderer);
         SDL_DestroyWindow(_window);
         _backBuffer?.Dispose();

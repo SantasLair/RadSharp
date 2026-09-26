@@ -15,6 +15,11 @@ public sealed class ClassRegistry
         r.Register("Label", () => new Label());
         r.Register("Button", () => new Button());
         r.Register("Splitter", () => new Splitter());
+        r.Register("CheckBox", () => new CheckBox());
+        r.Register("RadioButton", () => new RadioButton());
+        r.Register("GroupBox", () => new GroupBox());
+        r.Register("ScrollBar", () => new ScrollBar());
+        r.Register("ScrollBox", () => new ScrollBox());
         return r;
     }
 

@@ -92,6 +92,12 @@ Fix the spec issues from the review, then set up the repo so every later milesto
 
 **Done when:** the Appendix C behaviours are covered by simulated-input tests.
 
+**Status:** done. `Form` routes all input (hit testing with popups first, capture, click rule, hover, wheel
+bubbling, focus, Tab order, shortcuts with `Mod+`, Enter/Escape to default/cancel buttons) and hosts the popup layer;
+`form.Simulate` drives the same entry points as the SDL host. New controls: CheckBox, RadioButton, GroupBox, ScrollBar,
+ScrollBox (plus mouse-draggable Splitter and a keyboard-operable Button). Context menus arrive with PopupMenu in M6.
+C# events use Delphi-style signatures (`NotifyEvent(Control sender)`, `MouseEvent(Control sender, MouseEventArgs e)`).
+
 ## M4: Form streaming and code generation (L)
 
 - `[Published]` attribute + generator emitting per-class metadata (name, type, default, values, range, category).

@@ -1,0 +1,61 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "hand-written",
+  "root": {
+    "class": "Form",
+    "name": "frmControls",
+    "caption": "Controls",
+    "height": 320,
+    "width": 460,
+    "children": [
+      {
+        "class": "GroupBox",
+        "name": "grpOptions",
+        "caption": "Options",
+        "height": 120,
+        "left": 12,
+        "top": 12,
+        "width": 200,
+        "children": [
+          { "class": "CheckBox", "name": "chkWrap", "caption": "Word wrap", "checked": true, "height": 20, "left": 10, "top": 28, "width": 180 },
+          { "class": "CheckBox", "name": "chkRuler", "caption": "Show ruler", "height": 20, "left": 10, "top": 54, "width": 180 },
+          { "class": "CheckBox", "name": "chkLocked", "caption": "Locked (disabled)", "enabled": false, "height": 20, "left": 10, "top": 80, "width": 180 }
+        ]
+      },
+      {
+        "class": "GroupBox",
+        "name": "grpSize",
+        "caption": "Size",
+        "height": 120,
+        "left": 224,
+        "top": 12,
+        "width": 220,
+        "children": [
+          { "class": "RadioButton", "name": "rbSmall", "caption": "Small", "height": 20, "left": 10, "top": 28, "width": 180 },
+          { "class": "RadioButton", "name": "rbMedium", "caption": "Medium", "checked": true, "height": 20, "left": 10, "top": 54, "width": 180 },
+          { "class": "RadioButton", "name": "rbLarge", "caption": "Large", "height": 20, "left": 10, "top": 80, "width": 180 }
+        ]
+      },
+      { "class": "ScrollBar", "name": "sbZoom", "height": 14, "left": 12, "max": 100, "pageSize": 25, "position": 30, "top": 146, "width": 200 },
+      {
+        "class": "ScrollBox",
+        "name": "sbxList",
+        "height": 110,
+        "left": 224,
+        "top": 146,
+        "width": 220,
+        "children": [
+          { "class": "Label", "name": "lblRow1", "caption": "Row 1", "left": 8, "top": 6 },
+          { "class": "Label", "name": "lblRow2", "caption": "Row 2", "left": 8, "top": 32 },
+          { "class": "Label", "name": "lblRow3", "caption": "Row 3", "left": 8, "top": 58 },
+          { "class": "Label", "name": "lblRow4", "caption": "Row 4", "left": 8, "top": 84 },
+          { "class": "Label", "name": "lblRow5", "caption": "Row 5", "left": 8, "top": 110 },
+          { "class": "Button", "name": "btnMore", "caption": "More…", "left": 8, "top": 140 }
+        ]
+      },
+      { "class": "Button", "name": "btnOk", "anchors": ["right", "bottom"], "caption": "OK", "default": true, "left": 276, "top": 280 },
+      { "class": "Button", "name": "btnCancel", "anchors": ["right", "bottom"], "cancel": true, "caption": "Cancel", "left": 364, "top": 280 }
+    ]
+  }
+}

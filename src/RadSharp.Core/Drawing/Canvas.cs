@@ -82,6 +82,48 @@ public sealed class Canvas
             Math.Max(0, radius - h), Math.Max(0, radius - h), _stroke);
     }
 
+    public void FillEllipse(Rect r, Color color)
+    {
+        if (r.Width <= 0 || r.Height <= 0 || color.A == 0) return;
+        _smooth.Color = color.ToSK();
+        _sk.DrawOval(ToSK(r), _smooth);
+    }
+
+    /// <summary>An ellipse outline whose outer edge is <paramref name="r"/>.</summary>
+    public void DrawEllipseBorder(Rect r, Color color, int thickness = 1)
+    {
+        if (r.Width <= 0 || r.Height <= 0 || thickness <= 0) return;
+        float h = thickness / 2f;
+        _stroke.Color = color.ToSK();
+        _stroke.StrokeWidth = thickness;
+        _sk.DrawOval(new SKRect(r.X + h, r.Y + h, r.X + r.Width - h, r.Y + r.Height - h), _stroke);
+    }
+
+    /// <summary>A check mark (✓) fitted inside <paramref name="r"/>.</summary>
+    public void DrawCheckMark(Rect r, Color color, float thickness)
+    {
+        using var path = new SKPathBuilder();
+        path.MoveTo(r.X + r.Width * 0.22f, r.Y + r.Height * 0.52f);
+        path.LineTo(r.X + r.Width * 0.42f, r.Y + r.Height * 0.72f);
+        path.LineTo(r.X + r.Width * 0.78f, r.Y + r.Height * 0.30f);
+        using var p = path.Detach();
+        _stroke.Color = color.ToSK();
+        _stroke.StrokeWidth = thickness;
+        _stroke.StrokeCap = SKStrokeCap.Round;
+        _stroke.StrokeJoin = SKStrokeJoin.Round;
+        _sk.DrawPath(p, _stroke);
+        _stroke.StrokeCap = SKStrokeCap.Butt;
+        _stroke.StrokeJoin = SKStrokeJoin.Miter;
+    }
+
+    /// <summary>The keyboard focus ring: a rounded outline just inside <paramref name="r"/>.</summary>
+    public void DrawFocusRing(Rect r, float radius) =>
+        DrawRoundBorder(r, radius, Theme.FocusRing, Math.Max(1, Px(2)));
+
+    /// <summary>Returns <paramref name="r"/> grown by <paramref name="d"/> pixels on every side (negative shrinks).</summary>
+    public static Rect Inflate(Rect r, int d) =>
+        new(r.X - d, r.Y - d, Math.Max(0, r.Width + 2 * d), Math.Max(0, r.Height + 2 * d));
+
     // ---- Text ----
 
     /// <summary>Draws one line of text with its baseline at <paramref name="baseline"/> (rounded to whole pixels).</summary>

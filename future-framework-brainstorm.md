@@ -385,7 +385,11 @@ Absolute positions are refreshed for the whole tree every pass.
 ## Appendix C: Input, focus and popup rules
 
 - **Hit testing:** the deepest visible control under the point wins. Children are clipped to their
-  parent; later children are on top.
+  parent (to its *child clip rect*: a scroll box's viewport excludes its scroll bars); later children
+  are on top. A press on a disabled control (or inside a disabled container) is ignored.
+- **Containers and child coordinates:** anchored children are positioned from the parent's top-left
+  corner (Delphi's rule, also for group boxes), except in a **scroll box**, whose children use content
+  coordinates: (0, 0) is the viewport's corner when not scrolled.
 - **Mouse capture:** the control that receives a button press gets all moves and the release until that
   button is released. A **click** fires on a left release only if the pointer is still over the captured
   control.
@@ -395,7 +399,9 @@ Absolute positions are refreshed for the whole tree every pass.
     in child order.
   - Hiding, disabling or removing a control clears hover, capture and focus inside it.
 - **Wheel** events bubble from the control under the pointer up through its parents until one handles them.
-- **Keys** go to the focused control as key events (key + modifiers). **Text input** arrives separately
+- **Keys** go to the focused control as key events (key + modifiers). A control that accepts tabs (a
+  multi-line editor) gets Tab itself; otherwise Tab moves focus.
+- **Enter / Escape** that no control handled click the form's *default* / *cancel* button. **Text input** arrives separately
   as text events and never contains control characters; IME composition arrives as composition events
   to the focused control. Clipboard commands (Mod+C, Mod+X, Mod+V, Mod+A) are key events.
 - **Shortcuts:** a modifier + key or F1–F12 press is offered to the control tree after the focused
@@ -407,8 +413,8 @@ Absolute positions are refreshed for the whole tree every pass.
   - A press **outside every popup closes all of them and is consumed** (nothing underneath receives it).
   - **Escape** closes the topmost popup.
   - **Tab** closes all popups, then moves focus.
-  - While a popup is open, navigation keys go to the topmost popup, not the focused control, and typed
-    text is discarded.
+  - While a popup is open, key presses (other than Tab) go to the topmost popup, not the focused
+    control, and typed text is discarded. An Escape the popup doesn't handle closes it.
   - Closing a popup also closes every popup opened above it (submenus).
   - Hiding, disabling or removing the control that opened a popup closes it.
 - **Context menus:** a control's `popupMenu` opens on right-button press, at the pointer, after the

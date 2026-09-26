@@ -16,23 +16,43 @@ public static class FormRenderer
         var c = new Canvas(canvas, form.Theme, form.Scale);
         c.Save();
         if (clip is { } r) c.ClipRect(r);
-        PaintTree(form, c, isRoot: true);
+        PaintTree(form, c, translate: false);
+        foreach (var popup in form.Popups)
+        {
+            PaintShadow(c, popup.Bounds);
+            PaintTree(popup, c, translate: true);
+        }
         c.Restore();
     }
 
-    static void PaintTree(Control control, Canvas c, bool isRoot)
+    static void PaintTree(Control control, Canvas c, bool translate)
     {
         if (!control.Visible) return;
         var local = new Rect(0, 0, control.Width, control.Height);
         c.Save();
-        if (!isRoot) c.Translate(control.Left, control.Top);
+        if (translate) c.Translate(control.Left, control.Top);
         if (!c.IsClippedOut(local))
         {
             c.ClipRect(local);
             control.PaintControl(c);
-            foreach (var child in control.Children) PaintTree(child, c, isRoot: false);
+            if (control.Children.Count > 0)
+            {
+                c.Save();
+                c.ClipRect(control.ChildClipRect);
+                var (ox, oy) = control.ChildOffset;
+                if (ox != 0 || oy != 0) c.Translate(ox, oy);
+                foreach (var child in control.Children) PaintTree(child, c, translate: true);
+                c.Restore();
+            }
         }
         c.Restore();
+    }
+
+    static void PaintShadow(Canvas c, Rect r)
+    {
+        int d = Math.Max(1, c.Px(1));
+        c.FillRect(new Rect(r.X + d, r.Y + r.Height, r.Width, 2 * d), new Color(0, 0, 0, 24));
+        c.FillRect(new Rect(r.X + r.Width, r.Y + d, 2 * d, r.Height + d), new Color(0, 0, 0, 24));
     }
 
     /// <summary>Renders the whole form into a new bitmap at its current size.</summary>
