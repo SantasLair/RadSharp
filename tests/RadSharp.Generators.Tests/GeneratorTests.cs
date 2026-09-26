@@ -140,6 +140,39 @@ public class GeneratorTests
     }
 
     [Fact]
+    public void Menu_items_are_bound_by_path_and_named_items_get_fields()
+    {
+        const string json = """
+            { "format": "radform", "version": "1.0", "root": { "class": "Form", "children": [
+              { "class": "MainMenu", "name": "mnuMain", "items": [
+                { "caption": "File", "items": [
+                  { "caption": "Open", "onClick": "mnuOpen_Click" },
+                  { "name": "mniExit", "caption": "Exit", "onClick": "mnuExit_Click" } ] } ] } ] } }
+            """;
+        const string source = """
+            using RadSharp;
+            namespace App;
+            public partial class Main : Form
+            {
+                void mnuOpen_Click(MenuItem sender) { }
+                void mnuExit_Click(object sender) { _ = mniExit.Caption; }
+            }
+            """;
+        var (gen, compile, code) = Run(source, ("Main.radform.json", json));
+        Assert.Empty(gen);
+        Assert.Empty(compile);
+        Assert.Contains("mnuMain.Items[0].Items[0].Click += mnuOpen_Click;", code);
+        Assert.Contains("mniExit = mnuMain.Items[0].Items[1];", code);
+        Assert.Contains("mniExit.Click += mnuExit_Click;", code);
+
+        var (missing, _, _) = Run(source.Replace("void mnuOpen_Click(MenuItem sender) { }", ""), ("Main.radform.json", json));
+        var d = Assert.Single(missing);
+        Assert.Equal("RAD1001", d.Id);
+        Assert.Contains("void mnuOpen_Click(MenuItem sender)", d.GetMessage());
+        Assert.Contains("menu item \"Open\"", d.GetMessage());
+    }
+
+    [Fact]
     public void User_controls_get_metadata_and_bad_published_types_are_reported()
     {
         const string source = """

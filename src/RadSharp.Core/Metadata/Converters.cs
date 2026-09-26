@@ -30,6 +30,7 @@ public static class Converters
     public static readonly ValueConverter<Color?> NullableColor = new NullableColorConverter();
     public static readonly ValueConverter<Anchors> Anchors = new AnchorsConverter();
     public static readonly ValueConverter<Thickness> Thickness = new ThicknessConverter();
+    public static readonly ValueConverter<string[]> Strings = new StringsConverter();
 
     public static ValueConverter<T> Enum<T>() where T : struct, System.Enum => EnumConverter<T>.Instance;
 
@@ -144,6 +145,33 @@ public static class Converters
                 if (match.Name == null) return false;
                 value |= match.Flag;
             }
+            return true;
+        }
+    }
+
+    /// <summary>A list of strings (list box items...), written one per line: <c>["Red", "Green"]</c>.</summary>
+    sealed class StringsConverter : ValueConverter<string[]>
+    {
+        public override PropertyType Type => PropertyType.Strings;
+
+        public override string[] Read(JsonElement v)
+        {
+            if (v.ValueKind != JsonValueKind.Array) throw Wrong(v, "an array of strings");
+            return [.. v.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.String ? e.GetString()! : throw Wrong(e, "a string"))];
+        }
+
+        public override void Write(FormJsonWriter w, string[] value)
+        {
+            w.BeginArray();
+            foreach (var s in value) { w.NextElement(); w.WriteString(s); }
+            w.EndArray();
+        }
+
+        public override bool AreEqual(string[] a, string[] b) => (a ?? []).SequenceEqual(b ?? []);
+        public override string Format(string[] value) => string.Join("\n", value ?? []);
+        public override bool TryParse(string text, out string[] value)
+        {
+            value = text.Length == 0 ? [] : text.Replace("\r\n", "\n").Split('\n');
             return true;
         }
     }

@@ -132,6 +132,14 @@ public static class FormReader
         foreach (var prop in node.EnumerateObject())
         {
             if (prop.Name is "class" or "name" or "children") continue;
+            if (prop.Name == "items" && control is IMenuOwner owner)
+            {
+                owner.Items.Clear();
+                if (prop.Value.ValueKind != JsonValueKind.Array) { warnings.Add($"{here}.items: expected an array; ignored."); continue; }
+                int i = 0;
+                foreach (var item in prop.Value.EnumerateArray()) owner.Items.Add(MenuItem.Read(item, warnings, $"{here}.items[{i++}]"));
+                continue;
+            }
             try
             {
                 if (!SetProperty(control, cls, prop.Name, prop.Value))

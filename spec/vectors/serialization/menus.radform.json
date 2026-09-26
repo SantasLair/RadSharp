@@ -1,0 +1,85 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmMenus",
+    "height": 300,
+    "width": 400,
+    "children": [
+      {
+        "class": "MainMenu",
+        "name": "mnuMain",
+        "items": [
+          {
+            "caption": "File",
+            "items": [
+              {
+                "caption": "New",
+                "onClick": "mnuNew_Click",
+                "shortcut": "Ctrl+N"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Recent",
+                "items": [
+                  {
+                    "name": "mniRecentA",
+                    "caption": "a.map"
+                  }
+                ]
+              },
+              {
+                "caption": "Exit",
+                "onClick": "mnuExit_Click"
+              }
+            ]
+          },
+          {
+            "caption": "Edit",
+            "items": [
+              {
+                "caption": "Redo",
+                "altShortcut": "Ctrl+Shift+Z",
+                "enabled": false,
+                "shortcut": "Ctrl+Y"
+              },
+              {
+                "caption": "Grid",
+                "checked": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "class": "PopupMenu",
+        "name": "pmnList",
+        "left": 20,
+        "top": 200,
+        "items": [
+          {
+            "caption": "Delete"
+          }
+        ]
+      },
+      {
+        "class": "Panel",
+        "name": "pnlList",
+        "align": "client",
+        "popupMenu": "pmnList"
+      },
+      {
+        "class": "Timer",
+        "name": "tmrTick",
+        "interval": 250,
+        "left": 60,
+        "top": 200
+      }
+    ]
+  }
+}

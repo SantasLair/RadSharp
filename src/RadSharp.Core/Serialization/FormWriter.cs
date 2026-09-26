@@ -93,6 +93,7 @@ public static class FormWriter
         caption?.Invoke();
         text?.Invoke();
         foreach (var write in rest.Values) write();
+        if (control is IMenuOwner menu) MenuItem.WriteItems(w, menu.Items);
         if (control.Children.Count > 0)
         {
             w.Key("children");

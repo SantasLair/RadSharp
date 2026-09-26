@@ -90,12 +90,74 @@ public class Form : Control
 
     public void RemoveTicker(Control control) => _tickers.Remove(control);
 
+    List<Timer>? _timers;
+
+    /// <summary>Called when controls are added or removed anywhere on the form.</summary>
+    internal void TreeChanged() => _timers = null;
+
     /// <summary>Called by the host on every loop iteration with its monotonic clock.</summary>
     public void ProcessTick(double nowMs)
     {
         Now = nowMs;
         foreach (var t in _tickers.ToArray()) t.OnTick(nowMs);
+        _timers ??= [.. Descendants().OfType<Timer>()];
+        foreach (var t in _timers.ToArray()) t.Tick(nowMs);
     }
+
+    // =====================================================================
+    // Windows: Show, ShowModal, Close
+    // =====================================================================
+
+    ModalResult _modalResult;
+
+    /// <summary>The form that owns this one (a dialog's parent window).</summary>
+    public Form? Owner { get; set; }
+
+    public bool IsModal { get; private set; }
+
+    /// <summary>Setting a result other than None on a modal form closes it (as a dialog button does).</summary>
+    public ModalResult ModalResult
+    {
+        get => _modalResult;
+        set
+        {
+            _modalResult = value;
+            if (IsModal && value != ModalResult.None) Close();
+        }
+    }
+
+    [Published("onCloseQuery")] public event CloseQueryEvent? CloseQuery;
+    [Published("onClose")] public event NotifyEvent? Closed;
+    [Published("onShow")] public event NotifyEvent? Shown;
+
+    /// <summary>Shows the form in its own window and returns immediately.</summary>
+    public void Show() => Platform.Require().ShowForm(this);
+
+    /// <summary>Shows the form as a modal dialog; returns how it was closed (Cancel if closed from its title bar).</summary>
+    public ModalResult ShowModal()
+    {
+        _modalResult = ModalResult.None;
+        IsModal = true;
+        try { Platform.Require().RunModal(this); }
+        finally { IsModal = false; }
+        return _modalResult;
+    }
+
+    /// <summary>Asks <see cref="CloseQuery"/> handlers, then closes the window. Returns false if a handler refused.</summary>
+    public bool Close()
+    {
+        var e = new CloseQueryEventArgs();
+        CloseQuery?.Invoke(this, e);
+        if (!e.CanClose) return false;
+        if (IsModal && _modalResult == ModalResult.None) _modalResult = ModalResult.Cancel;
+        CloseAllPopups();
+        Platform.Current?.CloseForm(this);
+        Closed?.Invoke(this);
+        return true;
+    }
+
+    /// <summary>Called by the host once the form's window is visible.</summary>
+    public void NotifyShown() => Shown?.Invoke(this);
 
     /// <summary>
     /// Where text is being entered (form pixels): the host positions the IME candidate window there.
@@ -346,6 +408,18 @@ public class Form : Control
         _captureButton = button;
         UpdateHover(x, y);
         hit.OnMouseDown(Local(hit, x, y, button, modifiers, clicks));
+
+        // Context menus open after the press was delivered (so a list selects the row first).
+        if (button == MouseButton.Right)
+        {
+            for (Control? c = hit; c != null; c = c.Parent)
+            {
+                if (c.ContextMenu is not { } menu) continue;
+                _capture = null;
+                menu.Popup(this, x, y, c);
+                break;
+            }
+        }
     }
 
     public void ProcessMouseUp(int x, int y, MouseButton button, KeyModifiers modifiers = KeyModifiers.None)

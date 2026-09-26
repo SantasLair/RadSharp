@@ -109,6 +109,7 @@ public sealed class MetadataGenerator : IIncrementalGenerator
             case "RadSharp.Anchors": return C + "Anchors";
             case "RadSharp.Thickness": return C + "Thickness";
         }
+        if (t is IArrayTypeSymbol { ElementType.SpecialType: SpecialType.System_String }) return C + "Strings";
         if (t.TypeKind == TypeKind.Enum)
             return $"{C}Enum<{t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}>()";
         return null;

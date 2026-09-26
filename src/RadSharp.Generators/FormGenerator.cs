@@ -85,7 +85,7 @@ public sealed class FormGenerator : IIncrementalGenerator
             ? (userClass.ContainingNamespace.IsGlobalNamespace ? "" : userClass.ContainingNamespace.ToDisplayString())
             : rootNamespace;
 
-        var fields = new List<(string Name, string Type)>();
+        var fields = new List<(string Name, string Type, string Init)>();
         var bindings = new List<Binding>();
         var names = new HashSet<string>(StringComparer.Ordinal);
         var rootType = ResolveClass(compilation, root, spc, At);
@@ -104,45 +104,75 @@ public sealed class FormGenerator : IIncrementalGenerator
                 else if (!names.Add(name!))
                     spc.ReportDiagnostic(Diagnostic.Create(DuplicateName, At(nameNode!.Line, nameNode.Column), name));
                 else
-                    fields.Add((name!, type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "global::RadSharp.Control"));
+                {
+                    var t = type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "global::RadSharp.Control";
+                    fields.Add((name!, t, $"({t})FindControl({MetadataGenerator.Literal(name!)})!"));
+                }
             }
 
+            string owner = isRoot ? "this" : name ?? "";
             foreach (var member in node.Members!)
             {
-                var key = member.Key;
-                if (key.Length < 3 || !key.StartsWith("on", StringComparison.Ordinal) || !char.IsUpper(key[2])) continue;
-                var value = member.Value;
-                if (value.Kind != JsonKind.String || string.IsNullOrEmpty(value.String)) continue;
-                var handler = value.String!;
-                string owner = isRoot ? "this" : name ?? "";
-                if (owner.Length == 0) continue;  // unnamed controls can't be bound
-
-                var ev = type == null ? null : FindPublishedEvent(type, key);
-                if (ev == null)
-                {
-                    spc.ReportDiagnostic(Diagnostic.Create(UnknownEvent, At(value.KeyLine, value.KeyColumn), type?.Name ?? "control", key));
-                    continue;
-                }
-                if (!SyntaxFacts.IsValidIdentifier(handler))
-                {
-                    spc.ReportDiagnostic(Diagnostic.Create(BadName, At(value.Line, value.Column), handler));
-                    continue;
-                }
-                if (userClass == null || !HasMethod(userClass, handler))
-                {
-                    var invoke = ((INamedTypeSymbol)ev.Type).DelegateInvokeMethod!;
-                    var parameters = string.Join(", ", invoke.Parameters.Select(p =>
-                        $"{p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat).TrimEnd('?')} {p.Name}"));
-                    spc.ReportDiagnostic(Diagnostic.Create(MissingHandler, At(value.Line, value.Column),
-                        handler, isRoot ? name ?? className : owner, key, className, parameters));
-                    continue;
-                }
-                bindings.Add(new Binding(owner, ev.Name, handler));
+                if (IsEventKey(member.Key) && owner.Length > 0)  // unnamed controls can't be bound
+                    Bind(member.Key, member.Value, type, owner, isRoot ? name ?? className : owner);
             }
+
+            // Menu items: bound through their path from the (named) menu control; named items get a field.
+            if (node["items"] is { Kind: JsonKind.Array } items && !isRoot && !string.IsNullOrEmpty(name))
+                WalkItems(items, $"{name}.Items");
 
             if (node["children"] is { Kind: JsonKind.Array } children)
                 foreach (var child in children.Items!)
                     if (child.Kind == JsonKind.Object) Walk(child, isRoot: false);
+        }
+
+        void WalkItems(JsonNode items, string prefix)
+        {
+            var itemType = compilation.GetTypeByMetadataName("RadSharp.MenuItem");
+            for (int i = 0; i < items.Items!.Count; i++)
+            {
+                var item = items.Items[i];
+                if (item.Kind != JsonKind.Object) continue;
+                string path = $"{prefix}[{i}]";
+                string target = path;
+                var itemName = item["name"];
+                if (itemName is { Kind: JsonKind.String, String: { Length: > 0 } n })
+                {
+                    if (!SyntaxFacts.IsValidIdentifier(n)) spc.ReportDiagnostic(Diagnostic.Create(BadName, At(itemName.Line, itemName.Column), n));
+                    else if (!names.Add(n)) spc.ReportDiagnostic(Diagnostic.Create(DuplicateName, At(itemName.Line, itemName.Column), n));
+                    else { fields.Add((n, "global::RadSharp.MenuItem", path)); target = n; }
+                }
+                var caption = item["caption"]?.String ?? "item";
+                foreach (var member in item.Members!)
+                    if (IsEventKey(member.Key)) Bind(member.Key, member.Value, itemType, target, target == path ? $"menu item \"{caption}\"" : target);
+                if (item["items"] is { Kind: JsonKind.Array } sub) WalkItems(sub, path + ".Items");
+            }
+        }
+
+        void Bind(string key, JsonNode value, INamedTypeSymbol? type, string target, string label)
+        {
+            if (value.Kind != JsonKind.String || string.IsNullOrEmpty(value.String)) return;
+            var handler = value.String!;
+            var ev = type == null ? null : FindPublishedEvent(type, key);
+            if (ev == null)
+            {
+                spc.ReportDiagnostic(Diagnostic.Create(UnknownEvent, At(value.KeyLine, value.KeyColumn), type?.Name ?? "control", key));
+                return;
+            }
+            if (!SyntaxFacts.IsValidIdentifier(handler))
+            {
+                spc.ReportDiagnostic(Diagnostic.Create(BadName, At(value.Line, value.Column), handler));
+                return;
+            }
+            if (userClass == null || !HasMethod(userClass, handler))
+            {
+                var invoke = ((INamedTypeSymbol)ev.Type).DelegateInvokeMethod!;
+                var parameters = string.Join(", ", invoke.Parameters.Select(p =>
+                    $"{p.Type.ToDisplayString(SymbolDisplayFormat.MinimallyQualifiedFormat).TrimEnd('?')} {p.Name}"));
+                spc.ReportDiagnostic(Diagnostic.Create(MissingHandler, At(value.Line, value.Column), handler, label, key, className, parameters));
+                return;
+            }
+            bindings.Add(new Binding(target, ev.Name, handler));
         }
 
         var rootClassName = root["class"]?.String ?? "Form";
@@ -150,6 +180,8 @@ public sealed class FormGenerator : IIncrementalGenerator
             rootType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "global::RadSharp.Form",
             rootClassName, fileName, fields, bindings));
     }
+
+    static bool IsEventKey(string key) => key.Length >= 3 && key.StartsWith("on", StringComparison.Ordinal) && char.IsUpper(key[2]);
 
     static INamedTypeSymbol? ResolveClass(Compilation compilation, JsonNode node, SourceProductionContext spc, Func<int, int, Location> at)
     {
@@ -190,7 +222,7 @@ public sealed class FormGenerator : IIncrementalGenerator
     }
 
     static string Emit(string ns, string className, string baseType, string rootClassName, string resource,
-        List<(string Name, string Type)> fields, List<Binding> bindings)
+        List<(string Name, string Type, string Init)> fields, List<Binding> bindings)
     {
         var sb = new StringBuilder();
         sb.AppendLine("// <auto-generated/>");
@@ -204,7 +236,7 @@ public sealed class FormGenerator : IIncrementalGenerator
         }
         sb.AppendLine($"{indent}partial class {className} : {baseType}");
         sb.AppendLine($"{indent}{{");
-        foreach (var (name, type) in fields)
+        foreach (var (name, type, _) in fields)
             sb.AppendLine($"{indent}    internal {type} {name} = null!;");
         if (fields.Count > 0) sb.AppendLine();
         sb.AppendLine($"{indent}    /// <summary>The class {resource} was designed as; used when the form is saved.</summary>");
@@ -214,8 +246,8 @@ public sealed class FormGenerator : IIncrementalGenerator
         sb.AppendLine($"{indent}    private void InitializeComponent()");
         sb.AppendLine($"{indent}    {{");
         sb.AppendLine($"{indent}        global::RadSharp.FormReader.LoadInto(this, typeof({className}).Assembly, {MetadataGenerator.Literal(resource)});");
-        foreach (var (name, type) in fields)
-            sb.AppendLine($"{indent}        {name} = ({type})FindControl({MetadataGenerator.Literal(name)})!;");
+        foreach (var (name, _, init) in fields)
+            sb.AppendLine($"{indent}        {name} = {init};");
         foreach (var b in bindings)
             sb.AppendLine($"{indent}        {b.Target}.{b.ClrEvent} += {b.Handler};");
         sb.AppendLine($"{indent}    }}");

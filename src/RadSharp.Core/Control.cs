@@ -68,6 +68,7 @@ public partial class Control
         child._captured = false;
         InvalidateLayout();
         InvalidateForm();
+        OwningForm?.TreeChanged();
     }
 
     public bool Remove(Control child)
@@ -78,7 +79,18 @@ public partial class Control
         InvalidateLayout();
         InvalidateForm();
         form?.ControlBecameUnavailable(child);
+        form?.TreeChanged();
         return true;
+    }
+
+    /// <summary>Every control below this one, depth-first.</summary>
+    public IEnumerable<Control> Descendants()
+    {
+        foreach (var c in _children)
+        {
+            yield return c;
+            foreach (var d in c.Descendants()) yield return d;
+        }
     }
 
     /// <summary>Finds a control by name in this subtree (including this control).</summary>

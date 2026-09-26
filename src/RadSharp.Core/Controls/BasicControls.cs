@@ -59,6 +59,15 @@ public class Button : Control
     /// <summary>Escape clicks this button when no control handled the key (Delphi's <c>Cancel</c>).</summary>
     [Published(Category = "Behavior")] public bool Cancel { get; set; }
 
+    /// <summary>Clicking the button sets its form's <see cref="Form.ModalResult"/>, which closes a modal dialog.</summary>
+    [Published(Category = "Behavior")] public ModalResult ModalResult { get; set; }
+
+    protected internal override void OnClick()
+    {
+        base.OnClick();
+        if (ModalResult != ModalResult.None && OwningForm is { } form) form.ModalResult = ModalResult;
+    }
+
     /// <summary>True while the button is shown pushed in (mouse held over it, or Space held).</summary>
     public bool IsPressed => (_mouseDown && IsHovered) || _spaceDown;
 
