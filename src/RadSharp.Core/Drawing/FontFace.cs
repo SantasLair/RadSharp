@@ -4,52 +4,87 @@ using HB = HarfBuzzSharp;
 
 namespace RadSharp.Drawing;
 
-/// <summary>A shaped line of text in font units: glyph ids and pen positions.</summary>
+/// <summary>A shaped run of text in font units: glyph ids, positions and source clusters.</summary>
 public sealed class ShapedText
 {
-    internal ShapedText(ushort[] glyphs, float[] x, float[] y, int[] clusters, float advance)
+    internal ShapedText(ushort[] glyphs, float[] x, float[] y, float[] pen, float[] advances, int[] clusters, float advance)
     {
-        Glyphs = glyphs; X = x; Y = y; Clusters = clusters; Advance = advance;
+        Glyphs = glyphs; X = x; Y = y; Pen = pen; Advances = advances; Clusters = clusters; Advance = advance;
     }
 
     public ushort[] Glyphs { get; }
-    /// <summary>Pen x of each glyph, in font units.</summary>
+    /// <summary>Where each glyph is drawn (pen + offset), in font units.</summary>
     public float[] X { get; }
     /// <summary>Vertical offset of each glyph (y down), in font units.</summary>
     public float[] Y { get; }
-    /// <summary>UTF-16 index of the character each glyph came from.</summary>
+    /// <summary>Pen position before each glyph (without offsets), in font units.</summary>
+    public float[] Pen { get; }
+    public float[] Advances { get; }
+    /// <summary>UTF-16 index (within the shaped string) of the character each glyph came from.</summary>
     public int[] Clusters { get; }
     /// <summary>Total advance width, in font units.</summary>
     public float Advance { get; }
 }
 
 /// <summary>
-/// One font file: HarfBuzz shaping plus our own outline reader. Bundled faces render identically on
-/// every OS because no platform font engine is involved.
+/// One font: HarfBuzz shaping plus glyph drawing. <b>Bundled</b> faces (TrueType files shipped with the
+/// app) are drawn from outlines read by our own code, so they render identically on every OS.
+/// <b>System</b> faces (used only as fallback for characters the bundled faces lack, such as CJK or
+/// emoji) are drawn by Skia through the OS font engine, including colour emoji.
 /// </summary>
 public sealed class FontFace
 {
-    readonly TrueTypeOutlines _outlines;
+    readonly TrueTypeOutlines? _outlines;
+    readonly SKTypeface? _typeface;
     readonly HB.Font _hbFont;
     readonly object _hbLock = new();
     readonly ConcurrentDictionary<ushort, SKPath> _paths = new();
     readonly ConcurrentDictionary<string, ShapedText> _shaped = new(StringComparer.Ordinal);
+    readonly ConcurrentDictionary<int, bool> _coverage = new();
 
     public string Name { get; }
-    public int UnitsPerEm => _outlines.UnitsPerEm;
-    public int Ascender => _outlines.Ascender;
-    public int Descender => _outlines.Descender;
-    public int LineGap => _outlines.LineGap;
+    public int UnitsPerEm { get; }
+    public int Ascender { get; }
+    public int Descender { get; }
+    public int LineGap { get; }
 
+    /// <summary>True for faces loaded from font files we ship (pixel-identical on every OS).</summary>
+    public bool IsBundled => _outlines != null;
+
+    /// <summary>Loads a bundled TrueType (glyf) font file.</summary>
     public FontFace(string name, byte[] fontFile)
     {
         Name = name;
         _outlines = new TrueTypeOutlines(fontFile);
+        _hbFont = CreateHarfBuzzFont(fontFile, 0, _outlines.UnitsPerEm);
+        UnitsPerEm = _outlines.UnitsPerEm;
+        Ascender = _outlines.Ascender;
+        Descender = _outlines.Descender;
+        LineGap = _outlines.LineGap;
+    }
+
+    FontFace(SKTypeface typeface, byte[] fontFile, int index)
+    {
+        Name = typeface.FamilyName;
+        _typeface = typeface;
+        UnitsPerEm = typeface.UnitsPerEm > 0 ? typeface.UnitsPerEm : 1000;
+        _hbFont = CreateHarfBuzzFont(fontFile, index, UnitsPerEm);
+        if (_hbFont.TryGetHorizontalFontExtents(out var extents))
+        {
+            Ascender = extents.Ascender;
+            Descender = extents.Descender;
+            LineGap = extents.LineGap;
+        }
+    }
+
+    static HB.Font CreateHarfBuzzFont(byte[] fontFile, int index, int unitsPerEm)
+    {
         using var blob = HB.Blob.FromStream(new MemoryStream(fontFile));
-        using var face = new HB.Face(blob, 0);
-        _hbFont = new HB.Font(face);
-        _hbFont.SetFunctionsOpenType();
-        _hbFont.SetScale(UnitsPerEm, UnitsPerEm);
+        using var face = new HB.Face(blob, index);
+        var font = new HB.Font(face);
+        font.SetFunctionsOpenType();
+        font.SetScale(unitsPerEm, unitsPerEm);
+        return font;
     }
 
     public static FontFace Regular { get; } = LoadBundled("Inter-Regular");
@@ -64,10 +99,64 @@ public sealed class FontFace
         return new FontFace(name, ms.ToArray());
     }
 
-    /// <summary>The glyph outline in font units (y down, baseline at 0). Cached.</summary>
-    public SKPath GetGlyphPath(ushort glyph) => _paths.GetOrAdd(glyph, g => _outlines.GetPath(g));
+    // ---- Fallback ----
 
-    /// <summary>Shapes a single line of text (kerning, ligatures) with HarfBuzz. Cached.</summary>
+    static readonly List<FontFace> BundledFallbacks = [];
+    static readonly ConcurrentDictionary<int, FontFace?> SystemFallbackByCodepoint = new();
+    static readonly ConcurrentDictionary<string, FontFace> SystemFaces = new(StringComparer.Ordinal);
+
+    /// <summary>
+    /// Adds a bundled font tried (in order) for characters the primary face lacks, before system
+    /// fonts. Ship e.g. a CJK font this way to keep those characters pixel-identical everywhere.
+    /// </summary>
+    public static void AddFallback(FontFace face)
+    {
+        lock (BundledFallbacks) BundledFallbacks.Add(face);
+    }
+
+    /// <summary>The face to draw <paramref name="codepoint"/> with: this one, a bundled fallback, or a system font.</summary>
+    public FontFace ResolveFace(int codepoint)
+    {
+        if (HasGlyph(codepoint)) return this;
+        lock (BundledFallbacks)
+            foreach (var f in BundledFallbacks)
+                if (f.HasGlyph(codepoint)) return f;
+        return SystemFallback(codepoint) ?? this;
+    }
+
+    static FontFace? SystemFallback(int codepoint) => SystemFallbackByCodepoint.GetOrAdd(codepoint, cp =>
+    {
+        try
+        {
+            var tf = SKFontManager.Default.MatchCharacter(cp);
+            if (tf == null) return null;
+            var key = tf.FamilyName + "|" + tf.FontStyle.Weight + "|" + tf.FontStyle.Slant;
+            return SystemFaces.GetOrAdd(key, _ =>
+            {
+                using var stream = tf.OpenStream(out int index);
+                var bytes = new byte[stream.Length];
+                stream.Read(bytes, bytes.Length);
+                return new FontFace(tf, bytes, index);
+            });
+        }
+        catch (Exception)
+        {
+            return null;  // no usable system font; the primary face draws .notdef
+        }
+    });
+
+    public bool HasGlyph(int codepoint) => _coverage.GetOrAdd(codepoint, cp =>
+    {
+        lock (_hbLock) return _hbFont.TryGetGlyph((uint)cp, out var g) && g != 0;
+    });
+
+    // ---- Shaping and drawing ----
+
+    /// <summary>The glyph outline in font units (y down, baseline at 0). Bundled faces only. Cached.</summary>
+    public SKPath GetGlyphPath(ushort glyph) =>
+        _outlines is { } o ? _paths.GetOrAdd(glyph, g => o.GetPath(g)) : throw new InvalidOperationException("System faces are drawn by Skia.");
+
+    /// <summary>Shapes a run of text (kerning, ligatures) with HarfBuzz. Cached.</summary>
     public ShapedText Shape(string text)
     {
         if (_shaped.TryGetValue(text, out var cached)) return cached;
@@ -83,23 +172,56 @@ public sealed class FontFace
             var infos = buffer.GetGlyphInfoSpan();
             var positions = buffer.GetGlyphPositionSpan();
 
-            var glyphs = new ushort[infos.Length];
-            var xs = new float[infos.Length];
-            var ys = new float[infos.Length];
-            var clusters = new int[infos.Length];
+            int n = infos.Length;
+            var glyphs = new ushort[n];
+            var xs = new float[n];
+            var ys = new float[n];
+            var pens = new float[n];
+            var advances = new float[n];
+            var clusters = new int[n];
             float pen = 0;
-            for (int i = 0; i < infos.Length; i++)
+            for (int i = 0; i < n; i++)
             {
                 glyphs[i] = (ushort)infos[i].Codepoint;
                 clusters[i] = (int)infos[i].Cluster;
+                pens[i] = pen;
                 xs[i] = pen + positions[i].XOffset;
                 ys[i] = -positions[i].YOffset;
+                advances[i] = positions[i].XAdvance;
                 pen += positions[i].XAdvance;
             }
-            result = new ShapedText(glyphs, xs, ys, clusters, pen);
+            result = new ShapedText(glyphs, xs, ys, pens, advances, clusters, pen);
         }
         _shaped[text] = result;
         return result;
+    }
+
+    /// <summary>Draws shaped glyphs with the pen at (<paramref name="x"/>, <paramref name="baseline"/>).</summary>
+    internal void DrawShaped(SKCanvas canvas, ShapedText shaped, float size, float x, float baseline, SKPaint paint)
+    {
+        float s = size / UnitsPerEm;
+        if (_outlines != null)
+        {
+            for (int i = 0; i < shaped.Glyphs.Length; i++)
+            {
+                var path = GetGlyphPath(shaped.Glyphs[i]);
+                if (path.IsEmpty) continue;
+                canvas.Save();
+                canvas.Translate(x + shaped.X[i] * s, baseline + shaped.Y[i] * s);
+                canvas.Scale(s);
+                canvas.DrawPath(path, paint);
+                canvas.Restore();
+            }
+            return;
+        }
+
+        using var font = new SKFont(_typeface, size) { Edging = SKFontEdging.Antialias, Hinting = SKFontHinting.None, Subpixel = true };
+        var points = new SKPoint[shaped.Glyphs.Length];
+        for (int i = 0; i < points.Length; i++) points[i] = new SKPoint(x + shaped.X[i] * s, baseline + shaped.Y[i] * s);
+        using var builder = new SKTextBlobBuilder();
+        builder.AddPositionedRun(shaped.Glyphs, font, points);
+        using var blob = builder.Build();
+        if (blob != null) canvas.DrawText(blob, 0, 0, paint);
     }
 }
 
@@ -114,7 +236,7 @@ public sealed record Font(FontFace Face, float Size)
     public float Descent => -Face.Descender * Scale;
     public float LineHeight => (Face.Ascender - Face.Descender + Face.LineGap) * Scale;
 
-    public float MeasureWidth(string text) => text.Length == 0 ? 0 : Face.Shape(text).Advance * Scale;
+    public float MeasureWidth(string text) => text.Length == 0 ? 0 : TextLayout.Get(text, this).Width;
 
     public Font WithSize(float size) => this with { Size = size };
 }

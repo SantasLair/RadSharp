@@ -21,10 +21,13 @@ public static unsafe class Application
     public static void Initialize()
     {
         if (_initialized) return;
+        // We draw IME composition text inline ourselves; the OS draws the candidate list.
+        SDL_SetHint("SDL_IME_IMPLEMENTED_UI", "composition");
         if (!SDL_Init(SDL_InitFlags.SDL_INIT_VIDEO))
             throw new InvalidOperationException($"SDL_Init failed: {SDL_GetError()}");
         _initialized = true;
         Form.DefaultScale = Scale;
+        RadSharp.Text.Clipboard.Current = new SdlClipboard();
     }
 
     /// <summary>
@@ -64,6 +67,7 @@ public static unsafe class Application
                 } while (SDL_PollEvent(&e));
                 window.UpdateCursor();
             }
+            window.Tick(SDL_GetTicks());
             window.RenderIfDirty();
 
             if (!string.IsNullOrEmpty(screenshot))
@@ -150,11 +154,32 @@ internal sealed unsafe class FormWindow : IDisposable
             case SDL_EventType.SDL_EVENT_KEY_UP:
                 _form.ProcessKeyUp(SdlInput.Key(e.key.key), SdlInput.Modifiers(e.key.mod));
                 break;
+            case SDL_EventType.SDL_EVENT_TEXT_EDITING:
+                _form.ProcessTextComposition(System.Runtime.InteropServices.Marshal.PtrToStringUTF8((nint)e.edit.text) ?? "",
+                    Math.Max(0, e.edit.start), Math.Max(0, e.edit.length));
+                break;
             case SDL_EventType.SDL_EVENT_TEXT_INPUT:
                 _form.ProcessTextInput(System.Runtime.InteropServices.Marshal.PtrToStringUTF8((nint)e.text.text) ?? "");
                 break;
         }
         return true;
+    }
+
+    Rect? _textInputArea;
+
+    /// <summary>Advances the form's clock and keeps the IME candidate window next to the caret.</summary>
+    public void Tick(ulong nowMs)
+    {
+        _form.ProcessTick(nowMs);
+        var area = _form.TextInputArea;
+        if (area == _textInputArea) return;
+        _textInputArea = area;
+        if (area is { } a)
+        {
+            float d = Density;
+            var rect = new SDL_Rect { x = (int)(a.X / d), y = (int)(a.Y / d), w = Math.Max(1, (int)(a.Width / d)), h = (int)(a.Height / d) };
+            SDL_SetTextInputArea(_window, &rect, 0);
+        }
     }
 
     /// <summary>Shows the cursor of the control under the pointer.</summary>

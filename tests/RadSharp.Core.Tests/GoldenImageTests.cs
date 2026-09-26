@@ -49,6 +49,52 @@ public class GoldenImageTests
         CompareOrUpdate(actual, "controls@100%-460x320.png");
     }
 
+    static Form EditForm(out Edit name, out Memo notes)
+    {
+        var form = new Form { Caption = "Edits" };
+        form.SetBounds(0, 0, 420, 300);
+        Control Put(Control c, int x, int y, int w, int h) { c.SetBounds(x, y, w, h); form.Add(c); return c; }
+        name = (Edit)Put(new Edit { Text = "Ada Lovelace" }, 16, 16, 180, 26);
+        Put(new Edit { PasswordChar = "•", Text = "hunter2" }, 16, 52, 180, 26);
+        Put(new Edit { Placeholder = "Search…" }, 16, 88, 180, 26);
+        Put(new Edit { Text = "Read-only value", ReadOnly = true }, 16, 124, 180, 26);
+        notes = (Memo)Put(new Memo
+        {
+            Text = "The quick brown fox jumps over the lazy dog. Pack my box with five dozen liquor jugs.\n\nSphinx of black quartz, judge my vow.\nHow vexingly quick daft zebras jump!",
+        }, 212, 16, 190, 134);
+        form.PerformLayout();
+        return form;
+    }
+
+    [Fact]
+    public void Edit_controls_match_golden_image()
+    {
+        var form = EditForm(out var name, out _);
+        name.Focus();
+        name.Select(4, 8);   // "Lovelace" selected, caret at the end
+        using var actual = FormRenderer.RenderToBitmap(form);
+        CompareOrUpdate(actual, "edits@100%-420x300.png");
+    }
+
+    /// <summary>
+    /// Not a golden image: CJK and emoji come from system fallback fonts, which differ per machine.
+    /// Writes a PNG for eyeballing when RADSHARP_RENDER_DIR is set.
+    /// </summary>
+    [Fact]
+    public void Fallback_text_and_composition_render()
+    {
+        var form = EditForm(out var name, out var notes);
+        notes.Text = "日本語のテキスト 😀👨‍👩‍👧 café\n한국어 and 中文";
+        name.Text = "Name: ";
+        name.Focus();
+        form.Simulate.Key(Key.End);
+        form.Simulate.Compose("やまだ", 3);
+        using var bmp = FormRenderer.RenderToBitmap(form);
+        Assert.True(name.IsComposing);
+        if (Environment.GetEnvironmentVariable("RADSHARP_RENDER_DIR") is { Length: > 0 } dir)
+            File.WriteAllBytes(Path.Combine(dir, "fallback.png"), FormRenderer.EncodePng(bmp));
+    }
+
     static void CompareOrUpdate(SKBitmap actual, string imageName, [CallerFilePath] string testFile = "")
     {
         var sourceGoldenDir = Path.Combine(Path.GetDirectoryName(testFile)!, "Golden");

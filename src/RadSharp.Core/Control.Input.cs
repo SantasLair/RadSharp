@@ -51,6 +51,12 @@ public partial class Control
     protected internal virtual void OnGotFocus() { Invalidate(); GotFocus?.Invoke(this); }
     protected internal virtual void OnLostFocus() { Invalidate(); LostFocus?.Invoke(this); }
 
+    /// <summary>An IME composition changed while this control has focus.</summary>
+    protected internal virtual void OnTextComposition(TextCompositionEventArgs e) { }
+
+    /// <summary>Called on every host tick (about 20+ times a second) while registered with <see cref="Form.AddTicker"/>.</summary>
+    protected internal virtual void OnTick(double nowMs) { }
+
     /// <summary>Raised after the control's size changed during layout.</summary>
     protected virtual void OnResize() => Resized?.Invoke(this);
 

@@ -69,6 +69,18 @@ public sealed class TextInputEventArgs(string text) : EventArgs
     public bool Handled { get; set; }
 }
 
+/// <summary>
+/// An input method (IME) composition in progress: the text being composed (not yet committed) and
+/// the cursor within it. Empty text means the composition ended; the committed text arrives as
+/// ordinary text input.
+/// </summary>
+public sealed class TextCompositionEventArgs(string text, int cursor, int selectionLength) : EventArgs
+{
+    public string Text { get; } = text;
+    public int Cursor { get; } = cursor;
+    public int SelectionLength { get; } = selectionLength;
+}
+
 public delegate void NotifyEvent(Control sender);
 public delegate void MouseEvent(Control sender, MouseEventArgs e);
 public delegate void MouseWheelEvent(Control sender, MouseWheelEventArgs e);

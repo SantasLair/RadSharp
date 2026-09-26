@@ -139,6 +139,26 @@ NativeAOT; save → load → save is byte-identical.
 
 **Done when:** Edit/Memo handle Latin, CJK input through an IME, and emoji, on three OSes.
 
+**Status:** done on Windows; the Avalonia checkpoint was not needed.
+- `TextEditor` (pure model): grapheme-safe caret/selection (extended grapheme clusters), word movement and deletion,
+  line start/end, a max length counted in graphemes, undo/redo with typing coalesced per word, input sanitizing
+  (single-line turns line breaks into spaces).
+- `TextLayout`: one line split into font-fallback runs, shaped with HarfBuzz, with caret x at every grapheme boundary
+  (ligature clusters are divided evenly) and hit testing. Bundled faces stay pixel-identical; characters they lack
+  fall back to `FontFace.AddFallback` faces (bundled, still pixel-identical) and then to system fonts through Skia's
+  font manager, shaped by the same HarfBuzz and drawn by Skia, including colour emoji. Latin golden images were
+  unchanged by the switch.
+- `Edit` (password char, auto-select on Tab, placeholder, read-only, max length) and `Memo` (word wrap, vertical
+  scroll bar, WantTabs, WantReturns) share `EditBase`: mouse and keyboard selection, double/triple click,
+  Windows and macOS key conventions (Ctrl vs ⌥ for words, ⌘ for line edges), clipboard (Mod+C/X/V, Ctrl+Insert,
+  Shift+Insert/Delete), undo/redo, caret blink via `Form.AddTicker`/`ProcessTick`.
+- IME: `Form.ProcessTextComposition` shows the composition inline (underlined) without committing it; the focused
+  editor publishes `Form.TextInputArea`, which the SDL host passes to `SDL_SetTextInputArea` for the candidate
+  window. The host sets `SDL_IME_IMPLEMENTED_UI=composition`, forwards `SDL_EVENT_TEXT_EDITING` and installs the
+  system clipboard.
+- Not yet: bidirectional text (RTL), IME verified by hand on macOS/Linux, emoji/CJK golden images (fallback fonts
+  differ per machine, so they are render-checked only).
+
 ## M6: Standard control set v1 (L)
 
 - Lists: ListBox, ComboBox (popup), ListView (report mode), TreeView.

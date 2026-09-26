@@ -130,21 +130,15 @@ public sealed class Canvas
     public void DrawText(string text, Font font, Color color, float x, float baseline)
     {
         if (text.Length == 0 || color.A == 0) return;
-        var shaped = font.Face.Shape(text);
-        float s = font.Size / font.Face.UnitsPerEm;
-        float x0 = MathF.Round(x, MidpointRounding.AwayFromZero);
-        float y0 = MathF.Round(baseline, MidpointRounding.AwayFromZero);
+        DrawText(TextLayout.Get(text, font), color, x, baseline);
+    }
+
+    /// <summary>Draws a laid-out line with its pen origin at (<paramref name="x"/>, <paramref name="baseline"/>), both rounded.</summary>
+    public void DrawText(TextLayout layout, Color color, float x, float baseline)
+    {
+        if (layout.Text.Length == 0 || color.A == 0) return;
         _smooth.Color = color.ToSK();
-        for (int i = 0; i < shaped.Glyphs.Length; i++)
-        {
-            var path = font.Face.GetGlyphPath(shaped.Glyphs[i]);
-            if (path.IsEmpty) continue;
-            _sk.Save();
-            _sk.Translate(x0 + shaped.X[i] * s, y0 + shaped.Y[i] * s);
-            _sk.Scale(s);
-            _sk.DrawPath(path, _smooth);
-            _sk.Restore();
-        }
+        layout.Draw(_sk, MathF.Round(x, MidpointRounding.AwayFromZero), MathF.Round(baseline, MidpointRounding.AwayFromZero), _smooth);
     }
 
     /// <summary>Draws one line of text aligned inside a rectangle.</summary>

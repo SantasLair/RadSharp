@@ -73,6 +73,36 @@ public class Form : Control
         foreach (var p in _popups) p.PerformLayout();
     }
 
+    // =====================================================================
+    // Time, text input area
+    // =====================================================================
+
+    readonly List<Control> _tickers = [];
+
+    /// <summary>The host's clock in milliseconds, as of the last <see cref="ProcessTick"/>.</summary>
+    public double Now { get; private set; }
+
+    /// <summary>Registers a control for <see cref="Control.OnTick"/> calls (caret blink, timers).</summary>
+    public void AddTicker(Control control)
+    {
+        if (!_tickers.Contains(control)) _tickers.Add(control);
+    }
+
+    public void RemoveTicker(Control control) => _tickers.Remove(control);
+
+    /// <summary>Called by the host on every loop iteration with its monotonic clock.</summary>
+    public void ProcessTick(double nowMs)
+    {
+        Now = nowMs;
+        foreach (var t in _tickers.ToArray()) t.OnTick(nowMs);
+    }
+
+    /// <summary>
+    /// Where text is being entered (form pixels): the host positions the IME candidate window there.
+    /// Set by the focused text control; null when no text control has focus.
+    /// </summary>
+    public Rect? TextInputArea { get; set; }
+
     protected override void Paint(Canvas canvas) =>
         canvas.FillRect(new Rect(0, 0, Width, Height), Color ?? canvas.Theme.FormBackground);
 
@@ -393,6 +423,14 @@ public class Form : Control
         if (target.IsEffectivelyEnabled) target.OnTextInput(new TextInputEventArgs(text));
     }
 
+    /// <summary>An IME composition update for the focused control (discarded while a popup is open).</summary>
+    public void ProcessTextComposition(string text, int cursor, int selectionLength = 0)
+    {
+        if (_popups.Count > 0) return;
+        var target = _focused ?? this;
+        if (target.IsEffectivelyEnabled) target.OnTextComposition(new TextCompositionEventArgs(text, cursor, selectionLength));
+    }
+
     static bool IsShortcutCandidate(KeyEventArgs e) =>
         (e.Modifiers & (KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Meta)) != 0
         || e.Key is >= Key.F1 and <= Key.F12;
@@ -421,11 +459,22 @@ public sealed class InputSimulator(Form form)
 {
     public void MoveTo(int x, int y, KeyModifiers modifiers = KeyModifiers.None) => form.ProcessMouseMove(x, y, modifiers);
 
-    public void Press(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None)
+    public void Press(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None, int clicks = 1)
     {
         form.ProcessMouseMove(x, y, modifiers);
-        form.ProcessMouseDown(x, y, button, modifiers);
+        form.ProcessMouseDown(x, y, button, modifiers, clicks);
     }
+
+    /// <summary>A double click: two press/release pairs, the second reporting two clicks.</summary>
+    public void DoubleClick(int x, int y)
+    {
+        Click(x, y);
+        Press(x, y, clicks: 2);
+        Release(x, y);
+    }
+
+    /// <summary>An IME composition update, e.g. <c>Compose("にほ", 2)</c>; <c>Compose("", 0)</c> ends it.</summary>
+    public void Compose(string text, int cursor) => form.ProcessTextComposition(text, cursor);
 
     public void Release(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None) =>
         form.ProcessMouseUp(x, y, button, modifiers);

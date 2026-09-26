@@ -20,6 +20,9 @@ public sealed record Theme
     public Color SplitterFace { get; init; } = Color.FromHex("#E5E7EB");
     public Color InputBackground { get; init; } = Color.FromHex("#FFFFFF");
     public Color InputBorder { get; init; } = Color.FromHex("#9AA1AC");
+    public Color Selection { get; init; } = Color.FromHex("#C9DAFB");
+    public Color SelectionInactive { get; init; } = Color.FromHex("#E3E6EA");
+    public Color Caret { get; init; } = Color.FromHex("#1F2328");
     public Color ScrollTrack { get; init; } = Color.FromHex("#EEF0F3");
     public Color ScrollThumb { get; init; } = Color.FromHex("#C4C9D1");
     public Color ScrollThumbHover { get; init; } = Color.FromHex("#A7AEB9");
