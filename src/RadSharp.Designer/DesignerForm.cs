@@ -1,5 +1,6 @@
 using RadSharp.Design;
 using RadSharp.Design.Code;
+using RadSharp.Drawing;
 
 namespace RadSharp.Designer;
 
@@ -34,6 +35,10 @@ public partial class DesignerForm : Form
         _settingsPath = settingsPath;
         _settings = DesignerSettings.Load(settingsPath);
         _settings.RemoveMissing();
+
+        // Apply theme from settings
+        Theme.Current = _settings.Theme == "dark" ? Theme.Dark : Theme.Default;
+        this.Theme = Theme.Current;
 
         _palette = [.. ComponentRegistry.All
             .Where(c => c.CanCreate && c.Type != typeof(Control) && !typeof(Form).IsAssignableFrom(c.Type) && c.Type != typeof(DesignSurface))

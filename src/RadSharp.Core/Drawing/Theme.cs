@@ -37,4 +37,33 @@ public sealed record Theme
     public int ButtonRadius { get; init; } = 4;
 
     public static Theme Default { get; } = new();
+
+    public static Theme Dark { get; } = new()
+    {
+        FormBackground = Color.FromHex("#1E1E1E"),
+        PanelBackground = Color.FromHex("#252526"),
+        PanelBorder = Color.FromHex("#3E3E42"),
+        Text = Color.FromHex("#E0E0E0"),
+        TextDisabled = Color.FromHex("#6A6A6A"),
+        ButtonFace = Color.FromHex("#3C3C3C"),
+        ButtonFaceHover = Color.FromHex("#454546"),
+        ButtonFacePressed = Color.FromHex("#2D2D30"),
+        ButtonBorder = Color.FromHex("#555555"),
+        Accent = Color.FromHex("#007ACC"),
+        FocusRing = Color.FromHex("#007ACC"),
+        SplitterFace = Color.FromHex("#3E3E42"),
+        InputBackground = Color.FromHex("#3C3C3C"),
+        InputBorder = Color.FromHex("#555555"),
+        Selection = Color.FromHex("#094771"),
+        SelectionInactive = Color.FromHex("#3F3F46"),
+        Caret = Color.FromHex("#E0E0E0"),
+        ScrollTrack = Color.FromHex("#2D2D30"),
+        ScrollThumb = Color.FromHex("#555555"),
+        ScrollThumbHover = Color.FromHex("#6A6A6A"),
+        OnAccent = Color.FromHex("#FFFFFF"),
+        PopupBackground = Color.FromHex("#2D2D30"),
+        PopupBorder = Color.FromHex("#555555"),
+    };
+
+    public static Theme Current { get; set; } = Default;
 }

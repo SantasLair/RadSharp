@@ -146,6 +146,14 @@
                 "onClick": "mnuShowGrid_Click",
                 "name": "mniShowGrid",
                 "checked": true
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Toggle Dark Mode",
+                "onClick": "mnuToggleDarkMode_Click"
               }
             ]
           },
@@ -527,7 +535,6 @@
         "name": "pnlWelcome",
         "align": "client",
         "borderStyle": "none",
-        "color": "#FFFFFF",
         "children": [
           {
             "class": "Label",

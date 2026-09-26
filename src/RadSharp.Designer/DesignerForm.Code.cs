@@ -1,5 +1,6 @@
 using RadSharp.Design;
 using RadSharp.Design.Code;
+using RadSharp.Drawing;
 using RadSharp.Platform.Sdl;
 
 namespace RadSharp.Designer;
@@ -298,5 +299,16 @@ public partial class DesignerForm
             Output("No .NET 10 SDK found: designing works, but Run (F9) and Build need it. Get it from https://dot.net.");
             sbMain.SimpleText = "Install the .NET 10 SDK to run and build apps";
         });
+    }
+
+    // ---- Theme ----
+
+    void mnuToggleDarkMode_Click(object sender)
+    {
+        _settings.Theme = _settings.Theme == "dark" ? "light" : "dark";
+        Theme.Current = _settings.Theme == "dark" ? Theme.Dark : Theme.Default;
+        this.Theme = Theme.Current;
+        SaveSettings();
+        InvalidateAll();
     }
 }

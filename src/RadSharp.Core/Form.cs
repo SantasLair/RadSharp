@@ -22,6 +22,7 @@ public class Form : Control
     {
         SetDefaultSize(640, 480);
         Simulate = new InputSimulator(this);
+        Theme = Theme.Current;
     }
 
     [Published(Category = "Appearance")]
@@ -40,7 +41,7 @@ public class Form : Control
     /// <summary>The UI scale factor lengths were multiplied by when the form was loaded.</summary>
     public double Scale { get; set; } = 1;
 
-    public Theme Theme { get; set; } = Theme.Default;
+    public Theme Theme { get; set; }
 
     /// <summary>
     /// The scale generated <c>InitializeComponent()</c> code loads forms at. Hosts set it at startup

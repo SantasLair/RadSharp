@@ -15,6 +15,8 @@ public sealed class DesignerSettings
     public string ProjectsFolder { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "RADSharp Projects");
     /// <summary>A local folder of RADSharp packages for new projects; empty = auto-detect, then nuget.org.</summary>
     public string PackageSource { get; set; } = "";
+    /// <summary>Theme preference: "light" or "dark".</summary>
+    public string Theme { get; set; } = "light";
 
     public static string DefaultPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RADSharp", "designer.json");
@@ -45,6 +47,7 @@ public sealed class DesignerSettings
             if (root.TryGetProperty("customEditorCommand", out var c)) s.CustomEditorCommand = c.GetString() ?? "";
             if (root.TryGetProperty("projectsFolder", out var f) && f.GetString() is { Length: > 0 } folder) s.ProjectsFolder = folder;
             if (root.TryGetProperty("packageSource", out var ps)) s.PackageSource = ps.GetString() ?? "";
+            if (root.TryGetProperty("theme", out var t) && t.GetString() is { Length: > 0 } theme) s.Theme = theme;
         }
         catch (Exception ex) when (ex is JsonException or IOException or InvalidOperationException) { }
         return s;
@@ -64,6 +67,7 @@ public sealed class DesignerSettings
         w.WriteString("customEditorCommand", CustomEditorCommand);
         w.WriteString("projectsFolder", ProjectsFolder);
         w.WriteString("packageSource", PackageSource);
+        w.WriteString("theme", Theme);
         w.WriteEndObject();
     }
 

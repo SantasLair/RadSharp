@@ -29,6 +29,9 @@ public static unsafe class Application
         if (_initialized) return;
         // We draw IME composition text inline ourselves; the OS draws the candidate list.
         SDL_SetHint("SDL_IME_IMPLEMENTED_UI", "composition");
+        // Without this, the click that activates an inactive window is swallowed rather than
+        // delivered as a normal mouse-down, so a button needs a second click to fire.
+        SDL_SetHint(SDL_HINT_MOUSE_FOCUS_CLICKTHROUGH, "1");
         if (!SDL_Init(SDL_InitFlags.SDL_INIT_VIDEO))
             throw new InvalidOperationException($"SDL_Init failed: {SDL_GetError()}");
         _initialized = true;
@@ -37,6 +40,9 @@ public static unsafe class Application
         // RADSHARP_LIVE_RESIZE=0 turns live resizing off (for diagnosing).
         _liveResize = Environment.GetEnvironmentVariable("RADSHARP_LIVE_RESIZE") != "0";
         if (_liveResize) SDL_AddEventWatch(&OnEventWatch, 0);
+        // RADSHARP_THEME=dark switches to dark mode; default is light.
+        if (Environment.GetEnvironmentVariable("RADSHARP_THEME") == "dark")
+            Theme.Current = Theme.Dark;
         PlatformHost.Current = new SdlPlatform();
     }
 
