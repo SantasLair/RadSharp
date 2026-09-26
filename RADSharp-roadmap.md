@@ -202,6 +202,24 @@ opens/saves maps through native dialogs and edits a custom `MapInfo` component i
 
 **Done when:** the tile-editor form can be designed from scratch in the designer and saves byte-identically to M6's hand-written version.
 
+**Status:** done. `RebuildTileEditorTests` designs the tile-editor form from an empty form using only designer
+operations (palette creation, the inspector's text for every value, the menu editor's fields, renaming, dragging
+component icons) and the saved text is byte-identical to M6's file.
+- `src/RadSharp.Design` (library): `DesignDocument` (the designed form at 100 %, selection, whole-form JSON snapshot
+  undo/redo that also restores the selection, create/delete/copy/paste/rename) and `DesignSurface` (renders the form
+  zoomed to the designer's scale with `Canvas.DrawForm`; select, move, 8-handle resize limited by align, grid snap
+  with half-away-from-zero rounding, sibling-edge snapping with guide lines, rubber band, palette creation into the
+  deepest accepting container, component icons, arrow-key nudge/resize, clipboard as `FormWriter.SaveFragment`).
+  `MenuEditor` and `TabOrderEditor` dialogs.
+- `src/RadSharp.Designer` (app): dogfooded — its main window is `DesignerForm.radform.json` + generated class.
+  Palette, surface, name field, Properties/Events/Structure tabs, menus and toolbar sharing `(object sender)`
+  handlers, open/save through native dialogs, unsaved-changes prompt via `CloseQuery`.
+- Generator: control classes are now also found in referenced assemblies (component libraries), and generated
+  `InitializeComponent()` runs those assemblies' module constructors first, so their controls are registered
+  before the form file is read.
+- Not yet: the menu editor has no altShortcut/separator fields, no alignment/size tools (align lefts, same width),
+  no multi-page PageControl editing beyond clicking tabs, no zoom control.
+
 ## M8: Code integration: the Delphi loop (L)
 
 - Project model: a RadSharp project is an ordinary `.csproj` plus forms; open, new form, add existing form.

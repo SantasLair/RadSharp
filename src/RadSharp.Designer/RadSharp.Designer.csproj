@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <IsPackable>false</IsPackable>
+    <PublishAot>true</PublishAot>
+    <RootNamespace>RadSharp.Designer</RootNamespace>
+    <AssemblyName>RadSharpDesigner</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RadSharp.Design\RadSharp.Design.csproj" />
+    <ProjectReference Include="..\RadSharp.Platform.Sdl\RadSharp.Platform.Sdl.csproj" />
+    <ProjectReference Include="..\RadSharp.Generators\RadSharp.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <Import Project="..\RadSharp.Core\build\RadSharp.Core.targets" />
+
+</Project>

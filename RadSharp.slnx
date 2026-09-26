@@ -6,6 +6,7 @@
   <Folder Name="/src/">
     <Project Path="src/RadSharp.Core/RadSharp.Core.csproj" />
     <Project Path="src/RadSharp.Design/RadSharp.Design.csproj" />
+    <Project Path="src/RadSharp.Designer/RadSharp.Designer.csproj" />
     <Project Path="src/RadSharp.Generators/RadSharp.Generators.csproj" />
     <Project Path="src/RadSharp.Platform.Sdl/RadSharp.Platform.Sdl.csproj" />
   </Folder>

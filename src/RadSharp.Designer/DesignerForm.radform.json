@@ -1,0 +1,367 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "hand-written",
+  "root": {
+    "class": "Form",
+    "name": "frmDesigner",
+    "caption": "RADSharp Designer",
+    "width": 1180,
+    "height": 760,
+    "onCloseQuery": "frmDesigner_CloseQuery",
+    "children": [
+      {
+        "class": "MainMenu",
+        "name": "mnuMain",
+        "items": [
+          {
+            "caption": "File",
+            "items": [
+              {
+                "caption": "New",
+                "onClick": "mnuNew_Click",
+                "shortcut": "Mod+N"
+              },
+              {
+                "caption": "Open…",
+                "onClick": "mnuOpen_Click",
+                "shortcut": "Mod+O"
+              },
+              {
+                "caption": "Save",
+                "onClick": "mnuSave_Click",
+                "shortcut": "Mod+S"
+              },
+              {
+                "caption": "Save as…",
+                "onClick": "mnuSaveAs_Click",
+                "shortcut": "Mod+Shift+S"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Exit",
+                "onClick": "mnuExit_Click"
+              }
+            ]
+          },
+          {
+            "caption": "Edit",
+            "items": [
+              {
+                "caption": "Undo",
+                "onClick": "mnuUndo_Click",
+                "shortcut": "Mod+Z"
+              },
+              {
+                "caption": "Redo",
+                "onClick": "mnuRedo_Click",
+                "shortcut": "Mod+Shift+Z",
+                "altShortcut": "Ctrl+Y"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Cut",
+                "onClick": "mnuCut_Click",
+                "shortcut": "Mod+X"
+              },
+              {
+                "caption": "Copy",
+                "onClick": "mnuCopy_Click",
+                "shortcut": "Mod+C"
+              },
+              {
+                "caption": "Paste",
+                "onClick": "mnuPaste_Click",
+                "shortcut": "Mod+V"
+              },
+              {
+                "caption": "Delete",
+                "onClick": "mnuDelete_Click",
+                "shortcut": "Delete"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Select all",
+                "onClick": "mnuSelectAll_Click",
+                "shortcut": "Mod+A"
+              }
+            ]
+          },
+          {
+            "caption": "Component",
+            "items": [
+              {
+                "caption": "Menu editor…",
+                "onClick": "mnuMenuEditor_Click",
+                "shortcut": "Mod+M"
+              },
+              {
+                "caption": "Tab order…",
+                "onClick": "mnuTabOrder_Click"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Bring to front",
+                "onClick": "mnuBringToFront_Click"
+              },
+              {
+                "caption": "Send to back",
+                "onClick": "mnuSendToBack_Click"
+              }
+            ]
+          },
+          {
+            "caption": "View",
+            "items": [
+              {
+                "caption": "Show grid",
+                "name": "mniShowGrid",
+                "onClick": "mnuShowGrid_Click",
+                "checked": true
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "class": "ToolBar",
+        "name": "tbMain",
+        "children": [
+          {
+            "class": "ToolButton",
+            "name": "btnNew",
+            "caption": "New",
+            "onClick": "mnuNew_Click",
+            "width": 52
+          },
+          {
+            "class": "ToolButton",
+            "name": "btnOpen",
+            "caption": "Open",
+            "onClick": "mnuOpen_Click",
+            "width": 56
+          },
+          {
+            "class": "ToolButton",
+            "name": "btnSave",
+            "caption": "Save",
+            "onClick": "mnuSave_Click",
+            "width": 56
+          },
+          {
+            "class": "ToolSeparator",
+            "name": "sep1"
+          },
+          {
+            "class": "ToolButton",
+            "name": "btnUndo",
+            "caption": "Undo",
+            "onClick": "mnuUndo_Click",
+            "width": 56
+          },
+          {
+            "class": "ToolButton",
+            "name": "btnRedo",
+            "caption": "Redo",
+            "onClick": "mnuRedo_Click",
+            "width": 56
+          },
+          {
+            "class": "ToolSeparator",
+            "name": "sep2"
+          },
+          {
+            "class": "ToolButton",
+            "name": "btnMenuEditor",
+            "caption": "Menu editor",
+            "onClick": "mnuMenuEditor_Click",
+            "width": 96
+          },
+          {
+            "class": "ToolButton",
+            "name": "btnTabOrder",
+            "caption": "Tab order",
+            "onClick": "mnuTabOrder_Click",
+            "width": 84
+          }
+        ]
+      },
+      {
+        "class": "StatusBar",
+        "name": "sbMain"
+      },
+      {
+        "class": "Panel",
+        "name": "pnlPalette",
+        "align": "left",
+        "width": 170,
+        "children": [
+          {
+            "class": "Label",
+            "name": "lblPalette",
+            "caption": "Components",
+            "align": "top",
+            "height": 28,
+            "layout": "center",
+            "margin": {
+              "l": 8,
+              "t": 0,
+              "r": 0,
+              "b": 0
+            }
+          },
+          {
+            "class": "ListBox",
+            "name": "lstPalette",
+            "align": "client",
+            "margin": {
+              "l": 4,
+              "t": 0,
+              "r": 4,
+              "b": 4
+            },
+            "onChange": "lstPalette_Change"
+          }
+        ]
+      },
+      {
+        "class": "Splitter",
+        "name": "splPalette",
+        "align": "left",
+        "minSize": 120
+      },
+      {
+        "class": "Panel",
+        "name": "pnlInspector",
+        "align": "right",
+        "width": 300,
+        "children": [
+          {
+            "class": "Panel",
+            "name": "pnlName",
+            "align": "top",
+            "height": 36,
+            "borderStyle": "none",
+            "children": [
+              {
+                "class": "Label",
+                "name": "lblName",
+                "caption": "Name",
+                "left": 8,
+                "top": 8,
+                "width": 48,
+                "height": 20
+              },
+              {
+                "class": "Edit",
+                "name": "edtName",
+                "anchors": [
+                  "left",
+                  "top",
+                  "right"
+                ],
+                "left": 60,
+                "top": 5,
+                "width": 232,
+                "height": 26,
+                "onKeyDown": "edtName_KeyDown",
+                "onBlur": "edtName_Blur"
+              }
+            ]
+          },
+          {
+            "class": "PageControl",
+            "name": "pgInspector",
+            "align": "client",
+            "margin": {
+              "l": 4,
+              "t": 0,
+              "r": 4,
+              "b": 4
+            },
+            "onChange": "pgInspector_Change",
+            "children": [
+              {
+                "class": "TabSheet",
+                "name": "tsProperties",
+                "caption": "Properties",
+                "children": [
+                  {
+                    "class": "PropertyGrid",
+                    "name": "gridProps",
+                    "align": "client"
+                  }
+                ]
+              },
+              {
+                "class": "TabSheet",
+                "name": "tsEvents",
+                "caption": "Events",
+                "children": [
+                  {
+                    "class": "PropertyGrid",
+                    "name": "gridEvents",
+                    "align": "client",
+                    "mode": "events"
+                  }
+                ]
+              },
+              {
+                "class": "TabSheet",
+                "name": "tsStructure",
+                "caption": "Structure",
+                "children": [
+                  {
+                    "class": "TreeView",
+                    "name": "tvStructure",
+                    "align": "client",
+                    "onChange": "tvStructure_Change"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "class": "Splitter",
+        "name": "splInspector",
+        "align": "right",
+        "minSize": 220
+      },
+      {
+        "class": "DesignSurface",
+        "name": "surface",
+        "align": "client"
+      },
+      {
+        "class": "OpenDialog",
+        "name": "dlgOpen",
+        "filter": "RADSharp forms|*.radform.json|All files|*.*",
+        "title": "Open form",
+        "left": 400,
+        "top": 300
+      },
+      {
+        "class": "SaveDialog",
+        "name": "dlgSave",
+        "filter": "RADSharp forms|*.radform.json",
+        "title": "Save form",
+        "left": 440,
+        "top": 300
+      }
+    ]
+  }
+}
