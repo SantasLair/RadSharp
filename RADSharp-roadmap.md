@@ -284,6 +284,14 @@ versions and projects reference `0.1.0-dev*`, so NuGet never serves a stale loca
 Tested by driving the designer form itself (`tests/RadSharp.Designer.Tests`). Follow-up: a Visual Studio helper
 (DTE automation, as Unity does) to open handlers at their line.
 
+**After 1.0 — live resizing:** forms reflow while a window border is dragged. Windows (modal size/move loop) and macOS
+(live-resize tracking) block the app's own loop during a drag; an SDL3 event watch (`SDL_AddEventWatch`), which SDL calls
+as events are generated inside those loops, lays the form out and presents a frame for every
+`WINDOW_PIXEL_SIZE_CHANGED`/`WINDOW_EXPOSED` (main thread only, re-entry guarded, exceptions contained). Godot does the
+same by iterating its main loop from a timer inside the modal loop. Verified by resizing with `SDL_SetWindowSize` and
+capturing the back buffer before any event is pumped (`RADSHARP_SCREENSHOT_RESIZE`): the capture already has the new
+size and the reflowed layout.
+
 **Left for a person:** vet and choose the product name (then rename packages and namespaces), choose a licence,
 publish packages to nuget.org, get signing certificates, and try the designer by hand on macOS and Linux
 (IME in particular).

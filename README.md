@@ -7,6 +7,7 @@ run it live, press **Build** to get a native executable — on Windows, macOS an
   to a code-behind partial class, events bound by name (at compile time — a missing handler is a compile error).
 - **Pixel-perfect everywhere:** custom-drawn controls rendered by Skia on the CPU with bundled fonts and our own
   glyph outlines, so a form looks identical on every OS (golden-image tests enforce it).
+- **Live resizing:** forms reflow and repaint while you drag a window border (no frozen or stretched frames).
 - **Native output:** NativeAOT executables (~3–4 MB + SDL3/Skia/HarfBuzz libraries); no runtime to install and no
   IL to decompile.
 

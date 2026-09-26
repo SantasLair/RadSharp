@@ -34,6 +34,7 @@ public static unsafe class Application
         _initialized = true;
         Form.DefaultScale = Scale;
         RadSharp.Text.Clipboard.Current = new SdlClipboard();
+        SDL_AddEventWatch(&OnEventWatch, 0);
         PlatformHost.Current = new SdlPlatform();
     }
 
@@ -60,13 +61,18 @@ public static unsafe class Application
         Initialize();
         ShowForm(mainForm, owner: null, modal: false);
         var screenshot = Environment.GetEnvironmentVariable("RADSHARP_SCREENSHOT");
+        var resizeTo = Environment.GetEnvironmentVariable("RADSHARP_SCREENSHOT_RESIZE");   // "width,height" in points
         bool first = true;
         RunLoop(() =>
         {
             if (!string.IsNullOrEmpty(screenshot) && !first && Windows.TryGetValue(mainForm, out var w))
             {
+                // Test hooks: RADSHARP_SCREENSHOT_RESIZE resizes the window and saves the back buffer at once,
+                // without pumping events, so the picture shows what the event watch drew during the resize.
+                if (resizeTo?.Split(',') is [var rw, var rh] && int.TryParse(rw, out var width) && int.TryParse(rh, out var height))
+                    w.ResizeTo(width, height);
                 w.SaveScreenshot(screenshot);
-                CloseForm(mainForm);   // a test hook: no CloseQuery prompts
+                CloseForm(mainForm);   // no CloseQuery prompts
             }
             first = false;
             return Windows.ContainsKey(mainForm);
@@ -74,6 +80,7 @@ public static unsafe class Application
         foreach (var w in Windows.Values.ToList()) w.Dispose();
         Windows.Clear();
         PlatformHost.Current = null;
+        SDL_RemoveEventWatch(&OnEventWatch, 0);
         SDL_Quit();
         _initialized = false;
     }
@@ -107,6 +114,46 @@ public static unsafe class Application
     {
         if (!Windows.Remove(form, out var window)) return;
         window.Dispose();
+    }
+
+    // ---- Live resizing ----
+
+    static bool _inWatch;
+
+    /// <summary>How many frames were painted from inside the event watch (live resizing); for tests and diagnostics.</summary>
+    public static int LiveFrames { get; private set; }
+
+    /// <summary>
+    /// Called by SDL as each event is generated — including from inside the OS's modal size/move loop
+    /// (Windows) or live-resize tracking (macOS), when our own loop is blocked. For size changes and
+    /// exposes we lay out and repaint the window right here, so forms reflow while the user drags their
+    /// border (the same idea as Godot rendering from a timer inside the modal loop).
+    /// </summary>
+    [UnmanagedCallersOnly(CallConvs = [typeof(CallConvCdecl)])]
+    static SDLBool OnEventWatch(nint userdata, SDL_Event* e)
+    {
+        var type = (SDL_EventType)e->type;
+        if (type is not (SDL_EventType.SDL_EVENT_WINDOW_PIXEL_SIZE_CHANGED or SDL_EventType.SDL_EVENT_WINDOW_EXPOSED)) return true;
+        if (_inWatch || !SDL_IsMainThread()) return true;
+        _inWatch = true;
+        try
+        {
+            var id = e->window.windowID;
+            foreach (var w in Windows.Values)
+            {
+                if (w.Id != id) continue;
+                w.PaintNow();
+                LiveFrames++;
+                break;
+            }
+        }
+        catch (Exception ex)
+        {
+            // An exception must not unwind into native code; the next normal frame repaints anyway.
+            System.Diagnostics.Debug.WriteLine("RADSharp live resize: " + ex);
+        }
+        finally { _inWatch = false; }
+        return true;   // watches can't drop events; the event still reaches the queue
     }
 
     /// <summary>Processes events for all windows until <paramref name="keepRunning"/> returns false.</summary>
@@ -403,6 +450,17 @@ internal sealed unsafe class FormWindow : IDisposable
         SDL_RenderTexture(_renderer, _texture, null, null);
         SDL_RenderPresent(_renderer);
     }
+
+    /// <summary>Takes the window's current size, lays the form out and presents a frame immediately.</summary>
+    public void PaintNow()
+    {
+        SyncSizeToWindow();
+        _form.InvalidateAll();
+        RenderIfDirty();
+    }
+
+    /// <summary>Resizes the window (in points); SDL's event watch repaints it before this returns.</summary>
+    public void ResizeTo(int width, int height) => SDL_SetWindowSize(_window, width, height);
 
     public void SaveScreenshot(string path)
     {
