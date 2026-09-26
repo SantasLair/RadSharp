@@ -149,6 +149,24 @@ public static class ComponentRegistry
         }
     }
 
+    /// <summary>
+    /// Forgets every class from <paramref name="assembly"/> (the designer's live-run assemblies, before they
+    /// are unloaded). Classes of the same name from other assemblies become visible again.
+    /// </summary>
+    public static void Unregister(System.Reflection.Assembly assembly)
+    {
+        lock (Lock)
+        {
+            foreach (var t in ByType.Keys.Where(t => t.Assembly == assembly).ToList()) ByType.Remove(t);
+            foreach (var (name, c) in ByName.ToList())
+            {
+                if (c.Type.Assembly != assembly) continue;
+                ByName.Remove(name);
+                if (ByType.Values.FirstOrDefault(o => o.Name == name) is { } other) ByName[name] = other;
+            }
+        }
+    }
+
     public static ComponentClass? Find(string name)
     {
         lock (Lock) return ByName.GetValueOrDefault(name);

@@ -52,6 +52,9 @@ public class DesignSurface : Control
     /// <summary>Raised after a control was created from the palette.</summary>
     public event Action<Control>? Created;
 
+    /// <summary>Raised when a control (or the form) is double-clicked: the designer opens its default event handler.</summary>
+    public event Action<Control>? DoubleClicked;
+
     double Zoom => UiScale;
     int OriginX => Px(16) - _scrollX;
     int OriginY => Px(16) - _scrollY;
@@ -179,6 +182,12 @@ public class DesignSurface : Control
         }
 
         var hit = ControlAt(dx, dy);
+        if (e.Clicks == 2 && (hit ?? _doc.Form) is { } target)
+        {
+            _mode = Mode.None;
+            DoubleClicked?.Invoke(target);
+            return;
+        }
         if (hit is PageControl pages && pages.TabRects() is var tabs)
         {
             // Clicking a tab in the designer switches the page shown.

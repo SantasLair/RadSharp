@@ -18,6 +18,23 @@
             "caption": "File",
             "items": [
               {
+                "caption": "New project…",
+                "onClick": "mnuNewProject_Click"
+              },
+              {
+                "caption": "Open project…",
+                "onClick": "mnuOpenProject_Click",
+                "shortcut": "Mod+Shift+O"
+              },
+              {
+                "caption": "New form",
+                "onClick": "mnuNewForm_Click"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
                 "caption": "New",
                 "onClick": "mnuNew_Click",
                 "shortcut": "Mod+N"
@@ -123,6 +140,21 @@
             ]
           },
           {
+            "caption": "Run",
+            "items": [
+              {
+                "caption": "Run",
+                "onClick": "mnuRun_Click",
+                "shortcut": "F9"
+              },
+              {
+                "caption": "Build",
+                "onClick": "mnuBuild_Click",
+                "shortcut": "Ctrl+F9"
+              }
+            ]
+          },
+          {
             "caption": "View",
             "items": [
               {
@@ -195,12 +227,73 @@
             "caption": "Tab order",
             "onClick": "mnuTabOrder_Click",
             "width": 84
+          },
+          {
+            "class": "ToolSeparator",
+            "name": "sep3"
+          },
+          {
+            "class": "ToolButton",
+            "name": "btnRun",
+            "caption": "▶ Run",
+            "onClick": "mnuRun_Click",
+            "width": 64
+          },
+          {
+            "class": "ToolButton",
+            "name": "btnBuild",
+            "caption": "Build",
+            "onClick": "mnuBuild_Click",
+            "width": 56
           }
         ]
       },
       {
         "class": "StatusBar",
         "name": "sbMain"
+      },
+      {
+        "class": "Panel",
+        "name": "pnlOutput",
+        "align": "bottom",
+        "height": 130,
+        "borderStyle": "none",
+        "children": [
+          {
+            "class": "Label",
+            "name": "lblOutput",
+            "caption": "Output",
+            "align": "top",
+            "height": 22,
+            "margin": {
+              "l": 8,
+              "t": 0,
+              "r": 0,
+              "b": 0
+            },
+            "layout": "center"
+          },
+          {
+            "class": "ListBox",
+            "name": "lstOutput",
+            "align": "client",
+            "itemHeight": 20,
+            "margin": {
+              "l": 4,
+              "t": 0,
+              "r": 4,
+              "b": 4
+            },
+            "onDblClick": "lstOutput_DblClick"
+          }
+        ]
+      },
+      {
+        "class": "Splitter",
+        "name": "splOutput",
+        "align": "bottom",
+        "minSize": 60,
+        "height": 4
       },
       {
         "class": "Panel",
@@ -246,7 +339,7 @@
         "class": "Panel",
         "name": "pnlInspector",
         "align": "right",
-        "width": 300,
+        "width": 340,
         "children": [
           {
             "class": "Panel",
@@ -274,7 +367,7 @@
                 ],
                 "left": 60,
                 "top": 5,
-                "width": 232,
+                "width": 272,
                 "height": 26,
                 "onKeyDown": "edtName_KeyDown",
                 "onBlur": "edtName_Blur"
@@ -328,6 +421,33 @@
                     "name": "tvStructure",
                     "align": "client",
                     "onChange": "tvStructure_Change"
+                  }
+                ]
+              },
+              {
+                "class": "TabSheet",
+                "name": "tsProject",
+                "caption": "Project",
+                "children": [
+                  {
+                    "class": "Label",
+                    "name": "lblProject",
+                    "caption": "No project open",
+                    "align": "top",
+                    "height": 26,
+                    "margin": {
+                      "l": 6,
+                      "t": 0,
+                      "r": 0,
+                      "b": 0
+                    },
+                    "layout": "center"
+                  },
+                  {
+                    "class": "ListBox",
+                    "name": "lstForms",
+                    "align": "client",
+                    "onDblClick": "lstForms_DblClick"
                   }
                 ]
               }

@@ -18,6 +18,7 @@ public partial class DesignerForm : Form
         InitializeComponent();
         surface.Document = _doc;
         surface.Created += _ => lstPalette.ItemIndex = -1;
+        surface.DoubleClicked += OnSurfaceDoubleClicked;
 
         _palette = [.. ComponentRegistry.All
             .Where(c => c.CanCreate && c.Type != typeof(Control) && !typeof(Form).IsAssignableFrom(c.Type) && c.Type != typeof(DesignSurface))
@@ -29,13 +30,14 @@ public partial class DesignerForm : Form
             grid.PropertyChanging += (_, _) => _doc.Snapshot();
             grid.PropertyChanged += (_, _) => _doc.NotifyChanged();
         }
-        gridEvents.EventDoubleClick += (_, ev) => CreateHandlerName(ev);
+        gridEvents.EventDoubleClick += (_, ev) => EditHandler(_doc.Primary, ev);
 
         _doc.SelectionChanged += UpdateInspector;
         _doc.Changed += () => { gridProps.RefreshValues(); gridEvents.RefreshValues(); RebuildStructure(); UpdateTitle(); };
         _doc.FormReplaced += () => { UpdateInspector(); RebuildStructure(); };
 
-        if (path != null && File.Exists(path)) OpenFile(path);
+        if (path != null && path.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase) && File.Exists(path)) OpenProject(path);
+        else if (path != null && File.Exists(path)) OpenFile(path);
         UpdateInspector();
         RebuildStructure();
         UpdateTitle();
@@ -73,6 +75,7 @@ public partial class DesignerForm : Form
         _doc.FileName = path;
         _doc.MarkSaved();
         UpdateTitle();
+        RefreshProject();
         sbMain.SimpleText = "Saved " + path;
         return true;
     }
@@ -164,25 +167,17 @@ public partial class DesignerForm : Form
         var target = _doc.Primary;
         var name = edtName.Text.Trim();
         if (name == target.Name) return;
+        var old = target.Name;
         if (!_doc.Rename(target, name))
         {
             sbMain.SimpleText = $"\"{name}\" is not a valid, unused name";
             edtName.Text = target.Name;
+            return;
         }
+        if (old.Length > 0) RenameInCode(old, name);
     }
 
     void pgInspector_Change(Control sender) => UpdateInspector();
-
-    /// <summary>Double-clicking an event gives it the conventional handler name (M8 also writes the method).</summary>
-    void CreateHandlerName(EventMeta ev)
-    {
-        var target = _doc.Primary;
-        if (target.EventHandlers.ContainsKey(ev.Name)) return;
-        var owner = target.Name.Length > 0 ? target.Name : _doc.Form.Name;
-        _doc.Snapshot();
-        target.EventHandlers[ev.Name] = $"{owner}_{ev.Name[2..]}";
-        _doc.NotifyChanged();
-    }
 
     // ---- Palette ----
 
@@ -256,5 +251,9 @@ public partial class DesignerForm : Form
         surface.Invalidate();
     }
 
-    void frmDesigner_CloseQuery(Control sender, CloseQueryEventArgs e) => e.CanClose = ConfirmDiscard();
+    void frmDesigner_CloseQuery(Control sender, CloseQueryEventArgs e)
+    {
+        e.CanClose = ConfirmDiscard();
+        if (e.CanClose) CloseLiveForm();
+    }
 }

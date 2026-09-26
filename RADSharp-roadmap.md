@@ -233,6 +233,23 @@ component icons) and the saved text is byte-identical to M6's file.
 **Done when:** new project → drop a Button → double-click → write a handler → F9 → Build gives a native executable,
 without leaving the designer except to type code.
 
+**Status:** done. `CodeIntegrationTests.New_project_drop_button_double_click_handler_live_run` walks the loop up to F9
+(the live form's button runs the typed handler); `New_project_builds_a_native_executable` (with
+`RADSHARP_SLOW_TESTS=1`, after `dotnet pack`) publishes a designer-created project with NativeAOT (~20 s).
+- `src/RadSharp.Design.Code` (Roslyn): `RadProject` (a .csproj + `X.radform.json`/`X.cs` pairs; create project,
+  add form), `CodeIntegration` (handler stubs inserted with matching indentation and needed usings, identifier
+  renames, Delphi-style default events), `LiveSession` (F9: in-memory compile of the project with RADSharp's
+  generators run in-process on the designer's unsaved form text, forms embedded as resources, loaded into a
+  collectible `AssemblyLoadContext` that shares the designer's RADSharp assemblies; entry points are skipped;
+  `ComponentRegistry.Unregister` on unload), `ProjectBuilder` (`dotnet publish` NativeAOT, streamed output),
+  `ExternalEditor` (`code -g file:line`, or `RADSHARP_EDITOR`).
+- Designer: File › New project / Open project / New form, a Project tab, Run › Run (F9) / Build (Ctrl+F9), an Output
+  list (double-click a compiler message to open it), double-click a control or an event to write and open its
+  handler, renames carry over to the field and conventionally named handlers in the code. The designer itself now
+  runs on the JIT (it hosts Roslyn); the apps it builds are NativeAOT.
+- Not yet: user component libraries from PackageReferences in live runs (only the designer's own assemblies are
+  referenced), a built-in code view, a debugger (use the IDE's).
+
 ## M9: 1.0 release (M)
 
 - **Vet and settle the product name** (NuGet, GitHub, domain, trademark) and rename packages/namespaces if needed.

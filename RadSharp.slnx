@@ -5,6 +5,7 @@
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/RadSharp.Core/RadSharp.Core.csproj" />
+    <Project Path="src/RadSharp.Design.Code/RadSharp.Design.Code.csproj" />
     <Project Path="src/RadSharp.Design/RadSharp.Design.csproj" />
     <Project Path="src/RadSharp.Designer/RadSharp.Designer.csproj" />
     <Project Path="src/RadSharp.Generators/RadSharp.Generators.csproj" />
@@ -12,6 +13,7 @@
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/RadSharp.Core.Tests/RadSharp.Core.Tests.csproj" />
+    <Project Path="tests/RadSharp.Design.Code.Tests/RadSharp.Design.Code.Tests.csproj" />
     <Project Path="tests/RadSharp.Design.Tests/RadSharp.Design.Tests.csproj" />
     <Project Path="tests/RadSharp.Generators.Tests/RadSharp.Generators.Tests.csproj" />
   </Folder>

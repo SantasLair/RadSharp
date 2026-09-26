@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>RADSharp designer code integration: handler stubs, renames, live run (Roslyn) and builds.</Description>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp" Version="4.14.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RadSharp.Design\RadSharp.Design.csproj" />
+    <!-- The generators run in-process for live runs. -->
+    <ProjectReference Include="..\RadSharp.Generators\RadSharp.Generators.csproj" />
+  </ItemGroup>
+
+</Project>
