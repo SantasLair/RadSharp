@@ -18,17 +18,8 @@ public partial class Control
     [Published("onBlur")] public event NotifyEvent? LostFocus;
     [Published("onResize")] public event NotifyEvent? Resized;
 
-    PopupMenu? _contextMenu;
-
     /// <summary>The name of the PopupMenu component shown when this control is right-clicked.</summary>
     [Published("popupMenu", Category = "Behavior")] public string PopupMenuName { get; set; } = "";
-
-    /// <summary>The context menu: set from code, or found by <see cref="PopupMenuName"/> on the form.</summary>
-    public PopupMenu? ContextMenu
-    {
-        get => _contextMenu ?? (PopupMenuName.Length > 0 ? OwningForm?.FindControl(PopupMenuName) as PopupMenu : null);
-        set => _contextMenu = value;
-    }
 
     /// <summary>The mouse cursor shown while the pointer is over this control.</summary>
     [Published(Category = "Appearance")] public Cursor Cursor { get; set; } = Cursor.Default;

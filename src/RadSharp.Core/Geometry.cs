@@ -1,5 +1,11 @@
 namespace RadSharp;
 
+/// <summary>A point in fractional pixels (for drawing, gradients, paths).</summary>
+public readonly record struct PointF(float X, float Y)
+{
+    public override string ToString() => $"{X}, {Y}";
+}
+
 /// <summary>A rectangle in whole pixels. <c>X</c>/<c>Y</c> are relative to the parent unless stated otherwise.</summary>
 public readonly record struct Rect(int X, int Y, int Width, int Height)
 {

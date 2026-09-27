@@ -131,6 +131,153 @@ public sealed class Canvas
         _sk.DrawImage(picture.Image, ToSK(dest), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
     }
 
+    /// <summary>Draws a region of a picture scaled into a destination rect (smooth, mipmapped sampling).</summary>
+    public void DrawPicture(Picture picture, Rect src, Rect dest)
+    {
+        if (dest.Width <= 0 || dest.Height <= 0) return;
+        _sk.DrawImage(picture.Image, ToSK(src), ToSK(dest), new SKSamplingOptions(SKFilterMode.Linear, SKMipmapMode.Linear));
+    }
+
+    // ---- Drawing primitives ----
+
+    /// <summary>Draws a line from <paramref name="a"/> to <paramref name="b"/> (antialiased, stroked at half-pixel centres).</summary>
+    public void DrawLine(PointF a, PointF b, Color color, float thickness = 1, LineCap cap = LineCap.Butt)
+    {
+        if (thickness <= 0 || color.A == 0) return;
+        _stroke.Color = color.ToSK();
+        _stroke.StrokeWidth = thickness;
+        _stroke.StrokeCap = (SKStrokeCap)cap;
+        _sk.DrawLine(a.X, a.Y, b.X, b.Y, _stroke);
+        _stroke.StrokeCap = SKStrokeCap.Butt;
+    }
+
+    /// <summary>Draws a path of connected points (antialiased polyline, stroked at half-pixel centres).</summary>
+    public void DrawPolyline(IReadOnlyList<PointF> points, Color color, float thickness = 1, LineCap cap = LineCap.Butt, LineJoin join = LineJoin.Miter, float[]? dash = null)
+    {
+        if (points.Count < 2 || thickness <= 0 || color.A == 0) return;
+        using var path = new SKPathBuilder();
+        path.MoveTo(points[0].X, points[0].Y);
+        for (int i = 1; i < points.Count; i++)
+            path.LineTo(points[i].X, points[i].Y);
+        using var p = path.Detach();
+        _stroke.Color = color.ToSK();
+        _stroke.StrokeWidth = thickness;
+        _stroke.StrokeCap = (SKStrokeCap)cap;
+        _stroke.StrokeJoin = (SKStrokeJoin)join;
+        if (dash != null) _stroke.PathEffect = SKPathEffect.CreateDash(dash, 0);
+        _sk.DrawPath(p, _stroke);
+        if (dash != null) _stroke.PathEffect?.Dispose();
+        _stroke.StrokeCap = SKStrokeCap.Butt;
+        _stroke.StrokeJoin = SKStrokeJoin.Miter;
+    }
+
+    /// <summary>Draws an arc (antialiased, stroked at half-pixel centres). Angles in degrees; 0° = 3 o'clock, 90° = 6 o'clock (y-down).</summary>
+    public void DrawArc(Rect bounds, float startDeg, float sweepDeg, Color color, float thickness = 1, LineCap cap = LineCap.Butt)
+    {
+        if (bounds.Width <= 0 || bounds.Height <= 0 || thickness <= 0 || color.A == 0) return;
+        var rect = new SKRect(bounds.X, bounds.Y, bounds.X + bounds.Width, bounds.Y + bounds.Height);
+        using var arc = new SKPathBuilder();
+        arc.AddArc(rect, startDeg, sweepDeg);
+        using var path = arc.Detach();
+        _stroke.Color = color.ToSK();
+        _stroke.StrokeWidth = thickness;
+        _stroke.StrokeCap = (SKStrokeCap)cap;
+        _sk.DrawPath(path, _stroke);
+        _stroke.StrokeCap = SKStrokeCap.Butt;
+    }
+
+    /// <summary>Fills a polygon (convex or concave, antialiased).</summary>
+    public void FillPolygon(IReadOnlyList<PointF> points, Color color)
+    {
+        if (points.Count < 3 || color.A == 0) return;
+        using var path = new SKPathBuilder();
+        path.MoveTo(points[0].X, points[0].Y);
+        for (int i = 1; i < points.Count; i++)
+            path.LineTo(points[i].X, points[i].Y);
+        path.Close();
+        using var p = path.Detach();
+        _smooth.Color = color.ToSK();
+        _sk.DrawPath(p, _smooth);
+    }
+
+    /// <summary>Fills a path (antialiased).</summary>
+    public void Fill(Path path, Color color, byte alpha = 255, BlendMode blend = BlendMode.SrcOver)
+    {
+        if (color.A == 0 || alpha == 0) return;
+        using var p = path.Detach();
+        _smooth.Color = new SKColor(color.R, color.G, color.B, (byte)(color.A * alpha / 255));
+        _smooth.BlendMode = (SKBlendMode)blend;
+        _sk.DrawPath(p, _smooth);
+        _smooth.BlendMode = SKBlendMode.SrcOver;
+    }
+
+    /// <summary>Strokes a path (antialiased, stroked at half-pixel centres).</summary>
+    public void Stroke(Path path, Color color, float thickness = 1, LineCap cap = LineCap.Butt, LineJoin join = LineJoin.Miter, float[]? dash = null, byte alpha = 255, BlendMode blend = BlendMode.SrcOver)
+    {
+        if (thickness <= 0 || color.A == 0 || alpha == 0) return;
+        using var p = path.Detach();
+        _stroke.Color = new SKColor(color.R, color.G, color.B, (byte)(color.A * alpha / 255));
+        _stroke.StrokeWidth = thickness;
+        _stroke.StrokeCap = (SKStrokeCap)cap;
+        _stroke.StrokeJoin = (SKStrokeJoin)join;
+        _stroke.BlendMode = (SKBlendMode)blend;
+        if (dash != null) _stroke.PathEffect = SKPathEffect.CreateDash(dash, 0);
+        _sk.DrawPath(p, _stroke);
+        if (dash != null) _stroke.PathEffect?.Dispose();
+        _stroke.StrokeCap = SKStrokeCap.Butt;
+        _stroke.StrokeJoin = SKStrokeJoin.Miter;
+        _stroke.BlendMode = SKBlendMode.SrcOver;
+    }
+
+    // ---- Gradients ----
+
+    /// <summary>Fills a rectangle with a gradient.</summary>
+    public void FillRect(Rect r, Gradient gradient, byte alpha = 255, BlendMode blend = BlendMode.SrcOver)
+    {
+        if (r.Width <= 0 || r.Height <= 0 || alpha == 0) return;
+        var paint = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = false, Shader = gradient.ToSKShader(), BlendMode = (SKBlendMode)blend };
+        if (alpha < 255) paint.Color = paint.Color.WithAlpha(alpha);
+        _sk.DrawRect(ToSK(r), paint);
+        paint.Dispose();
+    }
+
+    /// <summary>Fills a rounded rectangle with a gradient.</summary>
+    public void FillRoundRect(Rect r, float radius, Gradient gradient, byte alpha = 255, BlendMode blend = BlendMode.SrcOver)
+    {
+        if (r.Width <= 0 || r.Height <= 0 || alpha == 0) return;
+        var paint = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true, Shader = gradient.ToSKShader(), BlendMode = (SKBlendMode)blend };
+        if (alpha < 255) paint.Color = paint.Color.WithAlpha(alpha);
+        _sk.DrawRoundRect(ToSK(r), radius, radius, paint);
+        paint.Dispose();
+    }
+
+    /// <summary>Fills an ellipse with a gradient.</summary>
+    public void FillEllipse(Rect r, Gradient gradient, byte alpha = 255, BlendMode blend = BlendMode.SrcOver)
+    {
+        if (r.Width <= 0 || r.Height <= 0 || alpha == 0) return;
+        var paint = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true, Shader = gradient.ToSKShader(), BlendMode = (SKBlendMode)blend };
+        if (alpha < 255) paint.Color = paint.Color.WithAlpha(alpha);
+        _sk.DrawOval(ToSK(r), paint);
+        paint.Dispose();
+    }
+
+    /// <summary>Fills a path with a gradient.</summary>
+    public void Fill(Path path, Gradient gradient, byte alpha = 255, BlendMode blend = BlendMode.SrcOver)
+    {
+        if (alpha == 0) return;
+        using var p = path.Detach();
+        var paint = new SKPaint { Style = SKPaintStyle.Fill, IsAntialias = true, Shader = gradient.ToSKShader(), BlendMode = (SKBlendMode)blend };
+        if (alpha < 255) paint.Color = paint.Color.WithAlpha(alpha);
+        _sk.DrawPath(p, paint);
+        paint.Dispose();
+    }
+
+    /// <summary>Clips to a rounded rectangle.</summary>
+    public void ClipRoundRect(Rect r, float radius)
+    {
+        _sk.ClipRoundRect(ToSK(r), radius, radius);
+    }
+
     /// <summary>
     /// Paints another form (at its own scale) at (<paramref name="x"/>, <paramref name="y"/>), magnified by
     /// <paramref name="zoom"/>: how the designer shows the form being designed.
