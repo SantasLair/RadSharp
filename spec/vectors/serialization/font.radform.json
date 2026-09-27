@@ -1,0 +1,46 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmFonts",
+    "height": 300,
+    "width": 400,
+    "children": [
+      {
+        "class": "Panel",
+        "name": "pnlThemed",
+        "align": "top",
+        "font": { "family": "Inter", "size": 16, "bold": true, "italic": false, "underline": false },
+        "height": 80,
+        "children": [
+          {
+            "class": "Label",
+            "name": "lblInherits",
+            "caption": "Inherits the panel's font",
+            "left": 10,
+            "top": 10
+          }
+        ]
+      },
+      {
+        "class": "Label",
+        "name": "lblOwnFont",
+        "caption": "Overrides it",
+        "font": { "family": "Georgia", "size": 20, "bold": false, "italic": true, "underline": true },
+        "left": 10,
+        "top": 100
+      },
+      {
+        "class": "Label",
+        "name": "lblLegacy",
+        "caption": "Legacy sugar, no font key",
+        "fontBold": true,
+        "fontSize": 18,
+        "left": 10,
+        "top": 130
+      }
+    ]
+  }
+}

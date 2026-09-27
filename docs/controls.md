@@ -457,6 +457,7 @@ Inherits from [Button](#button).
 | `anchors` | anchors | `left, top` | Layout |
 | `cursor` | enum: default, iBeam, hand, sizeWE, sizeNS, sizeNWSE, sizeNESW, sizeAll, wait, notAllowed, crosshair | `default` | Appearance |
 | `enabled` | bool | `true` | Behavior |
+| `font` | font | "" | Appearance |
 | `height` | int | `30` | Layout |
 | `hint` | string | "" | Behavior |
 | `left` | int | `0` | Layout |

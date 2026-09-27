@@ -73,7 +73,9 @@ with only non-default values written.
 - Node keys: `class`, `name`, `caption`, `text`, then the rest in **ordinal (code-point) alphabetical order**,
   then `items`, then `children`.
 - Struct properties are written whole when any field differs from the default, fields in their
-  declared order (`margin`/`padding`: `l`, `t`, `r`, `b`).
+  declared order (`margin`/`padding`: `l`, `t`, `r`, `b`; `font`: `family`, `size`, `bold`, `italic`,
+  `underline`). `font` is additionally nullable: absent means *ParentFont* (see below), never written
+  as an empty object.
 - `anchors` is written in the order `left`, `top`, `right`, `bottom`; `[]` means no anchors.
 - Numbers: integers without a fraction (`700`, not `700.0`); reals in the **shortest round-trip** form,
   invariant culture, no exponent.
@@ -96,7 +98,20 @@ with only non-default values written.
 | `tabStop` | bool | false (Button, Edit, … override to true) |
 | `tabOrder` | int (-1 = use child order) | -1 |
 | `hint` | string | "" |
+| `font` | `{family, size, bold, italic, underline}` or absent | absent (*ParentFont*: inherit) |
 | `onClick`, `onMouseDown`, `onMouseUp`, `onMouseMove`, `onMouseEnter`, `onMouseLeave`, `onMouseWheel`, `onKeyDown`, `onKeyUp`, `onFocus`, `onBlur`, `onChange`, `onResize` | event | none |
+
+**Fonts** (Delphi's `TFont`/*ParentFont*). A control's `font` is optional; when absent the control
+inherits its parent's *effective* font, and the root form falls back to the theme's default (family
+`"Inter"`, the bundled Regular/Bold/Italic/Bold-Italic faces). Setting `font` on a container does not
+rewrite its children's own (absent) `font` values — inheritance is resolved at paint/measure time, not
+baked into the file. `family` names a font registered at startup (`FontFace.Register`); an unregistered
+family falls back to the theme's default face. Like every struct, `font` is written **whole** once set
+(all five fields, even `false`/default ones): example:
+```json
+{ "class": "Label", "name": "lblTitle",
+  "font": { "family": "Inter", "size": 18, "bold": true, "italic": false, "underline": false } }
+```
 
 **Metadata entry shape** (emitted per class by the source generator from `[Published]` attributes;
 ordered by name; a subclass entry with the same name overrides the inherited one; defaults are read from a
