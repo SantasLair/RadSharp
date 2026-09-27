@@ -294,6 +294,43 @@ public class ProjectWorkflowTests
     }
 
     [Fact]
+    public void Palette_groups_components_into_categories_and_arms_placement_on_selection()
+    {
+        var project = RadProject.Create(TempDir(), "Palette");
+        var (d, _) = Start(project.ProjectFile);
+        var tv = (TreeView)d.FindControl("tvPalette")!;
+
+        var standard = Assert.Single(tv.Nodes, n => n.Text == "Standard");
+        var button = Assert.Single(standard.Nodes, n => n.Text == "Button");
+        Assert.IsType<ComponentClass>(button.Tag);
+        Assert.Equal("Button", ((ComponentClass)button.Tag!).Name);
+        Assert.Contains(tv.Nodes, n => n.Text == "Dialogs");   // OpenDialog/SaveDialog/FolderDialog
+        Assert.Contains(tv.Nodes, n => n.Text == "System");    // Timer/ImageList
+
+        tv.Selected = button;
+        Assert.Equal("Button", d.ActiveForm!.Surface.PendingClass?.Name);
+    }
+
+    [Fact]
+    public void Palette_filter_narrows_the_tree_and_clears_any_armed_placement()
+    {
+        var project = RadProject.Create(TempDir(), "PaletteFilter");
+        var (d, _) = Start(project.ProjectFile);
+        var tv = (TreeView)d.FindControl("tvPalette")!;
+        var button = tv.Nodes.Single(n => n.Text == "Standard").Nodes.Single(n => n.Text == "Button");
+        tv.Selected = button;
+        Assert.NotNull(d.ActiveForm!.Surface.PendingClass);
+
+        var filter = (Edit)d.FindControl("edtPaletteFilter")!;
+        filter.Focus();
+        d.Simulate.Type("timer");
+
+        var allLeaves = tv.Nodes.SelectMany(n => n.Nodes).Select(n => n.Text).ToList();
+        Assert.Equal(["Timer"], allLeaves);
+        Assert.Null(d.ActiveForm!.Surface.PendingClass);   // the armed Button no longer matches the filter
+    }
+
+    [Fact]
     public void Editor_commands_follow_the_unity_model()
     {
         Assert.Equal("\"code\" \"{folder}\" -g \"{file}:{line}\"", ExternalEditor.CommandTemplate(EditorKind.VSCode, "code", null));

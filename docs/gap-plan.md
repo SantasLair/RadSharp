@@ -95,6 +95,10 @@ showed it doesn't need the popup "kite" widget originally planned — `PropertyG
 entry below (closes §3.1, the highest-value item [designer-gap-analysis.md](designer-gap-analysis.md) §5 had left
 open). +12 tests. Full suite: **196** passing.
 
+**Addendum 3 (2026-09-27, same day):** the category/filter half of M16's component palette v2 pulled forward too
+(icons and drag-from-palette stay open) — see the updated M16 entry below (closes the category/filter half of
+§3.7). +2 tests. Full suite: **198** passing.
+
 ---
 
 ## M10: Trust the foundation (S)
@@ -253,11 +257,13 @@ under NativeAOT.
   place as four checkbox rows (akLeft/akTop/akRight/akBottom), no graphics. `PropertyGrid.ToggleAnchorsExpanded`/
   `IsAnchorFlag`/`SetAnchorFlag` implement exactly that, reusing the row-list mechanism M9's category headers
   already added; works under multi-select for free.
-- **Component palette v2** (closes §3.7): category grouping, icons, and a filter box for `lstPalette`, which today
-  is one flat, text-only, alphabetical list. Drag-from-palette placement (as an alternative to today's
-  click-then-draw) is stretch, not required. Unlike the Anchors/property-grid work, there's no existing
-  per-`ComponentClass` category metadata to reuse — default to a cheap heuristic (group by declaring source file)
-  rather than adding a new `[Component(Category = ...)]` attribute across every control class up front.
+- ~~**Component palette v2 — category grouping and a filter box**~~ **(done, 2026-09-27, pulled forward from
+  M16)**: closes the category/filter half of §3.7. `lstPalette` (a flat, text-only, alphabetical `ListBox`) is now
+  `tvPalette`, a `TreeView` grouped under Standard/Additional/Dialogs/System, with a filter `Edit` above it. No new
+  `ComponentClass` metadata: `PaletteCategories` is a small hand-maintained name→category lookup in the designer
+  project, not a `[Component(Category = ...)]` attribute across every control class, matching the heuristic this
+  plan called for. **Icons and drag-from-palette placement are still open** — separate, larger pieces (icon assets;
+  a new drag-source gesture on `DesignSurface`) — stretch, not required for 1.0.
 - **Debugging story:** make F5-in-the-IDE the documented way, add a launch profile to created projects, and write the
   "attach to the live run" instructions; a VS Code extension is post-1.0.
 
@@ -354,7 +360,8 @@ individually named in the original gap-analysis's single designer bullet (its ga
 | menu separator/altShortcut fields, Columns/Nodes editors (already in old gap 23) | M16 | open |
 | §3.2 multi-select property editing, §3.4 context menu, §3.5 property grid categories/filter, §3.10 lock controls, §3.12 project view, §3.13 rename reach | M9 | **done** |
 | §3.6 visual Anchors editor | M16 | **done** (pulled forward) |
-| §3.7 component palette v2, §3.11 generic collection editor | M16 | open |
+| §3.7 component palette v2 (categories, filter) | M16 | **done** (pulled forward) |
+| §3.7 component palette v2 (icons, drag-from-palette), §3.11 generic collection editor | M16 | open |
 | §3.3 undo granularity (minor, no milestone — revisit only if it causes real memory/UX pain) | none | open |
 | §3.8 component tray, §3.9 dockable IDE panels | M18 | open (decision gate) |
 | §4 embedded code editor (named as a deliberate structural choice, not a gap to close) | none | not a gap |

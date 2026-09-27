@@ -43,7 +43,7 @@ public partial class DesignerForm : Form
         _palette = [.. ComponentRegistry.All
             .Where(c => c.CanCreate && c.Type != typeof(Control) && !typeof(Form).IsAssignableFrom(c.Type) && c.Type != typeof(DesignSurface))
             .OrderBy(c => c.Name, StringComparer.Ordinal)];
-        lstPalette.Items = [.. _palette.Select(c => c.Name)];
+        RebuildPalette();
 
         foreach (var grid in new[] { gridProps, gridEvents })
         {
@@ -136,7 +136,7 @@ public partial class DesignerForm : Form
         var form = new OpenForm(path, doc, surface, sheet);
         _forms.Add(form);
 
-        surface.Created += _ => lstPalette.ItemIndex = -1;
+        surface.Created += _ => tvPalette.Selected = null;
         surface.DoubleClicked += c => { if (CodeIntegration.DefaultEvent(c) is { } ev) EditHandler(c, ev); };
         surface.ContextMenuRequested += (x, y) => ShowSurfaceContextMenu(surface, x, y);
         doc.SelectionChanged += () => { if (_active == form) UpdateInspector(); };
@@ -159,7 +159,7 @@ public partial class DesignerForm : Form
         _active = form;
         int i = pgForms.Pages.ToList().IndexOf(form.Sheet);
         if (i >= 0 && pgForms.ActivePageIndex != i) pgForms.ActivePageIndex = i;
-        form.Surface.PendingClass = lstPalette.ItemIndex >= 0 ? _palette[lstPalette.ItemIndex] : null;
+        form.Surface.PendingClass = tvPalette.Selected?.Tag as ComponentClass;
         UpdateInspector();
         RebuildStructure();
         UpdateTitle();
@@ -365,11 +365,36 @@ public partial class DesignerForm : Form
     void edtPropsFilter_Change(Control sender) => gridProps.Filter = edtPropsFilter.Text;
     void edtEventsFilter_Change(Control sender) => gridEvents.Filter = edtEventsFilter.Text;
 
-    void lstPalette_Change(Control sender)
+    void tvPalette_Change(Control sender)
     {
         if (_active == null) return;
-        _active.Surface.PendingClass = lstPalette.ItemIndex >= 0 ? _palette[lstPalette.ItemIndex] : null;
-        if (_active.Surface.PendingClass is { } cls) sbMain.SimpleText = $"Click or drag on the form to place a {cls.Name} (Shift keeps it selected)";
+        var cls = tvPalette.Selected?.Tag as ComponentClass;
+        _active.Surface.PendingClass = cls;
+        if (cls != null) sbMain.SimpleText = $"Click or drag on the form to place a {cls.Name} (Shift keeps it selected)";
+    }
+
+    void edtPaletteFilter_Change(Control sender) => RebuildPalette();
+
+    /// <summary>Rebuilds the palette tree from <see cref="_palette"/>, grouped by <see cref="PaletteCategories"/>
+    /// and filtered by <c>edtPaletteFilter</c>'s text; clears any pending placement, since the armed class may
+    /// no longer be in the filtered list.</summary>
+    void RebuildPalette()
+    {
+        tvPalette.Nodes.Clear();
+        string filter = edtPaletteFilter.Text.Trim();
+        var groups = _palette
+            .Where(c => filter.Length == 0 || c.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
+            .GroupBy(c => PaletteCategories.Of(c.Name))
+            .OrderBy(g => g.Key, StringComparer.Ordinal);
+        foreach (var g in groups)
+        {
+            var category = new TreeNode(g.Key) { Expanded = true };
+            foreach (var cls in g.OrderBy(c => c.Name, StringComparer.Ordinal))
+                category.Add(cls.Name).Tag = cls;
+            tvPalette.Nodes.Add(category);
+        }
+        tvPalette.Invalidate();
+        if (_active != null) _active.Surface.PendingClass = null;
     }
 
     /// <summary>A form's code-behind shows as its class name (like Delphi's Project Manager); any other

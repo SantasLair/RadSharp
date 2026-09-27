@@ -54,7 +54,7 @@ double-click for a handler" loop is solid and the fundamentals are in the right 
 | **Right-click context menu on the surface** | Yes: Align, Order, Edit menu items, View as Text, Create/Delete handler | Yes: Align, Bring/Send, View Code, Properties, Document Outline | `DesignSurface.ContextMenuRequested` + `DesignerForm.ShowSurfaceContextMenu` | **Fixed** — see §3.4 |
 | Property grid layout | Categorized (collapsible bands) or alphabetical, toggle | Categorized or alphabetical, toggle, **search box** (VS2019+) | `PropertyGridArrangement` (Declared/Alphabetical/Categorized) + `Filter`, with a toolbar on the designer's Properties/Events tabs | **Fixed** — see §3.5 |
 | Anchors editor | Expandable composite row: akLeft/akTop/akRight/akBottom as checkboxes | Visual "kite" widget (4 clickable bars) | `PropertyGrid.ToggleAnchorsExpanded`/`IsAnchorFlag` — same expand-to-checkboxes model as Delphi | **Fixed** — see §3.6 |
-| Component palette | Tabbed by category (Standard, Additional, Data Access, …), icons, drag-drop, search (RAD Studio) | Toolbox: categorized, icons, drag-drop, search box, "General" auto-bucket for new libraries | One flat alphabetical **text-only** `ListBox`, click-to-arm-then-click/drag-on-canvas only (no drag from palette) | **Missing** — see §3.7 |
+| Component palette | Tabbed by category (Standard, Additional, Data Access, …), icons, drag-drop, search (RAD Studio) | Toolbox: categorized, icons, drag-drop, search box, "General" auto-bucket for new libraries | A `TreeView` grouped by category (`PaletteCategories`, a hand-maintained lookup) with a filter box; still no icons or drag-from-palette | **Partially fixed** — see §3.7 |
 | Non-visual components | Dedicated **component tray** strip below the form, fixed icon row | Same (component tray under the designer) | Icons painted *at the component's own X/Y* directly on the form surface | **Different, arguably worse** — see §3.8 |
 | Structure/outline view | Object TreeView (separate dockable window) | Document Outline / Solution Explorer (separate windows) | One `TreeView` inside a tab of the same panel as Properties/Events | Workable, less discoverable |
 | IDE panel layout | Fully dockable/floatable, savable desktop layouts, multi-monitor | Fully dockable/floatable, savable layouts, multi-monitor | Fixed `Splitter`-based left/right/bottom panels, no floating, no saved layouts | **Missing** — see §3.9 |
@@ -155,10 +155,10 @@ like a `Bool` row, and only that one bit changes (`SetAnchorFlag`) — the contr
 Works automatically in the designer (no `DesignerForm` changes needed) and under multi-select (blank when the
 selected controls disagree on a flag, like every other row).
 
-### 3.7 Component palette: no categories, no icons, no search, no drag-and-drop
+### 3.7 Component palette: no categories, no icons, no search, no drag-and-drop — categories and search fixed
 
-`lstPalette` is populated as `_palette.Select(c => c.Name)` into a plain `ListBox`
-(`DesignerForm.cs:43-46`) — every creatable component/control, alphabetical, as text only. Compare:
+`lstPalette` used to be populated as `_palette.Select(c => c.Name)` into a plain `ListBox` — every creatable
+component/control, alphabetical, as text only, no categories, no filter. Compare:
 
 - **Delphi**: tool palette tabbed by category (Standard, Additional, Win32, Data Access, dbExpress, …), each
   entry has an icon, and there's a search box (Ctrl+Alt+P-style filter-as-you-type) that's often faster than
@@ -166,12 +166,16 @@ selected controls disagree on a flag, like every other row).
 - **VS Toolbox**: categorized (or alphabetical) with icons, a filter box, and — importantly — **drag from the
   toolbox onto the form** as an alternative to click-then-draw.
 
-Today's interaction is: click a name in the flat list to "arm" it (`PendingClass`), then click or drag a rectangle
-on the canvas to create it (`DesignSurface.OnMouseDown`, `Mode.Create`). That click-then-place gesture is fine and
-is in fact how Delphi's default (non-drag) placement works too, so it's not wrong — but the *palette itself*
-(flat, textual, unfiltered, un-iconed) is a step behind both references, and will get worse as the control count
-grows (it's already ~35 entries per `gap-analysis.md`, all in one unbroken alphabetical list with no category
-separators).
+**Categories and a filter are fixed; icons and drag-and-drop are still open.** The palette is now a `TreeView`
+(`tvPalette`) grouped under Standard/Additional/Dialogs/System category nodes, with a filter `Edit`
+(`edtPaletteFilter`) above it that narrows the tree as you type and clears any armed placement that no longer
+matches. The categories come from `PaletteCategories`, a small hand-maintained name→category lookup in the
+designer project — deliberately *not* a new `[Component(Category = ...)]` metadata attribute, since
+`ComponentClass` has nothing like `PropertyMeta.Category` to build on, and adding one would mean touching every
+control class plus the source generator for a designer-polish item. An uncategorized class defaults to
+"Additional" rather than being hidden. Icons and drag-from-palette placement remain unimplemented; the
+click-then-place gesture (`DesignSurface.OnMouseDown`, `Mode.Create`) is unchanged and still matches Delphi's own
+default (non-drag) placement model, so it isn't wrong, just not drag-capable.
 
 ### 3.8 No component tray for non-visual components
 
@@ -270,7 +274,8 @@ a window switch. Whether that's worth an embedded read-only preview pane is a pr
 Ordered by ratio of daily value to effort, using the same S/M/L sizing as `gap-plan.md`. **Status as of
 2026-09-27:** items 1–5, 7 and 9 are done (`gap-plan.md` M9, plus items 2 and 7 pulled forward from M16 once
 scoped); item 2's rename widening shipped as part of M9 too, though it's listed under §3.13 rather than here.
-Only 6, 8 and 10 are still open.
+Item 6 is partially done (categories and filter shipped; icons and drag-from-palette still open). Only 8 and 10
+remain untouched.
 
 1. ~~**(S) Right-click context menu on the design surface**~~ — **done**, see §3.4.
 2. ~~**(S–M) Align/size/space toolbar and menu**~~ — **done**, see §3.1. Turned out to be closer to (S): a
@@ -278,10 +283,10 @@ Only 6, 8 and 10 are still open.
 3. ~~**(S) Property grid categories + alphabetical/categorized toggle**~~ — **done**, see §3.5.
 4. ~~**(S) Multi-select shared property editing**~~ — **done**, see §3.2.
 5. ~~**(S) Lock controls toggle**~~ — **done**, see §3.10.
-6. **(M) Component palette v2** — categories, icons, a filter box; optionally drag-from-palette as an alternative
-   to click-then-place. Unlike the property grid's categories, there's no existing per-`ComponentClass` category
-   metadata to hang this on — a first pass should use a cheap heuristic (e.g. group by declaring source file)
-   rather than introduce a new `[Component(Category = ...)]` attribute across every control class up front.
+6. **(M) Component palette v2** — **categories and a filter box: done**, see §3.7 (a `TreeView` plus
+   `PaletteCategories`, a hand-maintained lookup rather than new `[Component(Category = ...)]` metadata across
+   every control class). **Icons and drag-from-palette are still open** — genuinely separate, larger pieces of
+   work (icon assets per control; a new drag-source gesture on `DesignSurface`), reasonable to defer further.
 7. ~~**(M) Visual Anchors editor**~~ — **done**, see §3.6 (turned out to be an (S) once the real Delphi behaviour —
    an expandable checkbox row, not a graphical widget — was confirmed against a screenshot).
 8. **(M) Generic collection editor** — needed regardless for `gap-plan.md` M14's Columns/Nodes editors; also fixes

@@ -432,8 +432,22 @@
             }
           },
           {
-            "class": "ListBox",
-            "name": "lstPalette",
+            "class": "Edit",
+            "name": "edtPaletteFilter",
+            "placeholder": "Filter",
+            "align": "top",
+            "height": 26,
+            "margin": {
+              "l": 4,
+              "t": 0,
+              "r": 4,
+              "b": 4
+            },
+            "onChange": "edtPaletteFilter_Change"
+          },
+          {
+            "class": "TreeView",
+            "name": "tvPalette",
             "align": "client",
             "margin": {
               "l": 4,
@@ -441,7 +455,7 @@
               "r": 4,
               "b": 4
             },
-            "onChange": "lstPalette_Change"
+            "onChange": "tvPalette_Change"
           }
         ]
       },
