@@ -234,6 +234,45 @@
             ]
           },
           {
+            "caption": "Format",
+            "items": [
+              {
+                "caption": "Align",
+                "items": [
+                  { "caption": "Lefts", "onClick": "mnuAlignLefts_Click" },
+                  { "caption": "Centers", "onClick": "mnuAlignCenters_Click" },
+                  { "caption": "Rights", "onClick": "mnuAlignRights_Click" },
+                  { "caption": "-", "separator": true },
+                  { "caption": "Tops", "onClick": "mnuAlignTops_Click" },
+                  { "caption": "Middles", "onClick": "mnuAlignMiddles_Click" },
+                  { "caption": "Bottoms", "onClick": "mnuAlignBottoms_Click" }
+                ]
+              },
+              {
+                "caption": "Make Same Size",
+                "items": [
+                  { "caption": "Width", "onClick": "mnuSameWidth_Click" },
+                  { "caption": "Height", "onClick": "mnuSameHeight_Click" },
+                  { "caption": "Both", "onClick": "mnuSameBoth_Click" }
+                ]
+              },
+              {
+                "caption": "Space Evenly",
+                "items": [
+                  { "caption": "Horizontally", "onClick": "mnuSpaceHorizontally_Click" },
+                  { "caption": "Vertically", "onClick": "mnuSpaceVertically_Click" }
+                ]
+              },
+              {
+                "caption": "Center in Form",
+                "items": [
+                  { "caption": "Horizontally", "onClick": "mnuCenterHorizontally_Click" },
+                  { "caption": "Vertically", "onClick": "mnuCenterVertically_Click" }
+                ]
+              }
+            ]
+          },
+          {
             "caption": "Tools",
             "items": [
               {

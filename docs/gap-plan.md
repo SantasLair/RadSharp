@@ -91,6 +91,10 @@ source file). Full suite: 184 tests passing (was 153 at the roadmap's last count
 showed it doesn't need the popup "kite" widget originally planned — `PropertyGrid`'s existing row-list machinery
 (from item 3 above) already fit an expand-to-checkboxes model. +2 tests. Full suite: **186** passing.
 
+**Addendum 2 (2026-09-27, same day):** M16's align/size/space toolbar also pulled forward — see the updated M16
+entry below (closes §3.1, the highest-value item [designer-gap-analysis.md](designer-gap-analysis.md) §5 had left
+open). +12 tests. Full suite: **196** passing.
+
 ---
 
 ## M10: Trust the foundation (S)
@@ -233,9 +237,13 @@ under NativeAOT.
 - **Layout panels:** `FlowPanel` (wrap, gap, direction), `GridPanel` (rows/columns with absolute/percent/auto sizes).
   Both are just containers that arrange children; specify in `docs/spec.md` with conformance vectors like D.1–D.4.
 - **AutoSize** for `Label`/`Button` (preferred size from the text and padding) and `Control.GetPreferredSize`.
-- **Designer:** alignment and sizing tools (align lefts/tops/centres, same width/height, equal spacing), zoom, editing
-  pages of a `PageControl` in place, menu-editor fields (`altShortcut`, separators), the new Columns and Nodes
-  editors, palette entries for project frames, NuGet component libraries usable in live runs (F9).
+- ~~**Alignment and sizing tools**~~ **(done, 2026-09-27, pulled forward from M16)**: closes §3.1. A **Format** menu
+  (align lefts/centers/rights/tops/middles/bottoms, make same width/height/both, space evenly, center in form) plus
+  Align/Make Same Size on the design surface's context menu (§3.4), aligning to the primary selection as VS does.
+  Thin command layer over `Control.SetBounds`/`DesignDocument.Snapshot` (`DesignerForm.Alignment.cs`).
+- **Designer:** zoom, editing pages of a `PageControl` in place, menu-editor fields (`altShortcut`, separators), the
+  new Columns and Nodes editors, palette entries for project frames, NuGet component libraries usable in live runs
+  (F9).
 - **Generic collection editor** (closes [designer-gap-analysis.md](designer-gap-analysis.md) §3.11): a reusable
   "list of items, each with its own mini property panel" editor, generalising the small-editor-form pattern
   `MenuEditor`/`TabOrderEditor` already establish in `Editors.cs`. Build the Columns and Nodes editors above, and
@@ -342,7 +350,8 @@ individually named in the original gap-analysis's single designer bullet (its ga
 
 | Designer gap | Milestone | Status |
 |---|---|---|
-| §3.1 align/size/space toolbar, menu separator/altShortcut fields, Columns/Nodes editors (already in old gap 23) | M16 | open |
+| §3.1 align/size/space toolbar | M16 | **done** (pulled forward) |
+| menu separator/altShortcut fields, Columns/Nodes editors (already in old gap 23) | M16 | open |
 | §3.2 multi-select property editing, §3.4 context menu, §3.5 property grid categories/filter, §3.10 lock controls, §3.12 project view, §3.13 rename reach | M9 | **done** |
 | §3.6 visual Anchors editor | M16 | **done** (pulled forward) |
 | §3.7 component palette v2, §3.11 generic collection editor | M16 | open |

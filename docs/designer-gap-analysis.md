@@ -49,7 +49,7 @@ double-click for a handler" loop is solid and the fundamentals are in the right 
 | Canvas fidelity | Native VCL controls painted for real | `.NET Framework` controls painted for real | Real `Form`/`Control` tree via `Canvas.DrawForm` | **On par** |
 | Grid snap / guides | Grid snap; no live alignment guides (classic VCL) | Grid snap **and** blue "SnapLines" to siblings, margins, baselines | Grid snap + edge/centre guide lines (no baseline) | **On par with VS**, ahead of classic Delphi |
 | Multi-select move | Yes | Yes | Yes, one leader + delta | On par |
-| **Align/size/space toolbar** | **Alignment Palette** (View ▸ Alignment Palette): align edges/centres, tab order button | **Format ▸ Align / Make Same Size / Horizontal-Vertical Spacing / Center in Form**, plus a floating toolbar | **None** — Component menu has only Bring to Front / Send to Back | **Missing** — see §3.1 |
+| **Align/size/space toolbar** | **Alignment Palette** (View ▸ Alignment Palette): align edges/centres, tab order button | **Format ▸ Align / Make Same Size / Horizontal-Vertical Spacing / Center in Form**, plus a floating toolbar | A **Format** menu with the same Align/Make Same Size/Space Evenly/Center in Form commands, plus Align/Make Same Size on the right-click menu | **Fixed** — see §3.1 |
 | **Multi-select property editing** | Shared properties of the whole selection editable at once in the Object Inspector | Same, via `PropertyGrid`'s multi-select support | `PropertyGrid.SetTargets` shows properties common to the selection, blank where values differ; editing applies to all | **Fixed** — see §3.2 |
 | **Right-click context menu on the surface** | Yes: Align, Order, Edit menu items, View as Text, Create/Delete handler | Yes: Align, Bring/Send, View Code, Properties, Document Outline | `DesignSurface.ContextMenuRequested` + `DesignerForm.ShowSurfaceContextMenu` | **Fixed** — see §3.4 |
 | Property grid layout | Categorized (collapsible bands) or alphabetical, toggle | Categorized or alphabetical, toggle, **search box** (VS2019+) | `PropertyGridArrangement` (Declared/Alphabetical/Categorized) + `Filter`, with a toolbar on the designer's Properties/Events tabs | **Fixed** — see §3.5 |
@@ -73,20 +73,20 @@ double-click for a handler" loop is solid and the fundamentals are in the right 
 
 ## 3. Detail on each gap
 
-### 3.1 No alignment/sizing toolbar (the biggest missing everyday tool)
+### 3.1 No alignment/sizing toolbar (the biggest missing everyday tool) — fixed
 
-`DesignerForm.radform.json`'s **Component** menu has exactly four working items: Menu Editor, Tab Order, Bring to
-Front, Send to Back (`DesignerForm.cs:404-421`). There is no:
+`DesignerForm.radform.json`'s **Component** menu used to have exactly four working items: Menu Editor, Tab Order,
+Bring to Front, Send to Back. There was no align, make-same-size, space-evenly, or center-in-parent command —
+the single most-used non-trivial designer command in both reference IDEs.
 
-- Align left/right/top/bottom edges, or centres, of the selection to the last-selected (or first-selected) control
-- Make same width / height / both
-- Space evenly horizontally/vertically
-- Center in parent (horizontally/vertically)
-
-This is the single most-used non-trivial designer command in both reference IDEs, used constantly to line up
-buttons and labels without pixel-hunting. `DesignDocument`'s snapshot/undo model and `Control.SetBounds` already
-provide everything an implementation needs; this is purely a missing command layer over existing primitives —
-cheap relative to its daily value.
+**Fixed.** A new **Format** top-level menu (`DesignerForm.Alignment.cs`) adds Align (Lefts/Centers/Rights/
+Tops/Middles/Bottoms, matching VS's exact naming), Make Same Size (Width/Height/Both), Space Evenly
+(Horizontally/Vertically), and Center in Form (Horizontally/Vertically); Align and Make Same Size are also
+available as submenus in the right-click context menu (§3.4), disabled below two selected controls. Alignment
+targets the primary selection (the last-selected control, as `DesignDocument.Primary` already tracked) — the same
+convention Visual Studio uses. Docked controls (`Align != Align.None`) are excluded, since their position is
+computed by layout, not free-form. All of it is a thin command layer over the existing
+`Control.SetBounds`/`DesignDocument.Snapshot` primitives, as expected.
 
 ### 3.2 No shared property editing across a multi-selection — fixed
 
@@ -268,14 +268,13 @@ a window switch. Whether that's worth an embedded read-only preview pane is a pr
 ## 5. Suggested order of work
 
 Ordered by ratio of daily value to effort, using the same S/M/L sizing as `gap-plan.md`. **Status as of
-2026-09-27:** items 1, 3, 4, 5, 7 and 9 are done (`gap-plan.md` M9, plus the Anchors editor pulled forward from
-M16 once the right reference behaviour was confirmed); item 2's rename widening shipped as part of M9 too, though
-it's listed under §3.13 rather than here. The rest (2, 6, 8, 10) are still open.
+2026-09-27:** items 1–5, 7 and 9 are done (`gap-plan.md` M9, plus items 2 and 7 pulled forward from M16 once
+scoped); item 2's rename widening shipped as part of M9 too, though it's listed under §3.13 rather than here.
+Only 6, 8 and 10 are still open.
 
 1. ~~**(S) Right-click context menu on the design surface**~~ — **done**, see §3.4.
-2. **(S–M) Align/size/space toolbar and menu** — align edges/centres, make same size, space evenly, center in
-   parent. Pure command layer over `Control.SetBounds`/`DesignDocument.Snapshot`; the highest-value item still
-   open in this document, and the natural next one to pick up.
+2. ~~**(S–M) Align/size/space toolbar and menu**~~ — **done**, see §3.1. Turned out to be closer to (S): a
+   **Format** menu plus two context-menu submenus, all thin wrappers over `Control.SetBounds`.
 3. ~~**(S) Property grid categories + alphabetical/categorized toggle**~~ — **done**, see §3.5.
 4. ~~**(S) Multi-select shared property editing**~~ — **done**, see §3.2.
 5. ~~**(S) Lock controls toggle**~~ — **done**, see §3.10.

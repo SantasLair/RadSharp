@@ -455,6 +455,8 @@ public partial class DesignerForm : Form
         bool hasMenu = doc.Primary is IMenuOwner || doc.Form.Descendants().OfType<IMenuOwner>().Any();
         bool canPaste = RadSharp.Text.Clipboard.GetText() is { } t && t.TrimStart().StartsWith('[');
 
+        bool canAlign = Movable.Count >= 2;
+
         var menu = new PopupMenu();
         MenuItem Add(string caption, Action action, bool enabled = true)
         {
@@ -464,6 +466,13 @@ public partial class DesignerForm : Form
             return item;
         }
         void Sep() => menu.Items.Add(new MenuItem { Separator = true });
+        MenuItem Submenu(string caption, bool enabled, params (string Caption, Action Action)[] children)
+        {
+            var item = new MenuItem(caption) { Enabled = enabled };
+            foreach (var (c, a) in children) { var child = item.Add(c); child.Click += _ => a(); }
+            menu.Items.Add(item);
+            return item;
+        }
 
         Add("Cut", () => mnuCut_Click(this), hasSelection);
         Add("Copy", () => mnuCopy_Click(this), hasSelection);
@@ -472,6 +481,12 @@ public partial class DesignerForm : Form
         Sep();
         Add("Bring to Front", () => mnuBringToFront_Click(this), hasSelection);
         Add("Send to Back", () => mnuSendToBack_Click(this), hasSelection);
+        Sep();
+        Submenu("Align", canAlign,
+            ("Lefts", () => mnuAlignLefts_Click(this)), ("Centers", () => mnuAlignCenters_Click(this)), ("Rights", () => mnuAlignRights_Click(this)),
+            ("Tops", () => mnuAlignTops_Click(this)), ("Middles", () => mnuAlignMiddles_Click(this)), ("Bottoms", () => mnuAlignBottoms_Click(this)));
+        Submenu("Make Same Size", canAlign,
+            ("Width", () => mnuSameWidth_Click(this)), ("Height", () => mnuSameHeight_Click(this)), ("Both", () => mnuSameBoth_Click(this)));
         Sep();
         Add("Tab Order…", () => mnuTabOrder_Click(this));
         Add("Menu Editor…", () => mnuMenuEditor_Click(this), hasMenu);
