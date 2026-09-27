@@ -28,12 +28,62 @@ public abstract class EditBase : Control
     /// <summary>One visual line: a range of the displayed text, its layout and its top (content pixels).</summary>
     protected sealed record Line(int Start, int End, TextLayout Layout, int Top);
 
+    PopupMenu? _defaultContextMenu;
+    PopupMenu? _userContextMenu;
+
     protected EditBase()
     {
         TabStop = true;
         Cursor = Cursor.IBeam;
         Editor.TextChanged += OnEditorTextChanged;
         Editor.SelectionChanged += OnEditorSelectionChanged;
+    }
+
+    /// <summary>Provides a default context menu (Undo/Cut/Copy/Paste/Delete/Select All) if none is explicitly set.</summary>
+    public override PopupMenu? ContextMenu
+    {
+        get
+        {
+            if (_userContextMenu != null) return _userContextMenu;
+
+            // Build default context menu on first use, then update enabled states
+            _defaultContextMenu ??= BuildDefaultContextMenu();
+            UpdateDefaultContextMenuState(_defaultContextMenu);
+            return _defaultContextMenu;
+        }
+        set => _userContextMenu = value;
+    }
+
+    PopupMenu BuildDefaultContextMenu()
+    {
+        var menu = new PopupMenu();
+        menu.Add(new MenuItem { Caption = "Undo", Name = "mnuUndo" });
+        menu.Add(new MenuItem { Caption = "Cut", Name = "mnuCut" });
+        menu.Add(new MenuItem { Caption = "Copy", Name = "mnuCopy" });
+        menu.Add(new MenuItem { Caption = "Paste", Name = "mnuPaste" });
+        menu.Add(new MenuItem { Caption = "Delete", Name = "mnuDelete" });
+        menu.Add(new MenuItem { Caption = "-" }); // separator
+        menu.Add(new MenuItem { Caption = "Select All", Name = "mnuSelectAll" });
+
+        // Wire up click handlers
+        menu.FindMenuItemByName("mnuUndo").Click += (m) => { if (CanUndo) Undo(); };
+        menu.FindMenuItemByName("mnuCut").Click += (m) => CutToClipboard();
+        menu.FindMenuItemByName("mnuCopy").Click += (m) => CopyToClipboard();
+        menu.FindMenuItemByName("mnuPaste").Click += (m) => PasteFromClipboard();
+        menu.FindMenuItemByName("mnuDelete").Click += (m) => Editor.DeleteForward();
+        menu.FindMenuItemByName("mnuSelectAll").Click += (m) => SelectAll();
+
+        return menu;
+    }
+
+    void UpdateDefaultContextMenuState(PopupMenu menu)
+    {
+        menu.FindMenuItemByName("mnuUndo").Enabled = !ReadOnly && CanUndo;
+        menu.FindMenuItemByName("mnuCut").Enabled = !ReadOnly && Editor.HasSelection && !IsPassword;
+        menu.FindMenuItemByName("mnuCopy").Enabled = Editor.HasSelection && !IsPassword;
+        menu.FindMenuItemByName("mnuPaste").Enabled = !ReadOnly && Clipboard.GetText()?.Length > 0;
+        menu.FindMenuItemByName("mnuDelete").Enabled = !ReadOnly && Editor.HasSelection;
+        menu.FindMenuItemByName("mnuSelectAll").Enabled = Editor.Text.Length > 0;
     }
 
     // ---- Published ----

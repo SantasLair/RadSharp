@@ -1,5 +1,5 @@
 using Calculator;
 using RadSharp.Platform.Sdl;
 
-Application.Initialize();
-Application.Run(new MainForm());
+SdlHost.Initialize();
+SdlHost.Run(new MainForm());

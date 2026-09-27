@@ -7,6 +7,10 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <!-- Build produces one native executable per OS: dotnet publish -c Release -->
     <PublishAot>true</PublishAot>
+    <!-- Enable AOT compatibility analyzers to catch reflection at compile time -->
+    <EnableAotAnalyzer>true</EnableAotAnalyzer>
+    <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+    <EnableSingleFileAnalyzer>true</EnableSingleFileAnalyzer>
   </PropertyGroup>
 
   <ItemGroup>

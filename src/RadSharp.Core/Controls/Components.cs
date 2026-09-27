@@ -42,4 +42,13 @@ public class Timer : Component
         _last = nowMs;
         Elapsed?.Invoke(this);
     }
+
+    /// <summary>Returns the next deadline (in ms) when this timer will fire, or null if disabled/stopped.</summary>
+    internal double? GetNextDeadlineMs(double nowMs)
+    {
+        if (!_enabled || Interval <= 0) return null;
+        if (double.IsNaN(_last)) return nowMs + Interval;
+        var nextFire = _last + Interval;
+        return nextFire > nowMs ? nextFire : nowMs + Interval;
+    }
 }

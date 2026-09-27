@@ -75,10 +75,14 @@ public class Form : Control
     }
 
     // =====================================================================
-    // Time, text input area
+    // Time, text input area, tooltips
     // =====================================================================
 
     readonly List<Control> _tickers = [];
+    Control? _tooltipControl;
+    double _tooltipStartTime;
+    ToolTipPopup? _tooltipPopup;
+    const double TooltipDelayMs = 1000;
 
     /// <summary>The host's clock in milliseconds, as of the last <see cref="ProcessTick"/>.</summary>
     public double Now { get; private set; }
@@ -103,6 +107,61 @@ public class Form : Control
         foreach (var t in _tickers.ToArray()) t.OnTick(nowMs);
         _timers ??= [.. Descendants().OfType<Timer>()];
         foreach (var t in _timers.ToArray()) t.Tick(nowMs);
+
+        // Update tooltip state
+        if (_tooltipControl != null && !string.IsNullOrEmpty(_tooltipControl.Hint))
+        {
+            double elapsed = nowMs - _tooltipStartTime;
+            if (elapsed >= TooltipDelayMs && _tooltipPopup == null)
+            {
+                ShowTooltip(_tooltipControl);
+            }
+        }
+        else if (_tooltipPopup != null)
+        {
+            CloseTooltip();
+        }
+    }
+
+    /// <summary>Computes the next deadline (in ms) when the host should wake up: timer deadlines, tooltip delay, etc. Returns null if no deadline.</summary>
+    public double? NextWakeMs(double nowMs)
+    {
+        double? nearest = null;
+
+        // Check timer deadlines
+        _timers ??= [.. Descendants().OfType<Timer>()];
+        foreach (var t in _timers)
+        {
+            var deadline = t.GetNextDeadlineMs(nowMs);
+            if (deadline.HasValue && (!nearest.HasValue || deadline.Value < nearest.Value))
+                nearest = deadline.Value;
+        }
+
+        // Check tooltip deadline
+        if (_tooltipControl != null && !string.IsNullOrEmpty(_tooltipControl.Hint) && _tooltipPopup == null)
+        {
+            var tooltipDeadline = _tooltipStartTime + TooltipDelayMs;
+            if (!nearest.HasValue || tooltipDeadline < nearest.Value)
+                nearest = tooltipDeadline;
+        }
+
+        return nearest;
+    }
+
+    void ShowTooltip(Control control)
+    {
+        if (_tooltipPopup != null) return;
+
+        _tooltipPopup = new ToolTipPopup(control.Hint ?? "", Theme);
+        _tooltipPopup.SetBounds(control.AbsoluteLeft, control.AbsoluteTop + control.Height + 4, 200, 40);
+        OpenPopup(_tooltipPopup, control.AbsoluteLeft, control.AbsoluteTop + control.Height + 4, control);
+    }
+
+    void CloseTooltip()
+    {
+        if (_tooltipPopup == null) return;
+        ClosePopup(_tooltipPopup);
+        _tooltipPopup = null;
     }
 
     // =====================================================================
@@ -134,7 +193,10 @@ public class Form : Control
     /// <summary>Shows the form in its own window and returns immediately.</summary>
     public void Show() => PlatformHost.Require().ShowForm(this);
 
-    /// <summary>Shows the form as a modal dialog; returns how it was closed (Cancel if closed from its title bar).</summary>
+    /// <summary>Queues an action to run on the UI thread (from any thread).</summary>
+    public void Queue(Action action) => Application.Queue(action);
+
+    /// <summary>Shows the form as a modal dialog synchronously; returns how it was closed (Cancel if closed from its title bar). Desktop-only.</summary>
     public ModalResult ShowModal()
     {
         _modalResult = ModalResult.None;
@@ -142,6 +204,25 @@ public class Form : Control
         try { PlatformHost.Require().RunModal(this); }
         finally { IsModal = false; }
         return _modalResult;
+    }
+
+    /// <summary>Shows the form as a modal dialog asynchronously; returns how it was closed (Cancel if closed from its title bar).</summary>
+    public Task<ModalResult> ShowModalAsync()
+    {
+        var tcs = new TaskCompletionSource<ModalResult>();
+        _modalResult = ModalResult.None;
+        IsModal = true;
+
+        void OnClosed(Control _)
+        {
+            Closed -= OnClosed;
+            IsModal = false;
+            tcs.SetResult(_modalResult);
+        }
+
+        Closed += OnClosed;
+        PlatformHost.Require().ShowModal(this, () => { });
+        return tcs.Task;
     }
 
     /// <summary>Asks <see cref="CloseQuery"/> handlers, then closes the window. Returns false if a handler refused.</summary>
@@ -377,6 +458,18 @@ public class Form : Control
         _hover = hover;
         old?.SetHovered(false);
         hover?.SetHovered(true);
+
+        // Update tooltip
+        CloseTooltip();
+        if (hover != null && !string.IsNullOrEmpty(hover.Hint))
+        {
+            _tooltipControl = hover;
+            _tooltipStartTime = Now;
+        }
+        else
+        {
+            _tooltipControl = null;
+        }
     }
 
     public void ProcessMouseMove(int x, int y, KeyModifiers modifiers = KeyModifiers.None)
@@ -403,6 +496,7 @@ public class Form : Control
         if (_capture != null) return;  // another button is already down
         if (!hit.IsEffectivelyEnabled) return;
 
+        CloseTooltip();
         ShowFocusCues = false;
         if (hit.TabStop) SetFocus(hit);
         _capture = hit;

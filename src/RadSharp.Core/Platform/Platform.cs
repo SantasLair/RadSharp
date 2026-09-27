@@ -20,6 +20,29 @@ public sealed class FileDialogOptions
     }
 }
 
+/// <summary>Result of a file dialog. The host provides Path and the Stream-opening methods.</summary>
+public sealed class FileResult
+{
+    /// <summary>The full path to the chosen file (null if cancelled on some platforms).</summary>
+    public string? Path { get; }
+
+    private readonly Func<Stream> _openRead;
+    private readonly Func<Stream> _openWrite;
+
+    public FileResult(string? path, Func<Stream> openRead, Func<Stream> openWrite)
+    {
+        Path = path;
+        _openRead = openRead ?? throw new ArgumentNullException(nameof(openRead));
+        _openWrite = openWrite ?? throw new ArgumentNullException(nameof(openWrite));
+    }
+
+    /// <summary>Opens the file for reading.</summary>
+    public Stream OpenRead() => _openRead();
+
+    /// <summary>Opens the file for writing (creates or truncates).</summary>
+    public Stream OpenWrite() => _openWrite();
+}
+
 /// <summary>
 /// Services only a host (window system) can provide: windows for forms, modal loops and native
 /// dialogs. The SDL host installs itself at startup; tests can install a fake.
@@ -39,7 +62,13 @@ public interface IPlatformServices
     void ProcessEventsUntil(Func<bool> done);
 
     /// <summary>Shows a native file or folder dialog; <paramref name="done"/> receives the chosen paths, or null if cancelled.</summary>
-    void ShowFileDialog(FileDialogKind kind, Form? owner, FileDialogOptions options, Action<string[]?> done);
+    void ShowFileDialog(FileDialogKind kind, Form? owner, FileDialogOptions options, Action<FileResult[]?> done);
+
+    /// <summary>Posts an action to run on the UI thread (asynchronously).</summary>
+    void PostToUiThread(Action action);
+
+    /// <summary>Shows a form modally without blocking, calling <paramref name="onClosed"/> when it closes. Non-blocking version of RunModal.</summary>
+    void ShowModal(Form form, Action onClosed);
 }
 
 public enum FileDialogKind { Open, Save, Folder }

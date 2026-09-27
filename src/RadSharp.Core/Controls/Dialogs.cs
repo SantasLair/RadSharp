@@ -2,7 +2,7 @@ using RadSharp.Drawing;
 
 namespace RadSharp;
 
-/// <summary>Shared behaviour of the native file dialogs: <see cref="Execute"/> blocks until the user chooses.</summary>
+/// <summary>Shared behaviour of the native file dialogs: <see cref="Execute"/> blocks until the user chooses (or use <see cref="ExecuteAsync"/> for async).</summary>
 public abstract class FileDialog : Component
 {
     [Published(Category = "Behavior")] public string Title { get; set; } = "";
@@ -11,17 +11,17 @@ public abstract class FileDialog : Component
     [Published("initialDir", Category = "Behavior")] public string InitialDirectory { get; set; } = "";
     [Published(Category = "Behavior")] public string FileName { get; set; } = "";
 
-    /// <summary>All chosen paths (several when multi-select is allowed).</summary>
-    public string[] Files { get; private set; } = [];
+    /// <summary>All chosen file results (several when multi-select is allowed).</summary>
+    public FileResult[] Files { get; private set; } = [];
 
     protected abstract FileDialogKind Kind { get; }
     protected virtual bool AllowMultiple => false;
 
-    /// <summary>Shows the dialog; returns true (and sets <see cref="FileName"/>/<see cref="Files"/>) if the user chose.</summary>
+    /// <summary>Shows the dialog synchronously; returns true (and sets <see cref="FileName"/>/<see cref="Files"/>) if the user chose (desktop-only).</summary>
     public bool Execute()
     {
         var host = PlatformHost.Require();
-        string[]? result = null;
+        FileResult[]? result = null;
         bool done = false;
         host.ShowFileDialog(Kind, OwningForm, new FileDialogOptions
         {
@@ -34,8 +34,36 @@ public abstract class FileDialog : Component
         host.ProcessEventsUntil(() => done);
         if (result is not { Length: > 0 }) return false;
         Files = result;
-        FileName = result[0];
+        FileName = result[0].Path ?? "";
         return true;
+    }
+
+    /// <summary>Shows the dialog asynchronously; returns true (and sets <see cref="FileName"/>/<see cref="Files"/>) if the user chose.</summary>
+    public Task<bool> ExecuteAsync()
+    {
+        var tcs = new TaskCompletionSource<bool>();
+        var host = PlatformHost.Require();
+        host.ShowFileDialog(Kind, OwningForm, new FileDialogOptions
+        {
+            Title = Title,
+            Filter = Filter,
+            InitialDirectory = InitialDirectory,
+            FileName = FileName,
+            AllowMultiple = AllowMultiple,
+        }, r =>
+        {
+            if (r is { Length: > 0 })
+            {
+                Files = r;
+                FileName = r[0].Path ?? "";
+                tcs.SetResult(true);
+            }
+            else
+            {
+                tcs.SetResult(false);
+            }
+        });
+        return tcs.Task;
     }
 }
 
@@ -67,10 +95,15 @@ public static class Dialogs
     public static void ShowMessage(string message, Form? owner = null) =>
         MessageDlg(message, MessageType.Information, MessageButtons.Ok, owner);
 
-    /// <summary>Shows a modal message box and returns the button pressed (Cancel if closed another way).</summary>
+    /// <summary>Shows a modal message box synchronously and returns the button pressed (Cancel if closed another way). Desktop-only.</summary>
     public static ModalResult MessageDlg(string message, MessageType type = MessageType.Information,
         MessageButtons buttons = MessageButtons.Ok, Form? owner = null) =>
         CreateMessageForm(message, type, buttons, owner).ShowModal();
+
+    /// <summary>Shows a modal message box asynchronously and returns the button pressed (Cancel if closed another way).</summary>
+    public static Task<ModalResult> MessageDlgAsync(string message, MessageType type = MessageType.Information,
+        MessageButtons buttons = MessageButtons.Ok, Form? owner = null) =>
+        CreateMessageForm(message, type, buttons, owner).ShowModalAsync();
 
     /// <summary>Builds (but doesn't show) the message form; exposed for tests and customization.</summary>
     public static Form CreateMessageForm(string message, MessageType type, MessageButtons buttons, Form? owner = null)
