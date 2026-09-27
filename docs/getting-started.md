@@ -8,7 +8,9 @@ a handler, press F9 to run it, press Build to get a native executable for Window
 - The **.NET 10 SDK** (`dotnet --list-sdks` should list a 10.x version).
 - For native builds (**Build**): the platform linker NativeAOT uses — on Windows the *Desktop development with
   C++* workload of Visual Studio or its Build Tools; on Linux `clang` and `zlib1g-dev`; on macOS the Xcode
-  command-line tools.
+  command-line tools. On Windows, run from a *Developer Command Prompt/PowerShell*, or make sure
+  `vswhere.exe` (installed with Visual Studio under `.../Installer/`) is on `PATH` — otherwise NativeAOT's
+  link step fails with "'vswhere.exe' is not recognized" even though the workload is installed.
 - An editor for the code-behind: VS Code (`code` on the PATH) is used by default; set `RADSHARP_EDITOR` to
   another command, e.g. `rider --line {line} "{file}"`.
 
