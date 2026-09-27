@@ -55,7 +55,7 @@ public class PageControl : Control
     /// <summary>Each visible page's tab rectangle, in this control's coordinates.</summary>
     public List<Rect> TabRects()
     {
-        var font = new Font(CurrentTheme.FontFace, (float)(CurrentTheme.FontSize * UiScale));
+        var font = new RenderFont(CurrentTheme.FontFace, (float)(CurrentTheme.FontSize * UiScale));
         var list = new List<Rect>();
         int x = 0;
         foreach (var page in Pages)

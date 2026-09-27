@@ -31,6 +31,7 @@ public static class Converters
     public static readonly ValueConverter<Anchors> Anchors = new AnchorsConverter();
     public static readonly ValueConverter<Thickness> Thickness = new ThicknessConverter();
     public static readonly ValueConverter<string[]> Strings = new StringsConverter();
+    public static readonly ValueConverter<Font?> NullableFont = new NullableFontConverter();
 
     public static ValueConverter<T> Enum<T>() where T : struct, System.Enum => EnumConverter<T>.Instance;
 
@@ -203,6 +204,57 @@ public static class Converters
             for (int i = 0; i < 4; i++)
                 if (!int.TryParse(parts[i].Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out n[i])) return false;
             value = new Thickness(n[0], n[1], n[2], n[3]);
+            return true;
+        }
+    }
+
+    /// <summary>
+    /// A control's <c>font</c>: <c>null</c> (absent) means ParentFont (inherit); written whole when set,
+    /// fields in declared order family, size, bold, italic, underline.
+    /// </summary>
+    sealed class NullableFontConverter : ValueConverter<Font?>
+    {
+        public override PropertyType Type => PropertyType.Font;
+
+        public override Font? Read(JsonElement v)
+        {
+            if (v.ValueKind == JsonValueKind.Null) return null;
+            if (v.ValueKind != JsonValueKind.Object) throw Wrong(v, "an object {family, size, bold, italic, underline} or null");
+            if (!v.TryGetProperty("family", out var familyEl) || familyEl.ValueKind != JsonValueKind.String)
+                throw Wrong(v, "a \"family\" string");
+            if (!v.TryGetProperty("size", out var sizeEl))
+                throw Wrong(v, "a \"size\" number");
+            bool Flag(string name) => v.TryGetProperty(name, out var f) && Bool.Read(f);
+            return new Font(familyEl.GetString()!, (float)Real.Read(sizeEl), Flag("bold"), Flag("italic"), Flag("underline"));
+        }
+
+        public override void Write(FormJsonWriter w, Font? value)
+        {
+            if (value is not { } font) { w.WriteNull(); return; }
+            w.WriteInlineObject([("family", font.Family), ("size", font.Size), ("bold", font.Bold), ("italic", font.Italic), ("underline", font.Underline)]);
+        }
+
+        public override bool AreEqual(Font? a, Font? b) => a == b;
+
+        public override string Format(Font? value)
+        {
+            if (value is not { } f) return "";
+            var style = string.Concat(f.Bold ? ", Bold" : "", f.Italic ? ", Italic" : "", f.Underline ? ", Underline" : "");
+            return $"{f.Family}, {FormJsonWriter.FormatReal(f.Size)}pt{style}";
+        }
+
+        public override bool TryParse(string text, out Font? value)
+        {
+            value = null;
+            text = text.Trim();
+            if (text.Length == 0) return true;
+            var parts = text.Split(',').Select(p => p.Trim()).ToArray();
+            if (parts.Length < 2) return false;
+            string family = parts[0];
+            string sizePart = parts[1].EndsWith("pt", StringComparison.OrdinalIgnoreCase) ? parts[1][..^2].Trim() : parts[1];
+            if (family.Length == 0 || !float.TryParse(sizePart, NumberStyles.Float, CultureInfo.InvariantCulture, out var size)) return false;
+            var rest = parts.Skip(2).Select(p => p.ToLowerInvariant()).ToHashSet();
+            value = new Font(family, size, rest.Contains("bold"), rest.Contains("italic"), rest.Contains("underline"));
             return true;
         }
     }

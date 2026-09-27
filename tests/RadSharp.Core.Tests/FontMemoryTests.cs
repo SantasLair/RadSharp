@@ -15,7 +15,7 @@ public class FontMemoryTests
     public void Shaping_survives_compacting_garbage_collections()
     {
         var face = new FontFace("stress", File.ReadAllBytes(InterPath()));
-        var font = new Font(face, 20);
+        var font = new RenderFont(face, 20);
         float expected = font.MeasureWidth("Stress test: shaping after GC ✓");
         for (int round = 0; round < 25; round++)
         {
@@ -30,7 +30,7 @@ public class FontMemoryTests
             var shaped = face.Shape($"Round {round}: The quick brown fox");
             Assert.True(shaped.Glyphs.Length > 10);
         }
-        Assert.Equal(expected, new Font(face, 20).MeasureWidth("Stress test: shaping after GC ✓"));
+        Assert.Equal(expected, new RenderFont(face, 20).MeasureWidth("Stress test: shaping after GC ✓"));
     }
 
     static string InterPath()

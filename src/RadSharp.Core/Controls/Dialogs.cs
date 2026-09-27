@@ -111,7 +111,7 @@ public static class Dialogs
         double scale = Form.DefaultScale;
         int S(int v) => LayoutMath.Round(v * scale);
         var theme = owner?.Theme ?? Theme.Default;
-        var font = new Font(theme.FontFace, (float)(theme.FontSize * scale));
+        var font = new RenderFont(theme.FontFace, (float)(theme.FontSize * scale));
 
         var lines = message.Replace("\r\n", "\n").Split('\n');
         int textWidth = (int)Math.Ceiling(lines.Max(l => font.MeasureWidth(l)));

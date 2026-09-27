@@ -46,7 +46,7 @@ public class RenderingTests
     [Fact]
     public void Shaping_applies_kerning()
     {
-        var font = new Font(FontFace.Regular, 40);
+        var font = new RenderFont(FontFace.Regular, 40);
         Assert.True(font.MeasureWidth("AV") < font.MeasureWidth("A") + font.MeasureWidth("V"));
         Assert.Equal(0, font.MeasureWidth(""));
     }

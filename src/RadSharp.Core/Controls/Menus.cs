@@ -160,7 +160,7 @@ public class MainMenu : Control, IMenuOwner
         return item;
     }
 
-    Font BarFont => new(CurrentTheme.FontFace, (float)(CurrentTheme.FontSize * UiScale));
+    RenderFont BarFont => new(CurrentTheme.FontFace, (float)(CurrentTheme.FontSize * UiScale));
 
     /// <summary>The bar-relative rectangle of each visible top-level item.</summary>
     public List<(MenuItem Item, Rect Rect)> ItemRects()
@@ -296,7 +296,7 @@ public class MenuPopup : Control
 
     int RowHeight(MenuItem item) => item.IsSeparator ? Px(9) : Px(26);
 
-    Font ItemFont => new(CurrentTheme.FontFace, (float)(CurrentTheme.FontSize * UiScale));
+    RenderFont ItemFont => new(CurrentTheme.FontFace, (float)(CurrentTheme.FontSize * UiScale));
 
     /// <summary>The popup-relative rectangle of item <paramref name="index"/>.</summary>
     public Rect ItemRect(int index)

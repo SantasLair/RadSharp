@@ -18,7 +18,7 @@ public sealed class PublishedAttribute(string? name = null) : Attribute
 }
 
 /// <summary>The kinds of published property (spec, Appendix A: metadata types).</summary>
-public enum PropertyType { String, Int, Real, Bool, Enum, Color, Anchors, Struct, Strings }
+public enum PropertyType { String, Int, Real, Bool, Enum, Color, Anchors, Struct, Strings, Font }
 
 /// <summary>A published property: its form-file name, type and accessors.</summary>
 public abstract class PropertyMeta(string name, string? category)

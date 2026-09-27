@@ -106,6 +106,7 @@ public sealed class MetadataGenerator : IIncrementalGenerator
         {
             case "RadSharp.Drawing.Color": return C + "Color";
             case "RadSharp.Drawing.Color?": return C + "NullableColor";
+            case "RadSharp.Drawing.Font?": return C + "NullableFont";
             case "RadSharp.Anchors": return C + "Anchors";
             case "RadSharp.Thickness": return C + "Thickness";
         }

@@ -34,6 +34,10 @@ public sealed record Theme
     public FontFace BoldFontFace { get; init; } = FontFace.Bold;
     /// <summary>Default text size in pixels at 100 %.</summary>
     public float FontSize { get; init; } = 13;
+    /// <summary>The family <see cref="DefaultFont"/> names; register it first with <see cref="FontFace.Register"/> if not <c>"Inter"</c>.</summary>
+    public string FontFamily { get; init; } = "Inter";
+    /// <summary>The root font: what a control's <see cref="Control.EffectiveFont"/> resolves to when nothing overrides it.</summary>
+    public Font DefaultFont => new(FontFamily, FontSize);
     public int ButtonRadius { get; init; } = 4;
 
     public static Theme Default { get; } = new();

@@ -16,7 +16,7 @@ public sealed class Canvas
     readonly SKPaint _fill = new() { Style = SKPaintStyle.Fill, IsAntialias = false };
     readonly SKPaint _smooth = new() { Style = SKPaintStyle.Fill, IsAntialias = true };
     readonly SKPaint _stroke = new() { Style = SKPaintStyle.Stroke, IsAntialias = true };
-    Font? _defaultFont, _defaultBoldFont;
+    RenderFont? _defaultFont, _defaultBoldFont;
 
     public Canvas(SKCanvas canvas, Theme theme, double scale)
     {
@@ -33,8 +33,11 @@ public sealed class Canvas
     public int Px(int length) => LayoutMath.Round(length * Scale);
 
     /// <summary>The theme's text font at the current scale.</summary>
-    public Font DefaultFont => _defaultFont ??= new Font(Theme.FontFace, (float)(Theme.FontSize * Scale));
-    public Font DefaultBoldFont => _defaultBoldFont ??= new Font(Theme.BoldFontFace, (float)(Theme.FontSize * Scale));
+    public RenderFont DefaultFont => _defaultFont ??= new RenderFont(Theme.FontFace, (float)(Theme.FontSize * Scale));
+    public RenderFont DefaultBoldFont => _defaultBoldFont ??= new RenderFont(Theme.BoldFontFace, (float)(Theme.FontSize * Scale));
+
+    /// <summary>Resolves a published <see cref="Font"/> descriptor to a drawable <see cref="RenderFont"/> at the current scale.</summary>
+    public RenderFont Resolve(Font font) => new(FontFace.Resolve(font.Family, font.Bold, font.Italic), (float)(font.Size * Scale));
 
     // ---- State ----
 
@@ -299,7 +302,7 @@ public sealed class Canvas
     // ---- Text ----
 
     /// <summary>Draws one line of text with its baseline at <paramref name="baseline"/> (rounded to whole pixels).</summary>
-    public void DrawText(string text, Font font, Color color, float x, float baseline)
+    public void DrawText(string text, RenderFont font, Color color, float x, float baseline)
     {
         if (text.Length == 0 || color.A == 0) return;
         DrawText(TextLayout.Get(text, font), color, x, baseline);
@@ -314,7 +317,7 @@ public sealed class Canvas
     }
 
     /// <summary>Draws one line of text aligned inside a rectangle.</summary>
-    public void DrawText(string text, Font font, Color color, Rect r, TextAlign align, VerticalAlign valign)
+    public void DrawText(string text, RenderFont font, Color color, Rect r, TextAlign align, VerticalAlign valign)
     {
         if (text.Length == 0) return;
         float width = font.MeasureWidth(text);
@@ -332,6 +335,48 @@ public sealed class Canvas
             _ => r.Y,
         };
         DrawText(text, font, color, x, top + font.Ascent);
+    }
+
+    // ---- Text (published Font descriptor: resolves the face and draws the underline, if any) ----
+
+    /// <summary>Draws one line of text using a published <see cref="Font"/> descriptor (resolved via <see cref="Resolve(Font)"/>).</summary>
+    public void DrawText(string text, Font font, Color color, float x, float baseline)
+    {
+        if (text.Length == 0 || color.A == 0) return;
+        var render = Resolve(font);
+        DrawText(text, render, color, x, baseline);
+        if (font.Underline) DrawUnderline(render, text, color, x, baseline);
+    }
+
+    /// <summary>Draws one line of text using a published <see cref="Font"/> descriptor, aligned inside a rectangle.</summary>
+    public void DrawText(string text, Font font, Color color, Rect r, TextAlign align, VerticalAlign valign)
+    {
+        if (text.Length == 0) return;
+        var render = Resolve(font);
+        float width = render.MeasureWidth(text);
+        float x = align switch
+        {
+            TextAlign.Center => r.X + (r.Width - width) / 2,
+            TextAlign.Right => r.X + r.Width - width,
+            _ => r.X,
+        };
+        float textHeight = render.Ascent + render.Descent;
+        float top = valign switch
+        {
+            VerticalAlign.Center => r.Y + (r.Height - textHeight) / 2,
+            VerticalAlign.Bottom => r.Y + r.Height - textHeight,
+            _ => r.Y,
+        };
+        float baseline = top + render.Ascent;
+        DrawText(text, render, color, x, baseline);
+        if (font.Underline) DrawUnderline(render, text, color, x, baseline);
+    }
+
+    void DrawUnderline(RenderFont font, string text, Color color, float x, float baseline)
+    {
+        float width = font.MeasureWidth(text);
+        float y = MathF.Floor(baseline + Math.Max(1, font.Size * 0.08f)) + 0.5f;
+        DrawLine(new PointF(x, y), new PointF(x + width, y), color, Math.Max(1, Px(1)));
     }
 
     static SKRect ToSK(Rect r) => new(r.X, r.Y, r.X + r.Width, r.Y + r.Height);

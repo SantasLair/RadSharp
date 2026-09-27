@@ -23,7 +23,7 @@ public abstract class EditBase : Control
     protected int ScrollX, ScrollY;
 
     List<Line>? _lines;
-    (string Text, int Width, Font Font) _linesKey;
+    (string Text, int Width, RenderFont Font) _linesKey;
 
     /// <summary>One visual line: a range of the displayed text, its layout and its top (content pixels).</summary>
     protected sealed record Line(int Start, int End, TextLayout Layout, int Top);
@@ -149,7 +149,7 @@ public abstract class EditBase : Control
     protected virtual char PasswordGlyph => '•';
 
     /// <summary>Splits the displayed text into visual lines that fit <paramref name="width"/>.</summary>
-    protected abstract List<Line> BuildLines(string text, Font font, int width, int lineHeight);
+    protected abstract List<Line> BuildLines(string text, RenderFont font, int width, int lineHeight);
 
     /// <summary>Vertical offset of the first line inside the text area (an Edit centres its line).</summary>
     protected virtual int FirstLineOffset(int innerHeight, int lineHeight) => 0;
@@ -159,7 +159,7 @@ public abstract class EditBase : Control
 
     // ---- Displayed text ----
 
-    protected Font TextFont => new(CurrentTheme.FontFace, (float)(CurrentTheme.FontSize * UiScale));
+    protected RenderFont TextFont => new(CurrentTheme.FontFace, (float)(CurrentTheme.FontSize * UiScale));
     protected int LineHeight => (int)Math.Ceiling(TextFont.LineHeight);
 
     string DisplayText
@@ -650,7 +650,7 @@ public class Edit : EditBase
     protected override bool IsPassword => PasswordChar.Length > 0;
     protected override char PasswordGlyph => PasswordChar.Length > 0 ? PasswordChar[0] : '•';
 
-    protected override List<Line> BuildLines(string text, Font font, int width, int lineHeight) =>
+    protected override List<Line> BuildLines(string text, RenderFont font, int width, int lineHeight) =>
         [new Line(0, text.Length, TextLayout.Get(text, font), 0)];
 
     protected override int FirstLineOffset(int innerHeight, int lineHeight) => Math.Max(0, (innerHeight - lineHeight) / 2);
@@ -707,7 +707,7 @@ public class Memo : EditBase
         return false;
     }
 
-    protected override List<Line> BuildLines(string text, Font font, int width, int lineHeight)
+    protected override List<Line> BuildLines(string text, RenderFont font, int width, int lineHeight)
     {
         var lines = Wrap(text, font, width, lineHeight);
         // Show the scroll bar when the content is taller than the box; that narrows the text area.
@@ -721,7 +721,7 @@ public class Memo : EditBase
         return lines;
     }
 
-    List<Line> Wrap(string text, Font font, int width, int lineHeight)
+    List<Line> Wrap(string text, RenderFont font, int width, int lineHeight)
     {
         var lines = new List<Line>();
         int start = 0;
@@ -736,7 +736,7 @@ public class Memo : EditBase
         return lines;
     }
 
-    void WrapParagraph(string text, int start, int end, Font font, int width, int lineHeight, List<Line> lines)
+    void WrapParagraph(string text, int start, int end, RenderFont font, int width, int lineHeight, List<Line> lines)
     {
         var paragraph = text[start..end];
         var full = TextLayout.Get(paragraph, font);

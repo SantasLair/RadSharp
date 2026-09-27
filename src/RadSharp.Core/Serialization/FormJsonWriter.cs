@@ -96,6 +96,29 @@ public sealed class FormJsonWriter
         _sb.Append(" }");
     }
 
+    /// <summary>Like the <c>int</c> overload, but for a struct with mixed-type fields (string, real or bool).</summary>
+    public void WriteInlineObject(IEnumerable<(string Key, object Value)> fields)
+    {
+        _sb.Append("{ ");
+        bool first = true;
+        foreach (var (k, v) in fields)
+        {
+            if (!first) _sb.Append(", ");
+            WriteStringLiteral(k);
+            _sb.Append(": ");
+            switch (v)
+            {
+                case string s: WriteStringLiteral(s); break;
+                case bool b: _sb.Append(b ? "true" : "false"); break;
+                case int i: _sb.Append(i.ToString(CultureInfo.InvariantCulture)); break;
+                case float or double: _sb.Append(FormatReal(Convert.ToDouble(v, CultureInfo.InvariantCulture))); break;
+                default: throw new ArgumentException($"Unsupported inline value type {v?.GetType()}.", nameof(fields));
+            }
+            first = false;
+        }
+        _sb.Append(" }");
+    }
+
     /// <summary>Shortest round-trip form, invariant culture, no exponent; whole numbers without a fraction.</summary>
     public static string FormatReal(double value)
     {

@@ -17,7 +17,7 @@ public sealed class TextLayout
 
     sealed record Run(FontFace Face, ShapedText Shaped, float X);
 
-    TextLayout(string text, Font font)
+    TextLayout(string text, RenderFont font)
     {
         Text = text;
         Font = font;
@@ -41,15 +41,15 @@ public sealed class TextLayout
     }
 
     public string Text { get; }
-    public Font Font { get; }
+    public RenderFont Font { get; }
     /// <summary>Advance width of the whole line, in pixels.</summary>
     public float Width { get; }
     public IReadOnlyList<int> Boundaries => _boundaries;
 
     // A small cache: the same captions and edit texts are laid out on every paint.
-    static readonly Dictionary<(string, Font), TextLayout> Cache = [];
+    static readonly Dictionary<(string, RenderFont), TextLayout> Cache = [];
 
-    public static TextLayout Get(string text, Font font)
+    public static TextLayout Get(string text, RenderFont font)
     {
         lock (Cache)
         {

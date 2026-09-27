@@ -96,6 +96,8 @@ public sealed class FontFace
 
     public static FontFace Regular { get; } = LoadBundled("Inter-Regular");
     public static FontFace Bold { get; } = LoadBundled("Inter-Bold");
+    public static FontFace Italic { get; } = LoadBundled("Inter-Italic");
+    public static FontFace BoldItalic { get; } = LoadBundled("Inter-BoldItalic");
 
     static FontFace LoadBundled(string name)
     {
@@ -104,6 +106,44 @@ public sealed class FontFace
         using var ms = new MemoryStream();
         s.CopyTo(ms);
         return new FontFace(name, ms.ToArray());
+    }
+
+    // ---- Family registry (published Font.Family -> the four style faces) ----
+
+    sealed record FontFamily(FontFace Regular, FontFace? Bold, FontFace? Italic, FontFace? BoldItalic);
+
+    static readonly Dictionary<string, FontFamily> Families = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Inter"] = new FontFamily(Regular, Bold, Italic, BoldItalic),
+    };
+
+    /// <summary>
+    /// Registers a font family so controls can select it by name in their published <see cref="Font"/>.
+    /// Only <paramref name="regular"/> is required; missing styles fall back within the family, then to
+    /// <see cref="Regular"/> (Delphi-style: a style a face doesn't have is simply not applied).
+    /// </summary>
+    public static void Register(string family, byte[] regular, byte[]? bold = null, byte[]? italic = null, byte[]? boldItalic = null)
+    {
+        ArgumentException.ThrowIfNullOrEmpty(family);
+        ArgumentNullException.ThrowIfNull(regular);
+        lock (Families)
+            Families[family] = new FontFamily(
+                new FontFace(family, regular),
+                bold == null ? null : new FontFace(family + " Bold", bold),
+                italic == null ? null : new FontFace(family + " Italic", italic),
+                boldItalic == null ? null : new FontFace(family + " Bold Italic", boldItalic));
+    }
+
+    /// <summary>The face for a published <see cref="Font"/>'s family and style, falling back within the family and then to <see cref="Regular"/>.</summary>
+    public static FontFace Resolve(string family, bool bold, bool italic)
+    {
+        FontFamily? f;
+        lock (Families)
+            if (!Families.TryGetValue(family, out f)) return Regular;
+        if (bold && italic) return f.BoldItalic ?? f.Bold ?? f.Italic ?? f.Regular;
+        if (bold) return f.Bold ?? f.Regular;
+        if (italic) return f.Italic ?? f.Regular;
+        return f.Regular;
     }
 
     // ---- Fallback ----
@@ -232,8 +272,12 @@ public sealed class FontFace
     }
 }
 
-/// <summary>A face at a pixel size.</summary>
-public sealed record Font(FontFace Face, float Size)
+/// <summary>
+/// A face at a pixel size, ready to shape and draw. Used internally by <see cref="Canvas"/> and
+/// <see cref="TextLayout"/>; the published, control-facing font descriptor is <see cref="Font"/>,
+/// resolved to one of these via <see cref="Canvas.Resolve(Font)"/>.
+/// </summary>
+public sealed record RenderFont(FontFace Face, float Size)
 {
     float Scale => Size / Face.UnitsPerEm;
 
@@ -245,5 +289,13 @@ public sealed record Font(FontFace Face, float Size)
 
     public float MeasureWidth(string text) => text.Length == 0 ? 0 : TextLayout.Get(text, this).Width;
 
-    public Font WithSize(float size) => this with { Size = size };
+    public RenderFont WithSize(float size) => this with { Size = size };
 }
+
+/// <summary>
+/// A control's published font (Delphi's <c>TFont</c>): family, size (at 100 % scale), and style. A
+/// control's <see cref="Control.Font"/> is <c>Font?</c> — <c>null</c> means <i>ParentFont</i>: inherit
+/// the parent's <see cref="Control.EffectiveFont"/>, or the theme's <see cref="Theme.DefaultFont"/> at
+/// the root. Resolved to a drawable <see cref="RenderFont"/> via <see cref="Canvas.Resolve(Font)"/>.
+/// </summary>
+public readonly record struct Font(string Family, float Size, bool Bold = false, bool Italic = false, bool Underline = false);

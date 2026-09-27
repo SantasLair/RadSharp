@@ -115,7 +115,7 @@ public class TextEditorTests
     [Fact]
     public void Layout_caret_stops_are_monotonic_and_only_at_grapheme_boundaries()
     {
-        var layout = TextLayout.Get("Wa" + EAcute + "ffi" + Family + "!", new Font(FontFace.Regular, 20));
+        var layout = TextLayout.Get("Wa" + EAcute + "ffi" + Family + "!", new RenderFont(FontFace.Regular, 20));
         float last = -1;
         foreach (var b in layout.Boundaries)
         {

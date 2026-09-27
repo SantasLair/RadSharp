@@ -53,6 +53,27 @@ public partial class Control
     [Published(Category = "Behavior")] public int TabOrder { get; set; } = -1;
     [Published(Category = "Behavior")] public string Hint { get; set; } = "";
 
+    Font? _font;
+
+    /// <summary>
+    /// This control's own font, or <c>null</c> to inherit the parent's (Delphi's <i>ParentFont</i>).
+    /// Paint with <see cref="EffectiveFont"/>, never this property directly.
+    /// </summary>
+    [Published(Category = "Appearance")]
+    public Font? Font
+    {
+        get => _font;
+        set
+        {
+            if (_font == value) return;
+            _font = value;
+            InvalidateForm();
+        }
+    }
+
+    /// <summary>This control's own <see cref="Font"/>, or its parent's <see cref="EffectiveFont"/>, or the theme's at the root.</summary>
+    public Font EffectiveFont => _font ?? Parent?.EffectiveFont ?? CurrentTheme.DefaultFont;
+
     // ---- Tree ----
 
     public void Add(Control child) => Insert(_children.Count, child);
