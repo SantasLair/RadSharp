@@ -126,6 +126,174 @@ public class ProjectWorkflowTests
     }
 
     [Fact]
+    public void Lock_controls_menu_item_locks_every_open_surface_and_new_ones_too()
+    {
+        var project = RadProject.Create(TempDir(), "Lock");
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        var button = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 24, 24);
+        var original = button.Bounds;
+        var surface = d.ActiveForm!.Surface;
+
+        var menuItem = (MenuItem)((MainMenu)d.FindControl("mnuMain")!).Items
+            .Single(m => m.Caption == "Edit").Items.Single(m => m.Caption == "Lock Controls");
+        menuItem.PerformClick();
+        Assert.True(surface.Locked);
+
+        var (sx, sy) = surface.DesignToScreen(30, 30);
+        d.Simulate.Press(surface.AbsoluteLeft + sx, surface.AbsoluteTop + sy);
+        d.Simulate.MoveTo(surface.AbsoluteLeft + sx + 20, surface.AbsoluteTop + sy + 20);
+        d.Simulate.Release(surface.AbsoluteLeft + sx + 20, surface.AbsoluteTop + sy + 20);
+        Assert.Equal(original, button.Bounds);   // dragging did nothing while locked
+
+        d.Simulate.Key("Mod+N");
+        Assert.True(d.ActiveForm!.Surface.Locked);   // a form opened after locking starts locked too
+    }
+
+    [Fact]
+    public void Right_click_context_menu_deletes_the_selected_control()
+    {
+        var project = RadProject.Create(TempDir(), "Ctx");
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        var surface = d.ActiveForm!.Surface;
+        var button = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 24, 24);
+        doc.Select(null);
+
+        var (sx, sy) = surface.DesignToScreen(30, 30);   // inside the button
+        d.Simulate.Click(surface.AbsoluteLeft + sx, surface.AbsoluteTop + sy, MouseButton.Right);
+        Assert.Same(button, doc.Primary);
+
+        var popup = Assert.IsType<MenuPopup>(d.Popups[^1]);
+        int i = popup.Items.ToList().FindIndex(m => m.Caption == "Delete");
+        Assert.True(i >= 0);
+        var r = popup.ItemRect(i);
+        d.Simulate.Click(popup.Left + r.X + 10, popup.Top + r.Y + r.Height / 2);
+
+        Assert.DoesNotContain(button, doc.Form.Children);
+        Assert.Empty(d.Popups);
+    }
+
+    [Fact]
+    public void Right_click_on_empty_canvas_disables_selection_only_commands()
+    {
+        var project = RadProject.Create(TempDir(), "CtxEmpty");
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 24, 24);
+        var surface = d.ActiveForm!.Surface;
+
+        var (sx, sy) = surface.DesignToScreen(400, 250);   // empty canvas, well inside the form
+        d.Simulate.Click(surface.AbsoluteLeft + sx, surface.AbsoluteTop + sy, MouseButton.Right);
+        Assert.Empty(doc.Selection);
+
+        var popup = Assert.IsType<MenuPopup>(d.Popups[^1]);
+        Assert.False(popup.Items.First(m => m.Caption == "Delete").Enabled);
+        Assert.True(popup.Items.First(m => m.Caption == "Select All").Enabled);
+    }
+
+    [Fact]
+    public void Multi_selecting_controls_lets_the_inspector_edit_all_of_them_at_once()
+    {
+        var project = RadProject.Create(TempDir(), "Multi");
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        var a = (Button)doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 10, 10);
+        var b = (Button)doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 10, 60);
+        doc.SelectMany([a, b]);
+
+        var grid = (PropertyGrid)d.FindControl("gridProps")!;
+        Assert.Equal(2, grid.Targets.Count);
+        var nameField = (Edit)d.FindControl("edtName")!;
+        Assert.False(nameField.Enabled);   // can't rename two controls to the same name
+
+        int caption = grid.IndexOf("caption");
+        grid.BeginEdit(caption);
+        d.Simulate.Type("Both");
+        d.Simulate.Key(Key.Enter);
+        Assert.Equal("Both", a.Caption);
+        Assert.Equal("Both", b.Caption);
+    }
+
+    [Fact]
+    public void Properties_toolbar_toggles_categorized_view_and_filters_rows()
+    {
+        var project = RadProject.Create(TempDir(), "Inspector");
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        doc.Select(doc.Form);   // put a real control (the form) in the inspector
+
+        var grid = (PropertyGrid)d.FindControl("gridProps")!;
+        Assert.Equal(PropertyGridArrangement.Categorized, grid.Arrangement);   // the designer's own default
+        int categorizedCount = grid.RowCount;
+
+        var combo = (ComboBox)d.FindControl("cboPropsArrange")!;
+        combo.ItemIndex = 0;   // "Alphabetical" — the setter itself raises Change, same as picking it from the drop-down
+        Assert.Equal(PropertyGridArrangement.Alphabetical, grid.Arrangement);
+        bool anyHeader = Enumerable.Range(0, grid.RowCount).Any(grid.IsHeader);
+        Assert.False(anyHeader);
+
+        var filter = (Edit)d.FindControl("edtPropsFilter")!;
+        filter.Focus();
+        d.Simulate.Type("caption");
+        Assert.True(grid.RowCount < categorizedCount);
+        Assert.True(grid.IndexOf("caption") >= 0);
+    }
+
+    [Fact]
+    public void Project_tab_lists_every_source_file_not_only_forms()
+    {
+        var project = RadProject.Create(TempDir(), "Files");
+        File.WriteAllText(Path.Combine(project.Directory, "Helper.cs"), "namespace Files;\npublic static class Helper { }\n");
+        var (d, _) = Start(project.ProjectFile);   // Start() already points the editor at a harmless command
+        var pgInspector = (PageControl)d.FindControl("pgInspector")!;
+        var tsProject = (TabSheet)d.FindControl("tsProject")!;
+        pgInspector.ActivePageIndex = pgInspector.Pages.ToList().IndexOf(tsProject);
+
+        var lstForms = (ListBox)d.FindControl("lstForms")!;
+        Assert.Contains(lstForms.Items, i => i.StartsWith("MainForm"));
+        Assert.Contains("Helper.cs", lstForms.Items);
+        Assert.Contains("Program.cs", lstForms.Items);
+
+        int i = Array.IndexOf(lstForms.Items, "Helper.cs");
+        var r = lstForms.ItemRect(i);
+        d.Simulate.DoubleClick(lstForms.AbsoluteLeft + r.X + 10, lstForms.AbsoluteTop + r.Y + r.Height / 2);
+
+        var status = (StatusBar)d.FindControl("sbMain")!;
+        Assert.Equal("Opened Helper.cs:1 in Custom", status.SimpleText);
+    }
+
+    [Fact]
+    public void Renaming_a_control_updates_every_project_source_file_not_only_its_own_code_behind()
+    {
+        var project = RadProject.Create(TempDir(), "RenameWide");
+        var helperFile = Path.Combine(project.Directory, "Helper.cs");
+        File.WriteAllText(helperFile, """
+            namespace RenameWide;
+            public static class Helper
+            {
+                public static void Touch(MainForm f) => f.Button1.Caption = "x";
+            }
+
+            """);
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        var button = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 10, 10);
+        Assert.Equal("Button1", button.Name);
+        doc.Select(button);
+
+        var nameField = (Edit)d.FindControl("edtName")!;
+        nameField.Focus();
+        nameField.SelectAll();
+        d.Simulate.Type("btnGo");
+        d.Simulate.Key(Key.Enter);
+        Assert.Equal("btnGo", button.Name);
+
+        Assert.Contains("f.btnGo.Caption", File.ReadAllText(helperFile));
+        Assert.DoesNotContain("Button1", File.ReadAllText(helperFile));
+    }
+
+    [Fact]
     public void Editor_commands_follow_the_unity_model()
     {
         Assert.Equal("\"code\" \"{folder}\" -g \"{file}:{line}\"", ExternalEditor.CommandTemplate(EditorKind.VSCode, "code", null));

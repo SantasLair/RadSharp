@@ -46,6 +46,13 @@ public class DesignSurface : Control
     [Published(Category = "Behavior")] public int GridSize { get; set; } = 8;
     [Published(Category = "Appearance")] public bool ShowGrid { get; set; } = true;
 
+    /// <summary>
+    /// Delphi's Lock Controls: while true, existing controls can still be selected and edited in the
+    /// inspector, but can't be dragged, resized, or nudged with the keyboard. The form's own resize grip is
+    /// unaffected (only controls are "locked"), and creating a new control from the palette still works.
+    /// </summary>
+    [Published(Category = "Behavior")] public bool Locked { get; set; }
+
     /// <summary>The class the next press creates (set by the component palette); cleared after creating.</summary>
     public ComponentClass? PendingClass { get; set; }
 
@@ -54,6 +61,13 @@ public class DesignSurface : Control
 
     /// <summary>Raised when a control (or the form) is double-clicked: the designer opens its default event handler.</summary>
     public event Action<Control>? DoubleClicked;
+
+    /// <summary>
+    /// Raised on a right-click, after the selection was updated as a left click would (selects the control
+    /// under the cursor if it wasn't already part of the selection, clears the selection over empty canvas).
+    /// The designer builds and shows its context menu at these surface-local coordinates.
+    /// </summary>
+    public event Action<int, int>? ContextMenuRequested;
 
     double Zoom => UiScale;
     int OriginX => Px(16) - _scrollX;
@@ -125,7 +139,7 @@ public class DesignSurface : Control
 
     Handle HandleAt(int x, int y)
     {
-        if (_doc?.Selection.Count != 1) return Handle.None;
+        if (_doc?.Selection.Count != 1 || Locked) return Handle.None;
         foreach (var (h, r) in HandleRects(_doc.Primary))
             if (x >= r.X - Px(2) && y >= r.Y - Px(2) && x < r.X + r.Width + Px(2) && y < r.Y + r.Height + Px(2)) return h;
         return Handle.None;
@@ -152,7 +166,9 @@ public class DesignSurface : Control
     protected override void OnMouseDown(MouseEventArgs e)
     {
         base.OnMouseDown(e);
-        if (_doc == null || e.Button != MouseButton.Left) return;
+        if (_doc == null) return;
+        if (e.Button == MouseButton.Right) { HandleContextMenu(e); return; }
+        if (e.Button != MouseButton.Left) return;
         var (dx, dy) = ScreenToDesign(e.X, e.Y);
         _start = (dx, dy);
         _changed = false;
@@ -204,12 +220,25 @@ public class DesignSurface : Control
         }
         if (e.Modifiers.HasFlag(KeyModifiers.Shift)) { _doc.Select(hit, add: true); _mode = Mode.None; return; }
         if (!_doc.IsSelected(hit)) _doc.Select(hit);
+        if (Locked) { _mode = Mode.None; return; }   // still selectable and editable, just not draggable
         _mode = Mode.Move;
         _startBounds.Clear();
         foreach (var c in _doc.Selection) Remember(c);
     }
 
     void Remember(Control c) => _startBounds[c] = c.Bounds;
+
+    /// <summary>Selects like a left click would (without starting a move), then raises <see cref="ContextMenuRequested"/>.</summary>
+    void HandleContextMenu(MouseEventArgs e)
+    {
+        if (_doc == null) return;
+        var (dx, dy) = ScreenToDesign(e.X, e.Y);
+        var hit = ControlAt(dx, dy);
+        if (hit == null || hit == _doc.Form) _doc.Select(null);
+        else if (!_doc.IsSelected(hit)) _doc.Select(hit);
+        Invalidate();
+        ContextMenuRequested?.Invoke(e.X, e.Y);
+    }
 
     void BeginChange()
     {
@@ -453,6 +482,7 @@ public class DesignSurface : Control
 
     void Nudge(int dx, int dy, bool resize)
     {
+        if (Locked) return;
         var targets = _doc!.Selection.Where(c => resize ? c == _doc.Primary : c.Align == Align.None).ToList();
         if (targets.Count == 0) return;
         _doc.Snapshot();
@@ -500,7 +530,7 @@ public class DesignSurface : Control
             var r = ScreenRect(DesignRect(c));
             canvas.DrawBorder(Canvas.Inflate(r, Px(1)), c == _doc.Primary ? t.Accent : t.TextDisabled, Math.Max(1, Px(1)));
         }
-        if (_doc.Selection.Count == 1)
+        if (!Locked && _doc.Selection.Count == 1)
             foreach (var (_, hr) in HandleRects(_doc.Primary))
             {
                 canvas.FillRect(hr, t.InputBackground);

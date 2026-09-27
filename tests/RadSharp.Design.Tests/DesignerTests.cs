@@ -39,6 +39,12 @@ public class DesignerTests
         host.Simulate.Click(p.X, p.Y, modifiers: mods);
     }
 
+    static void RightClickAt(Form host, DesignSurface s, int x, int y)
+    {
+        var p = At(s, x, y);
+        host.Simulate.Click(p.X, p.Y, MouseButton.Right);
+    }
+
     [Fact]
     public void Palette_click_creates_a_control_at_the_snapped_point_with_its_default_size()
     {
@@ -157,6 +163,70 @@ public class DesignerTests
         Drag(host, s, (480, 320), (641, 402));
         Assert.Equal((640, 400), (doc.Form.Width, doc.Form.Height));
         Assert.Contains("\"width\": 640", doc.Save());
+    }
+
+    [Fact]
+    public void Locked_controls_can_be_selected_but_not_dragged_resized_or_nudged()
+    {
+        var (host, s, doc) = Setup();
+        s.PendingClass = ComponentRegistry.Find("Button");
+        ClickAt(host, s, 40, 40);
+        var b = doc.Primary;
+        var original = b.Bounds;
+
+        s.Locked = true;
+        Drag(host, s, (50, 50), (81, 67));             // would normally move it
+        Assert.Equal(original, b.Bounds);
+        Drag(host, s, (40 + 80, 40 + 28), (200, 200));  // would normally resize it via the bottom-right handle
+        Assert.Equal(original, b.Bounds);
+        host.Simulate.Key(Key.Right);
+        Assert.Equal(original, b.Bounds);
+
+        doc.Select(null);
+        ClickAt(host, s, 50, 50);                      // still selectable while locked
+        Assert.Same(b, doc.Primary);
+
+        s.Locked = false;
+        Drag(host, s, (50, 50), (60, 60));
+        Assert.NotEqual(original, b.Bounds);           // dragging works again once unlocked
+    }
+
+    [Fact]
+    public void Right_click_selects_like_a_left_click_and_raises_the_context_menu_request()
+    {
+        var (host, s, doc) = Setup();
+        s.PendingClass = ComponentRegistry.Find("Button");
+        ClickAt(host, s, 40, 40);
+        var button = doc.Primary;
+        doc.Select(null);
+
+        (int X, int Y)? requestedAt = null;
+        s.ContextMenuRequested += (x, y) => requestedAt = (x, y);
+
+        RightClickAt(host, s, 50, 50);   // inside the button
+        Assert.Same(button, doc.Primary);
+        Assert.NotNull(requestedAt);
+
+        requestedAt = null;
+        RightClickAt(host, s, 400, 300);   // empty canvas
+        Assert.Empty(doc.Selection);
+        Assert.NotNull(requestedAt);
+    }
+
+    [Fact]
+    public void Right_click_on_an_already_selected_control_keeps_a_multi_selection()
+    {
+        var (host, s, doc) = Setup();
+        foreach (var (x, y) in new[] { (40, 40), (160, 40) })
+        {
+            s.PendingClass = ComponentRegistry.Find("Button");
+            ClickAt(host, s, x, y);
+        }
+        Drag(host, s, (30, 30), (260, 90));   // rubber-band both
+        Assert.Equal(2, doc.Selection.Count);
+
+        RightClickAt(host, s, 50, 50);   // right-click inside the already-selected first button
+        Assert.Equal(2, doc.Selection.Count);
     }
 
     [Fact]

@@ -130,6 +130,15 @@
                 "caption": "Select All",
                 "onClick": "mnuSelectAll_Click",
                 "shortcut": "Mod+A"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "Lock Controls",
+                "onClick": "mnuLockControls_Click",
+                "name": "mniLockControls"
               }
             ]
           },
@@ -460,6 +469,37 @@
                 "caption": "Properties",
                 "children": [
                   {
+                    "class": "Panel",
+                    "name": "pnlPropsToolbar",
+                    "align": "top",
+                    "height": 30,
+                    "borderStyle": "none",
+                    "children": [
+                      {
+                        "class": "ComboBox",
+                        "name": "cboPropsArrange",
+                        "items": ["Alphabetical", "Categorized"],
+                        "itemIndex": 1,
+                        "left": 2,
+                        "top": 2,
+                        "width": 108,
+                        "height": 24,
+                        "onChange": "cboPropsArrange_Change"
+                      },
+                      {
+                        "class": "Edit",
+                        "name": "edtPropsFilter",
+                        "placeholder": "Filter",
+                        "anchors": ["left", "top", "right"],
+                        "left": 114,
+                        "top": 2,
+                        "width": 200,
+                        "height": 24,
+                        "onChange": "edtPropsFilter_Change"
+                      }
+                    ]
+                  },
+                  {
                     "class": "PropertyGrid",
                     "name": "gridProps",
                     "align": "client"
@@ -471,6 +511,26 @@
                 "name": "tsEvents",
                 "caption": "Events",
                 "children": [
+                  {
+                    "class": "Panel",
+                    "name": "pnlEventsToolbar",
+                    "align": "top",
+                    "height": 30,
+                    "borderStyle": "none",
+                    "children": [
+                      {
+                        "class": "Edit",
+                        "name": "edtEventsFilter",
+                        "placeholder": "Filter",
+                        "anchors": ["left", "top", "right"],
+                        "left": 2,
+                        "top": 2,
+                        "width": 312,
+                        "height": 24,
+                        "onChange": "edtEventsFilter_Change"
+                      }
+                    ]
+                  },
                   {
                     "class": "PropertyGrid",
                     "name": "gridEvents",

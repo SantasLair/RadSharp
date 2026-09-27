@@ -153,10 +153,16 @@ public partial class DesignerForm
         OpenInEditor(code, line);
     }
 
-    /// <summary>After a rename: the field and the conventionally named handlers follow in the code.</summary>
+    /// <summary>
+    /// After a rename: the field and the conventionally named handlers follow in the code, across every
+    /// source file in the project (not only this form's own code-behind), so a reference from a partial
+    /// class split across files, or a helper method reaching in, follows too. This is textual, not semantic
+    /// (there is no Roslyn <c>Workspace</c> here): it can't distinguish an unrelated identifier that happens
+    /// to match, the way a full solution-wide rename would.
+    /// </summary>
     void RenameInCode(string oldName, string newName)
     {
-        if (_active is not { } form) return;
+        if (_active is not { } form || _project is not { } project) return;
         var target = form.Document.Form.FindControl(newName);
         var renames = new List<(string Old, string New)> { (oldName, newName) };
         if (target != null)
@@ -167,12 +173,12 @@ public partial class DesignerForm
                     target.EventHandlers[ev] = renamed;
                     renames.Add((handler, renamed));
                 }
-        var code = RadProject.CodeFileFor(form.Path);
-        if (File.Exists(code))
+        foreach (var file in project.SourceFiles)
         {
-            var source = File.ReadAllText(code);
-            foreach (var (o, n) in renames) source = CodeIntegration.RenameIdentifier(source, o, n);
-            File.WriteAllText(code, source);
+            var source = File.ReadAllText(file);
+            var updated = source;
+            foreach (var (o, n) in renames) updated = CodeIntegration.RenameIdentifier(updated, o, n);
+            if (updated != source) File.WriteAllText(file, updated);
         }
         form.Document.NotifyChanged();
         Save(form);

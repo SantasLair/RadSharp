@@ -186,6 +186,151 @@ public class DialogAndInspectorTests
     }
 
     [Fact]
+    public void PropertyGrid_multi_target_shows_common_rows_and_edits_every_target()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 600, 700);
+        var a = new Button { Caption = "Go" }; a.SetBounds(10, 10, 80, 28);
+        var b = new Button { Caption = "Stop", Enabled = false }; b.SetBounds(10, 50, 80, 28);
+        f.Add(a); f.Add(b);
+        var grid = new PropertyGrid();
+        grid.SetBounds(100, 10, 300, 660);
+        f.Add(grid);
+        f.PerformLayout();
+
+        grid.SetTargets([a, b]);
+        Assert.Null(grid.Target);   // more than one target: no single Target
+        int caption = grid.IndexOf("caption"), enabled = grid.IndexOf("enabled");
+        Assert.Equal("", grid.RowValue(caption));    // "Go" vs "Stop": mixed, shown blank
+        Assert.Equal("", grid.RowValue(enabled));    // true vs false: mixed
+
+        ClickValue(f, grid, caption);
+        ClickValue(f, grid, caption);
+        f.Simulate.Type("Go!");
+        f.Simulate.Key(Key.Enter);
+        Assert.Equal("Go!", a.Caption);
+        Assert.Equal("Go!", b.Caption);   // applied to both, not just the one that was blank
+
+        ClickValue(f, grid, enabled);     // mixed bool: first click makes both consistent (true)
+        Assert.True(a.Enabled);
+        Assert.True(b.Enabled);
+        ClickValue(f, grid, enabled);     // second click flips both off
+        Assert.False(a.Enabled);
+        Assert.False(b.Enabled);
+    }
+
+    [Fact]
+    public void PropertyGrid_multi_target_hides_properties_not_common_to_every_type()
+    {
+        var button = new Button();
+        var label = new Label();
+        var grid = new PropertyGrid();
+        grid.SetTargets([button, label]);
+        var names = Enumerable.Range(0, grid.RowCount).Select(grid.RowName).ToList();
+        Assert.Contains("caption", names);        // both declare it
+        Assert.Contains("left", names);           // both are visual controls
+        Assert.DoesNotContain("fontSize", names); // only Label declares font sugar properties
+    }
+
+    [Fact]
+    public void PropertyGrid_categorized_groups_rows_under_headers_alphabetical_is_flat()
+    {
+        var (_, grid, _) = Inspector();
+        int declaredCount = grid.RowCount;
+        Assert.True(declaredCount > 10);   // Button has plenty of published properties
+
+        grid.Arrangement = PropertyGridArrangement.Categorized;
+        var withHeaders = Enumerable.Range(0, grid.RowCount).ToList();
+        int headerCount = withHeaders.Count(i => grid.IsHeader(i));
+        Assert.True(headerCount >= 2);                              // Layout, Appearance, Behavior all appear
+        Assert.Equal(declaredCount, grid.RowCount - headerCount);   // no property gained or lost, only headers added
+        // Headers come first in their group and are sorted; "caption" still resolves to a real row.
+        int captionRow = grid.IndexOf("caption");
+        Assert.True(captionRow >= 0 && !grid.IsHeader(captionRow));
+
+        grid.Arrangement = PropertyGridArrangement.Alphabetical;
+        Assert.Equal(declaredCount, grid.RowCount);   // no headers in alphabetical mode
+        bool anyHeaderWhenFlat = Enumerable.Range(0, grid.RowCount).Any(grid.IsHeader);
+        Assert.False(anyHeaderWhenFlat);
+        var names = Enumerable.Range(0, grid.RowCount).Select(grid.RowName).ToList();
+        Assert.Equal(names.OrderBy(n => n, StringComparer.Ordinal), names);
+
+        grid.Arrangement = PropertyGridArrangement.Declared;
+        Assert.Equal(declaredCount, grid.RowCount);   // back to the original, unsorted, header-free list
+    }
+
+    [Fact]
+    public void PropertyGrid_filter_hides_non_matching_rows()
+    {
+        var (_, grid, _) = Inspector();
+        int total = grid.RowCount;
+        Assert.True(grid.IndexOf("caption") >= 0);
+
+        grid.Filter = "cap";
+        Assert.True(grid.RowCount < total);
+        Assert.True(grid.IndexOf("caption") >= 0);
+        Assert.Equal(-1, grid.IndexOf("width"));
+
+        grid.Arrangement = PropertyGridArrangement.Categorized;
+        bool anyHeader = Enumerable.Range(0, grid.RowCount).Any(grid.IsHeader);
+        bool allHeaders = Enumerable.Range(0, grid.RowCount).All(grid.IsHeader);
+        Assert.True(anyHeader);    // "caption"'s category header survives the filter
+        Assert.False(allHeaders);  // and "caption" itself is still there too
+
+        grid.Filter = "";
+        int propertyRows = Enumerable.Range(0, grid.RowCount).Count(i => !grid.IsHeader(i));
+        Assert.Equal(total, propertyRows);   // clearing the filter brings every property back
+    }
+
+    [Fact]
+    public void PropertyGrid_anchors_expands_into_flag_checkboxes_like_delphi()
+    {
+        var (_, grid, target) = Inspector();
+        int anchors = grid.IndexOf("anchors");
+        Assert.True(anchors >= 0);
+        Assert.False(grid.IsAnchorFlag(anchors));
+        Assert.Equal("left, top", grid.RowValue(anchors));   // Control's default: Left | Top
+        int before = grid.RowCount;
+
+        grid.ToggleAnchorsExpanded(anchors);
+        Assert.Equal(before + 4, grid.RowCount);
+        Assert.True(grid.IsAnchorFlag(anchors + 1));
+        Assert.Equal("anchors.left", grid.RowName(anchors + 1));
+        Assert.Equal("true", grid.RowValue(anchors + 1));
+        Assert.Equal("anchors.top", grid.RowName(anchors + 2));
+        Assert.Equal("true", grid.RowValue(anchors + 2));
+        Assert.Equal("anchors.right", grid.RowName(anchors + 3));
+        Assert.Equal("false", grid.RowValue(anchors + 3));
+        Assert.Equal("anchors.bottom", grid.RowName(anchors + 4));
+        Assert.Equal("false", grid.RowValue(anchors + 4));
+
+        // Toggling one flag (as a click would) leaves the others alone, unlike replacing the whole value.
+        grid.BeginEdit(anchors + 3);   // akRight: false -> true
+        Assert.True(target.Anchors.HasFlag(Anchors.Right));
+        Assert.True(target.Anchors.HasFlag(Anchors.Left));
+        Assert.Equal("true", grid.RowValue(anchors + 3));
+        Assert.Equal("left, top, right", grid.RowValue(anchors));   // the composite value follows
+
+        grid.ToggleAnchorsExpanded(anchors);   // collapses again
+        Assert.Equal(before, grid.RowCount);
+    }
+
+    [Fact]
+    public void PropertyGrid_anchors_disclosure_click_expands_and_checkbox_click_toggles_one_flag()
+    {
+        var (f, grid, target) = Inspector();
+        int anchors = grid.IndexOf("anchors");
+        var row = grid.RowRect(anchors);
+        f.Simulate.Click(grid.AbsoluteLeft + row.X + 5, grid.AbsoluteTop + row.Y + row.Height / 2);
+        Assert.True(grid.IsAnchorFlag(anchors + 1));   // one click on the name column expanded it
+
+        int right = anchors + 3;
+        Assert.Equal("anchors.right", grid.RowName(right));
+        ClickValue(f, grid, right);   // a single click toggles a checkbox row, like a Bool property
+        Assert.True(target.Anchors.HasFlag(Anchors.Right));
+    }
+
+    [Fact]
     public void PropertyGrid_shows_components_only_their_own_properties()
     {
         var grid = new PropertyGrid { Target = new Timer() };

@@ -51,6 +51,7 @@ public partial class DesignerForm : Form
             grid.PropertyChanged += (_, _) => Document?.NotifyChanged();
         }
         gridEvents.EventDoubleClick += (_, ev) => { if (Document is { } d) EditHandler(d.Primary, ev); };
+        gridProps.Arrangement = PropertyGridArrangement.Categorized;   // matches cboPropsArrange's default selection
 
         if (projectFile != null && File.Exists(projectFile)) OpenProject(projectFile);
         UpdateUi();
@@ -129,7 +130,7 @@ public partial class DesignerForm : Form
         }
 
         var sheet = new TabSheet { Caption = RadProject.FormClassName(path) };
-        var surface = new DesignSurface { Document = doc, Align = Align.Client, ShowGrid = mniShowGrid.Checked };
+        var surface = new DesignSurface { Document = doc, Align = Align.Client, ShowGrid = mniShowGrid.Checked, Locked = mniLockControls.Checked };
         sheet.Add(surface);
         pgForms.Add(sheet);
         var form = new OpenForm(path, doc, surface, sheet);
@@ -137,6 +138,7 @@ public partial class DesignerForm : Form
 
         surface.Created += _ => lstPalette.ItemIndex = -1;
         surface.DoubleClicked += c => { if (CodeIntegration.DefaultEvent(c) is { } ev) EditHandler(c, ev); };
+        surface.ContextMenuRequested += (x, y) => ShowSurfaceContextMenu(surface, x, y);
         doc.SelectionChanged += () => { if (_active == form) UpdateInspector(); };
         doc.FormReplaced += () => { if (_active == form) { UpdateInspector(); RebuildStructure(); } };
         doc.Changed += () =>
@@ -232,8 +234,7 @@ public partial class DesignerForm : Form
         mniNewForm.Enabled = mniSave.Enabled = mniSaveAll.Enabled = mniCloseForm.Enabled = mniCloseProject.Enabled = hasProject;
 
         lblProject.Caption = _project?.Name ?? "";
-        lstForms.Items = _project == null ? [] : [.. _project.FormFiles.Select(f =>
-            RadProject.FormClassName(f) + (RadProject.FormClassName(f) == _project.MainFormClass ? "   (main form)" : ""))];
+        lstForms.Items = _project == null ? [] : [.. _project.SourceFiles.Select(ProjectFileLabel)];
 
         lstRecent.Items = [.. _settings.RecentProjects.Select(p => $"{System.IO.Path.GetFileNameWithoutExtension(p)}   —   {System.IO.Path.GetDirectoryName(p)}")];
         var source = _settings.EffectivePackageSource;
@@ -275,9 +276,12 @@ public partial class DesignerForm : Form
         if (Document is not { } doc) return;
         _syncing = true;
         var target = doc.Primary;
-        gridProps.Target = target;
-        gridEvents.Target = target;
+        IReadOnlyList<Control> targets = doc.Selection.Count > 0 ? doc.Selection : [target];
+        gridProps.SetTargets(targets);
+        gridEvents.SetTargets(targets);
+        // A multi-selection can't be renamed as one (names must stay unique); show and edit only the primary's.
         edtName.Text = target.Name;
+        edtName.Enabled = doc.Selection.Count <= 1;
         tvStructure.Selected = FindNode(tvStructure.Nodes, target);
         sbMain.SimpleText = doc.Selection.Count > 1
             ? $"{doc.Selection.Count} controls selected"
@@ -355,6 +359,12 @@ public partial class DesignerForm : Form
 
     void pgInspector_Change(Control sender) => UpdateInspector();
 
+    void cboPropsArrange_Change(Control sender) =>
+        gridProps.Arrangement = cboPropsArrange.ItemIndex == 1 ? PropertyGridArrangement.Categorized : PropertyGridArrangement.Alphabetical;
+
+    void edtPropsFilter_Change(Control sender) => gridProps.Filter = edtPropsFilter.Text;
+    void edtEventsFilter_Change(Control sender) => gridEvents.Filter = edtEventsFilter.Text;
+
     void lstPalette_Change(Control sender)
     {
         if (_active == null) return;
@@ -362,10 +372,26 @@ public partial class DesignerForm : Form
         if (_active.Surface.PendingClass is { } cls) sbMain.SimpleText = $"Click or drag on the form to place a {cls.Name} (Shift keeps it selected)";
     }
 
+    /// <summary>A form's code-behind shows as its class name (like Delphi's Project Manager); any other
+    /// source file (a plain model or helper class) shows by its path relative to the project.</summary>
+    string ProjectFileLabel(string file)
+    {
+        if (_project!.FormFiles.FirstOrDefault(f => RadProject.CodeFileFor(f) == file) is { } formFile)
+        {
+            var cls = RadProject.FormClassName(formFile);
+            return cls + (cls == _project.MainFormClass ? "   (main form)" : "");
+        }
+        return Path.GetRelativePath(_project.Directory, file);
+    }
+
     void lstForms_DblClick(Control sender)
     {
         if (_project == null || lstForms.ItemIndex < 0) return;
-        OpenFormFile(_project.FormFiles[lstForms.ItemIndex]);
+        var file = _project.SourceFiles[lstForms.ItemIndex];
+        if (_project.FormFiles.FirstOrDefault(f => RadProject.CodeFileFor(f) == file) is { } formFile)
+            OpenFormFile(formFile);
+        else
+            OpenInEditor(file, 1);
     }
 
     void lstRecent_DblClick(Control sender)
@@ -420,10 +446,53 @@ public partial class DesignerForm : Form
         doc.NotifyChanged();
     }
 
+    /// <summary>The design surface's right-click menu: the same commands as the Edit/Component menus, acting
+    /// on the (already updated) selection.</summary>
+    void ShowSurfaceContextMenu(DesignSurface surface, int x, int y)
+    {
+        if (Document is not { } doc) return;
+        bool hasSelection = doc.Selection.Count > 0;
+        bool hasMenu = doc.Primary is IMenuOwner || doc.Form.Descendants().OfType<IMenuOwner>().Any();
+        bool canPaste = RadSharp.Text.Clipboard.GetText() is { } t && t.TrimStart().StartsWith('[');
+
+        var menu = new PopupMenu();
+        MenuItem Add(string caption, Action action, bool enabled = true)
+        {
+            var item = menu.Add(caption);
+            item.Enabled = enabled;
+            item.Click += _ => action();
+            return item;
+        }
+        void Sep() => menu.Items.Add(new MenuItem { Separator = true });
+
+        Add("Cut", () => mnuCut_Click(this), hasSelection);
+        Add("Copy", () => mnuCopy_Click(this), hasSelection);
+        Add("Paste", () => mnuPaste_Click(this), canPaste);
+        Add("Delete", () => mnuDelete_Click(this), hasSelection);
+        Sep();
+        Add("Bring to Front", () => mnuBringToFront_Click(this), hasSelection);
+        Add("Send to Back", () => mnuSendToBack_Click(this), hasSelection);
+        Sep();
+        Add("Tab Order…", () => mnuTabOrder_Click(this));
+        Add("Menu Editor…", () => mnuMenuEditor_Click(this), hasMenu);
+        Sep();
+        Add("Select All", () => mnuSelectAll_Click(this));
+        Sep();
+        Add("Lock Controls", () => mnuLockControls_Click(this)).Checked = surface.Locked;
+
+        menu.Popup(this, surface.AbsoluteLeft + x, surface.AbsoluteTop + y);
+    }
+
     void mnuShowGrid_Click(object sender)
     {
         mniShowGrid.Checked = !mniShowGrid.Checked;
         foreach (var f in _forms) { f.Surface.ShowGrid = mniShowGrid.Checked; f.Surface.Invalidate(); }
+    }
+
+    void mnuLockControls_Click(object sender)
+    {
+        mniLockControls.Checked = !mniLockControls.Checked;
+        foreach (var f in _forms) { f.Surface.Locked = mniLockControls.Checked; f.Surface.Invalidate(); }
     }
 
     void frmDesigner_CloseQuery(Control sender, CloseQueryEventArgs e)

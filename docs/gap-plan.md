@@ -4,6 +4,10 @@
 > `RADSharp-roadmap.md`). Same rules as the roadmap: ordered by dependency, not by date; sizes are rough
 > (S ≈ days, M ≈ 1–2 weeks, L ≈ several weeks); every milestone has a **done when** that a test can check.
 > Web (WASM) is **not** part of 1.0; only the no-regret items from gap-analysis §5.0 are (they sit in M11).
+>
+> **Updated 2026-09-27** to add M9, and to extend M16 and M18, from
+> [designer-gap-analysis.md](designer-gap-analysis.md) — a deeper, designer-specific pass against Delphi and
+> Visual Studio (WinForms) that the original gap-analysis only covered in one summary bullet (its old gap 23).
 
 ## How every milestone is done
 
@@ -20,14 +24,72 @@ The roadmap's guiding principles apply unchanged, made concrete:
 ## Order and dependencies
 
 ```
-M10 trust CI ─▶ M11 robust runtime ─┬▶ M12 drawing + fonts ───────────┐
-                                    ├▶ M13 windows, DPI, input ───────┤
-                                    └▶ M14 data controls ─▶ M15 reuse + data ─▶ M16 layout + designer ─▶ M17 ship ─▶ 1.0
-                                                                                                        (M18 decision gate: bidi, accessibility)
+M9 designer ergonomics (parallel, no deps) ───────────────────────────────────────────────────────────────────┐
+                                                                                                                │
+M10 trust CI ─▶ M11 robust runtime ─┬▶ M12 drawing + fonts ───────────┐                                        │
+                                    ├▶ M13 windows, DPI, input ───────┤                                        ▼
+                                    └▶ M14 data controls ─▶ M15 reuse + data ─▶ M16 layout + designer polish ─▶ M17 ship ─▶ 1.0
+                                                                                            (M18 decision gate: bidi, accessibility, designer shell)
 ```
 
-M12, M13 and M14 are independent of each other and can be interleaved or split between people. M10 comes first because
-every later golden image and layout test assumes the pixel promise holds off Windows.
+M9, M12, M13 and M14 are independent of each other and can be interleaved or split between people. M9 touches only
+`RadSharp.Design`/`RadSharp.Designer`, never `RadSharp.Core` or the SDL host, so it can start immediately — even
+before M10. M10 otherwise comes first among the rest because every later golden image and layout test assumes the
+pixel promise holds off Windows.
+
+---
+
+## M9: Designer ergonomics, no framework dependency (S)
+
+*Closes [designer-gap-analysis.md](designer-gap-analysis.md) §3.2 (multi-select property editing), §3.4 (context
+menu), §3.5 (property grid categories/filter), §3.10 (lock controls), §3.12 (project view), and the low-risk part
+of §3.13 (rename reach).* These are day-to-day IDE ergonomics the deeper designer-specific pass found that the
+original gap analysis's one-line designer bullet (its old gap 23) didn't call out individually. None of it touches
+`RadSharp.Core` or `RadSharp.Platform.Sdl`, so it has no dependency on M10–M15 and nothing later depends on it
+either — safe to do first, last, or interleaved.
+
+1. **Right-click context menu on `DesignSurface`.** Wrap Cut/Copy/Paste/Delete, Bring to Front/Send to Back, Tab
+   Order, and Menu Editor (when applicable) behind the right mouse button; today `OnMouseDown` returns immediately
+   for anything but `MouseButton.Left`. *Test:* right-clicking a selected control opens a menu whose items match
+   the existing Edit/Component menu commands and act on the current selection; right-clicking empty canvas offers
+   Paste and Select All only.
+2. **Multi-select shared property editing in `PropertyGrid`.** Today `DesignerForm.UpdateInspector` always sets
+   `gridProps.Target` to `doc.Primary` — the single last-selected control — so editing a property while several
+   controls are selected only changes one of them. Add a multi-target mode: show properties common to every
+   selected control's `ComponentClass`, blank/mixed where values differ, and apply an edit to all of them.
+   *Test:* selecting five buttons and setting `FontBold` changes all five; a property only some of the selected
+   types have doesn't appear.
+3. **Property grid categorized view.** Group rows by the `Category` metadata already on `PropertyMeta` (used
+   throughout the framework's own `[Published(Category = ...)]` attributes today, but never read by
+   `PropertyGrid.Rebuild`/`Paint`), with a categorized/alphabetical toggle and a text filter box. *Test:* a
+   control with 20+ properties renders under several category headers; the toggle re-sorts flat; typing in the
+   filter hides non-matching rows.
+4. **Lock controls.** A per-control locked flag (or a per-document set), a View/Edit menu toggle, and a check in
+   `DesignSurface.OnMouseDown`'s move/resize branches. *Test:* a locked control's rubber-band, drag, and resize
+   handles are inert; it stays selectable and still editable in the property grid.
+5. **Project tab shows every project file.** Extend the Project tab from `RadProject.FormFiles` to
+   `RadProject.SourceFiles` (already enumerated, just unused in the UI), opening non-form `.cs` files in the
+   external editor on double-click via the same path as `mnuToggleCode_Click`. *Test:* a plain utility class added
+   to the project folder appears in the list and opens.
+6. **Widen rename reach.** `RenameInCode`/`CodeIntegration.RenameIdentifier` today rewrite only the active form's
+   own code-behind file. Extend the identifier substitution across every file in `RadProject.SourceFiles`. Still
+   textual, not semantic — document the limit explicitly (it can't distinguish an unrelated identifier that
+   happens to match; a true solution-wide rename needs a real Roslyn `Workspace`/`Solution`, which this project
+   doesn't build today). *Test:* renaming a control referenced from a second file (e.g. a partial class split
+   across files) updates that reference too.
+
+**Done when:** all six land with their own tests, and none of the changes touch `RadSharp.Core`,
+`RadSharp.Platform.Sdl`, or files owned by any other milestone.
+
+**Status:** done (2026-09-27). All six items shipped with tests, 14 new (`DesignSurface.ContextMenuRequested` +
+`DesignerForm.ShowSurfaceContextMenu`; `PropertyGrid.SetTargets`/`Targets` for multi-select; `PropertyGrid.Arrangement`
++ `Filter` with the designer's categorized/alphabetical toolbar; `DesignSurface.Locked` plus the Edit-menu and
+context-menu toggle; the Project tab now lists `RadProject.SourceFiles`; `RenameInCode` now scans every project
+source file). Full suite: 184 tests passing (was 153 at the roadmap's last count, then 170 before this milestone).
+
+**Addendum (2026-09-27, same day):** M16's Anchors editor (below) got pulled forward once a real Delphi screenshot
+showed it doesn't need the popup "kite" widget originally planned — `PropertyGrid`'s existing row-list machinery
+(from item 3 above) already fit an expand-to-checkboxes model. +2 tests. Full suite: **186** passing.
 
 ---
 
@@ -174,11 +236,27 @@ under NativeAOT.
 - **Designer:** alignment and sizing tools (align lefts/tops/centres, same width/height, equal spacing), zoom, editing
   pages of a `PageControl` in place, menu-editor fields (`altShortcut`, separators), the new Columns and Nodes
   editors, palette entries for project frames, NuGet component libraries usable in live runs (F9).
+- **Generic collection editor** (closes [designer-gap-analysis.md](designer-gap-analysis.md) §3.11): a reusable
+  "list of items, each with its own mini property panel" editor, generalising the small-editor-form pattern
+  `MenuEditor`/`TabOrderEditor` already establish in `Editors.cs`. Build the Columns and Nodes editors above, and
+  the menu editor's separator field, on top of it instead of one bespoke editor per control.
+- ~~**Visual Anchors editor**~~ **(done, 2026-09-27, pulled forward from M16)**: closes §3.6. Turned out not to need
+  a popup "kite" widget at all — a screenshot of the real Delphi Object Inspector showed `TAnchors` expands in
+  place as four checkbox rows (akLeft/akTop/akRight/akBottom), no graphics. `PropertyGrid.ToggleAnchorsExpanded`/
+  `IsAnchorFlag`/`SetAnchorFlag` implement exactly that, reusing the row-list mechanism M9's category headers
+  already added; works under multi-select for free.
+- **Component palette v2** (closes §3.7): category grouping, icons, and a filter box for `lstPalette`, which today
+  is one flat, text-only, alphabetical list. Drag-from-palette placement (as an alternative to today's
+  click-then-draw) is stretch, not required. Unlike the Anchors/property-grid work, there's no existing
+  per-`ComponentClass` category metadata to reuse — default to a cheap heuristic (group by declaring source file)
+  rather than adding a new `[Component(Category = ...)]` attribute across every control class up front.
 - **Debugging story:** make F5-in-the-IDE the documented way, add a launch profile to created projects, and write the
   "attach to the live run" instructions; a VS Code extension is post-1.0.
 
 **Done when:** a localized form that grows with its text lays out correctly in the flow/grid panels at 100 % and
-150 %; the designer's alignment tools are covered by a scripted-rebuild test like `RebuildTileEditorTests`.
+150 %; the designer's alignment tools are covered by a scripted-rebuild test like `RebuildTileEditorTests`; the
+categorized/filterable palette is exercised by a designer UI test (the Anchors editor already is, see M9's status
+note — its tests landed in `RadSharp.Core.Tests` since `PropertyGrid` lives in `RadSharp.Core`).
 
 ## M17: Ship it (M)
 
@@ -198,18 +276,26 @@ under NativeAOT.
 **Done when:** the reference app builds signed installers-in-artifact form on all three OSes from one push, and a
 person who has never seen the project builds and runs it from the getting-started page alone.
 
-## M18: Decision gate: bidi and accessibility (L each)
+## M18: Decision gate: bidi, accessibility, and the designer shell (L each)
 
-Not scheduled for 1.0 by default, because each is large and depends on the target market. Decide after M14, using
-the reference app and the intended audience:
+Not scheduled for 1.0 by default, because each is large and depends on the target market (bidi, accessibility) or
+on whether the reference app's own development actually missed it (designer shell). Decide after M14 (bidi,
+accessibility) or M9/M16 (designer shell):
 
 - **Bidirectional text:** HarfBuzz shapes RTL, but the caret, selection, and Unicode bidi ordering are ours. .NET's
   base library has no bidi algorithm. Spike: implement UAX #9 or bind a library, then adapt `TextLayout`/`EditBase`.
 - **Accessibility:** AccessKit spike: a tree of nodes derived from the control tree, focus, names, roles, actions;
   per-OS adapters. Start with Windows UI Automation, then macOS, then Linux (AT-SPI).
+- **Designer shell rework:** two structural changes flagged, not committed, in
+  [designer-gap-analysis.md](designer-gap-analysis.md) — a fixed-position **component tray** for non-visual
+  components instead of painting their icons at their own X/Y on the form (§3.8), and **dockable/floatable IDE
+  panels** with saved layouts instead of the current fixed-`Splitter` shell (§3.9). Both are real Delphi/Visual
+  Studio parity items and both are large relative to everything else in `designer-gap-analysis.md`; neither blocks
+  a functioning "light" designer, so build the reference app (M17) first and decide from what its own development
+  actually missed.
 
-If either is needed for 1.0, it becomes its own milestone and the release moves accordingly. If not, document it as
-a known limit on the M17 page.
+If any of these are needed for 1.0, each becomes its own milestone and the release moves accordingly. If not,
+document them as known limits on the M17 page.
 
 ---
 
@@ -223,6 +309,8 @@ a known limit on the M17 page.
 | Data-binding syntax | inline `"{path}"` / separate `"bindings"` block | inline, as the brainstorm proposed; design in spec first |
 | Bidi and accessibility in 1.0 | yes / no / decide at M18 | decide at M18 from the target market |
 | In-app drag and drop, DatePicker, MaskEdit | 1.0 / after | only if the reference app needs them |
+| Component tray rework | keep icons on-canvas (current) / move to a fixed tray strip | decide at M18, from the reference app |
+| Dockable IDE panels | fixed `Splitter` shell (current) / full docking + floating + saved layouts | decide at M18; only if the reference app's own development shows a real need |
 | Name and licence | (yours) | unblock M17; nothing earlier depends on it |
 
 ## Risks specific to this plan
@@ -248,3 +336,16 @@ a known limit on the M17 page.
 | 16 layout, 23 designer, 24 debugging | M16 |
 | 26 distribution | M17 |
 | 14 bidi, 15 accessibility, 20 clipboard formats | M18 / after 1.0 |
+
+Finer-grained designer gaps, from [designer-gap-analysis.md](designer-gap-analysis.md) (2026-09-27), not
+individually named in the original gap-analysis's single designer bullet (its gap 23, above):
+
+| Designer gap | Milestone | Status |
+|---|---|---|
+| §3.1 align/size/space toolbar, menu separator/altShortcut fields, Columns/Nodes editors (already in old gap 23) | M16 | open |
+| §3.2 multi-select property editing, §3.4 context menu, §3.5 property grid categories/filter, §3.10 lock controls, §3.12 project view, §3.13 rename reach | M9 | **done** |
+| §3.6 visual Anchors editor | M16 | **done** (pulled forward) |
+| §3.7 component palette v2, §3.11 generic collection editor | M16 | open |
+| §3.3 undo granularity (minor, no milestone — revisit only if it causes real memory/UX pain) | none | open |
+| §3.8 component tray, §3.9 dockable IDE panels | M18 | open (decision gate) |
+| §4 embedded code editor (named as a deliberate structural choice, not a gap to close) | none | not a gap |
