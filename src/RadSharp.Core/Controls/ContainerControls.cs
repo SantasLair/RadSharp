@@ -55,7 +55,8 @@ public class PageControl : Control
     /// <summary>Each visible page's tab rectangle, in this control's coordinates.</summary>
     public List<Rect> TabRects()
     {
-        var font = new RenderFont(CurrentTheme.FontFace, (float)(CurrentTheme.FontSize * UiScale));
+        var effective = EffectiveFont;
+        var font = new RenderFont(FontFace.Resolve(effective), (float)(effective.Size * UiScale));
         var list = new List<Rect>();
         int x = 0;
         foreach (var page in Pages)
@@ -107,7 +108,7 @@ public class PageControl : Control
                 canvas.FillRect(new Rect(r.X, r.Y, canvas.Px(1), r.Height), t.PanelBorder);
                 canvas.FillRect(new Rect(r.X + r.Width - canvas.Px(1), r.Y, canvas.Px(1), r.Height), t.PanelBorder);
             }
-            canvas.DrawText(pages[i].Caption, active ? canvas.DefaultBoldFont : canvas.DefaultFont,
+            canvas.DrawText(pages[i].Caption, active ? EffectiveFont with { Bold = true } : EffectiveFont,
                 IsEffectivelyEnabled ? t.Text : t.TextDisabled, r, TextAlign.Center, VerticalAlign.Center);
         }
     }
@@ -132,7 +133,7 @@ public class StatusBar : Control
         var t = canvas.Theme;
         canvas.FillRect(new Rect(0, 0, Width, Height), t.PanelBackground);
         canvas.FillRect(new Rect(0, 0, Width, canvas.Px(1)), t.PanelBorder);
-        canvas.DrawText(_text, canvas.DefaultFont, t.Text, new Rect(canvas.Px(8), 0, Width - canvas.Px(16), Height), TextAlign.Left, VerticalAlign.Center);
+        canvas.DrawText(_text, EffectiveFont, t.Text, new Rect(canvas.Px(8), 0, Width - canvas.Px(16), Height), TextAlign.Left, VerticalAlign.Center);
     }
 }
 
@@ -209,7 +210,7 @@ public class ToolButton : Button
             canvas.DrawPicture(pic, new Rect(x, (Height - s) / 2, s, s));
             if (Caption.Length > 0) textRect = new Rect(x + s + canvas.Px(4), 0, Width - x - s - canvas.Px(10), Height);
         }
-        canvas.DrawText(Caption, canvas.DefaultFont, enabled ? t.Text : t.TextDisabled, textRect,
+        canvas.DrawText(Caption, EffectiveFont, enabled ? t.Text : t.TextDisabled, textRect,
             textRect == r ? TextAlign.Center : TextAlign.Left, VerticalAlign.Center);
     }
 }

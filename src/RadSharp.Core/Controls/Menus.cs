@@ -160,7 +160,7 @@ public class MainMenu : Control, IMenuOwner
         return item;
     }
 
-    RenderFont BarFont => new(CurrentTheme.FontFace, (float)(CurrentTheme.FontSize * UiScale));
+    RenderFont BarFont => new(FontFace.Resolve(EffectiveFont), (float)(EffectiveFont.Size * UiScale));
 
     /// <summary>The bar-relative rectangle of each visible top-level item.</summary>
     public List<(MenuItem Item, Rect Rect)> ItemRects()
@@ -241,7 +241,7 @@ public class MainMenu : Control, IMenuOwner
         {
             var (item, r) = rects[i];
             if (i == _openIndex) canvas.FillRoundRect(Canvas.Inflate(r, -canvas.Px(2)), canvas.Px(4), t.Selection);
-            canvas.DrawText(item.Caption, canvas.DefaultFont, item.Enabled ? t.Text : t.TextDisabled, r, TextAlign.Center, VerticalAlign.Center);
+            canvas.DrawText(item.Caption, EffectiveFont, item.Enabled ? t.Text : t.TextDisabled, r, TextAlign.Center, VerticalAlign.Center);
         }
     }
 }
@@ -296,7 +296,7 @@ public class MenuPopup : Control
 
     int RowHeight(MenuItem item) => item.IsSeparator ? Px(9) : Px(26);
 
-    RenderFont ItemFont => new(CurrentTheme.FontFace, (float)(CurrentTheme.FontSize * UiScale));
+    RenderFont ItemFont => new(FontFace.Resolve(EffectiveFont), (float)(EffectiveFont.Size * UiScale));
 
     /// <summary>The popup-relative rectangle of item <paramref name="index"/>.</summary>
     public Rect ItemRect(int index)
@@ -444,7 +444,7 @@ public class MenuPopup : Control
         var r = new Rect(0, 0, Width, Height);
         canvas.FillRect(r, t.PopupBackground);
         canvas.DrawBorder(r, t.PopupBorder, canvas.Px(1));
-        var font = canvas.DefaultFont;
+        var font = EffectiveFont;
         for (int i = 0; i < _items.Count; i++)
         {
             var item = _items[i];

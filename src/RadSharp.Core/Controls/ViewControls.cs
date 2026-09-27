@@ -178,14 +178,14 @@ public class ListView : Control
         var t = canvas.Theme;
         var r = new Rect(0, 0, Width, Height);
         canvas.FillRect(r, t.InputBackground);
-        var font = canvas.DefaultFont;
+        var font = EffectiveFont;
         var header = new Rect(canvas.Px(1), canvas.Px(1), Width - canvas.Px(2), HeaderHeight);
         canvas.FillRect(header, t.PanelBackground);
         canvas.FillRect(new Rect(header.X, header.Y + header.Height - canvas.Px(1), header.Width, canvas.Px(1)), t.PanelBorder);
         for (int c = 0; c < _columns.Length; c++)
         {
             int x0 = ColumnX(c), x1 = ColumnX(c + 1);
-            canvas.DrawText(ColumnCaption(c), canvas.DefaultBoldFont, t.Text, new Rect(x0 + canvas.Px(8), header.Y, x1 - x0 - canvas.Px(12), header.Height), TextAlign.Left, VerticalAlign.Center);
+            canvas.DrawText(ColumnCaption(c), font with { Bold = true }, t.Text, new Rect(x0 + canvas.Px(8), header.Y, x1 - x0 - canvas.Px(12), header.Height), TextAlign.Left, VerticalAlign.Center);
             canvas.FillRect(new Rect(x1 - canvas.Px(1), header.Y + canvas.Px(4), canvas.Px(1), header.Height - canvas.Px(8)), t.PanelBorder);
         }
         var area = RowsArea;
@@ -376,7 +376,7 @@ public class TreeView : Control
             if (node == _selected) canvas.FillRect(new Rect(area.X, y, area.Width, RowHeight), Focused ? t.Selection : t.SelectionInactive);
             if (node.Nodes.Count > 0)
                 canvas.DrawText(node.Expanded ? "▾" : "▸", canvas.DefaultFont, t.TextDisabled, new Rect(x, y, Indent, RowHeight), TextAlign.Center, VerticalAlign.Center);
-            canvas.DrawText(node.Text, canvas.DefaultFont, t.Text, new Rect(x + Indent, y, area.Width - x - Indent, RowHeight), TextAlign.Left, VerticalAlign.Center);
+            canvas.DrawText(node.Text, EffectiveFont, t.Text, new Rect(x + Indent, y, area.Width - x - Indent, RowHeight), TextAlign.Left, VerticalAlign.Center);
         }
         canvas.Restore();
         canvas.DrawBorder(r, Focused ? t.Accent : t.InputBorder, canvas.Px(1));

@@ -37,7 +37,7 @@ public sealed class Canvas
     public RenderFont DefaultBoldFont => _defaultBoldFont ??= new RenderFont(Theme.BoldFontFace, (float)(Theme.FontSize * Scale));
 
     /// <summary>Resolves a published <see cref="Font"/> descriptor to a drawable <see cref="RenderFont"/> at the current scale.</summary>
-    public RenderFont Resolve(Font font) => new(FontFace.Resolve(font.Family, font.Bold, font.Italic), (float)(font.Size * Scale));
+    public RenderFont Resolve(Font font) => new(FontFace.Resolve(font), (float)(font.Size * Scale));
 
     // ---- State ----
 

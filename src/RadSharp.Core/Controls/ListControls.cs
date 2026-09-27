@@ -229,7 +229,7 @@ public class ListBox : Control
             var textColor = IsEffectivelyEnabled ? t.Text : t.TextDisabled;
             var textRect = new Rect(row.X + canvas.Px(8), row.Y, row.Width - canvas.Px(12), row.Height);
             if (ItemPainter != null) ItemPainter(canvas, i, textRect, textColor);
-            else canvas.DrawText(_items[i], canvas.DefaultFont, textColor, textRect, TextAlign.Left, VerticalAlign.Center);
+            else canvas.DrawText(_items[i], EffectiveFont, textColor, textRect, TextAlign.Left, VerticalAlign.Center);
             if (selected && Focused && OwningForm is { ShowFocusCues: true }) canvas.DrawBorder(row, t.FocusRing, canvas.Px(1));
         }
         canvas.Restore();
@@ -288,7 +288,7 @@ public class ComboBox : Control
 
     /// <summary>Draws item <paramref name="index"/> (the closed face and the list rows use this).</summary>
     protected virtual void DrawItemContent(Canvas canvas, int index, Rect rect, Color textColor) =>
-        canvas.DrawText(_items[index], canvas.DefaultFont, textColor, rect, TextAlign.Left, VerticalAlign.Center);
+        canvas.DrawText(_items[index], EffectiveFont, textColor, rect, TextAlign.Left, VerticalAlign.Center);
 
     public void DropDown()
     {
@@ -414,7 +414,7 @@ public class ColorBox : ComboBox
         canvas.FillRect(swatch, Palette[index].Color);
         canvas.DrawBorder(swatch, canvas.Theme.InputBorder, canvas.Px(1));
         int gap = s + canvas.Px(8);
-        canvas.DrawText(Palette[index].Name, canvas.DefaultFont, textColor,
+        canvas.DrawText(Palette[index].Name, EffectiveFont, textColor,
             new Rect(rect.X + gap, rect.Y, rect.Width - gap, rect.Height), TextAlign.Left, VerticalAlign.Center);
     }
 }

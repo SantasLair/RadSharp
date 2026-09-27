@@ -17,7 +17,7 @@ public class Panel : Control
         var r = new Rect(0, 0, Width, Height);
         canvas.FillRect(r, Color ?? canvas.Theme.PanelBackground);
         if (BorderStyle == BorderStyle.Single) canvas.DrawBorder(r, canvas.Theme.PanelBorder, canvas.Px(1));
-        canvas.DrawText(Caption, canvas.DefaultFont, canvas.Theme.Text, r, TextAlign.Center, VerticalAlign.Center);
+        canvas.DrawText(Caption, EffectiveFont, canvas.Theme.Text, r, TextAlign.Center, VerticalAlign.Center);
     }
 
 }
@@ -32,8 +32,9 @@ public class Label : Control
     [Published(Category = "Appearance")] public TextAlign Alignment { get; set; }
     [Published(Category = "Appearance")] public VerticalAlign Layout { get; set; }
 
-    /// <summary>Text size in pixels at 100 %; 0 uses the theme's size.</summary>
+    /// <summary>Text size in pixels at 100 %; 0 uses <see cref="Control.Font"/>'s (sugar over it; kept for old files).</summary>
     [Published(Category = "Appearance")] public int FontSize { get; set; }
+    /// <summary>Sugar over <see cref="Control.Font"/>'s Bold, kept for old files: true forces bold on top of it.</summary>
     [Published(Category = "Appearance")] public bool FontBold { get; set; }
     /// <summary>Text colour; null uses the theme's.</summary>
     [Published(Category = "Appearance")] public Color? FontColor { get; set; }
@@ -41,8 +42,11 @@ public class Label : Control
     protected override void Paint(Canvas canvas)
     {
         var color = !IsEffectivelyEnabled ? canvas.Theme.TextDisabled : FontColor ?? canvas.Theme.Text;
-        var font = FontBold ? canvas.DefaultBoldFont : canvas.DefaultFont;
-        if (FontSize > 0) font = font.WithSize((float)(FontSize * canvas.Scale));
+        var font = Font ?? EffectiveFont with
+        {
+            Size = FontSize > 0 ? FontSize : EffectiveFont.Size,
+            Bold = FontBold || EffectiveFont.Bold,
+        };
         canvas.DrawText(Caption, font, color, new Rect(0, 0, Width, Height), Alignment, Layout);
     }
 
@@ -143,7 +147,7 @@ public class Button : Control
         var border = enabled && (IsHovered || Default) ? t.Accent : t.ButtonBorder;
         canvas.DrawRoundBorder(r, radius, border, canvas.Px(1));
         if (Focused && OwningForm is { ShowFocusCues: true }) canvas.DrawFocusRing(r, radius);
-        canvas.DrawText(Caption, canvas.DefaultFont, enabled ? t.Text : t.TextDisabled, r, TextAlign.Center, VerticalAlign.Center);
+        canvas.DrawText(Caption, EffectiveFont, enabled ? t.Text : t.TextDisabled, r, TextAlign.Center, VerticalAlign.Center);
     }
 
 }

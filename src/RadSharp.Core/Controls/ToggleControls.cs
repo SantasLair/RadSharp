@@ -65,7 +65,7 @@ public abstract class ToggleControl : Control
     {
         int x = indicator.Width + canvas.Px(6);
         var color = IsEffectivelyEnabled ? canvas.Theme.Text : canvas.Theme.TextDisabled;
-        canvas.DrawText(Caption, canvas.DefaultFont, color, new Rect(x, 0, Width - x, Height), TextAlign.Left, VerticalAlign.Center);
+        canvas.DrawText(Caption, EffectiveFont, color, new Rect(x, 0, Width - x, Height), TextAlign.Left, VerticalAlign.Center);
     }
 
 }
@@ -155,7 +155,7 @@ public class GroupBox : Control
         int header = HeaderHeight;
         var frame = new Rect(0, header, Width, Height - header);
         canvas.DrawRoundBorder(frame, canvas.Px(4), t.PanelBorder, canvas.Px(1));
-        canvas.DrawText(Caption, canvas.DefaultBoldFont, IsEffectivelyEnabled ? t.Text : t.TextDisabled,
+        canvas.DrawText(Caption, EffectiveFont with { Bold = true }, IsEffectivelyEnabled ? t.Text : t.TextDisabled,
             new Rect(canvas.Px(2), 0, Width - canvas.Px(4), header), TextAlign.Left, VerticalAlign.Center);
     }
 

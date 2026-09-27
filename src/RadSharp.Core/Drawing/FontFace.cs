@@ -134,6 +134,9 @@ public sealed class FontFace
                 boldItalic == null ? null : new FontFace(family + " Bold Italic", boldItalic));
     }
 
+    /// <summary>The face for a published <see cref="Font"/>, falling back within the family and then to <see cref="Regular"/>.</summary>
+    public static FontFace Resolve(Font font) => Resolve(font.Family, font.Bold, font.Italic);
+
     /// <summary>The face for a published <see cref="Font"/>'s family and style, falling back within the family and then to <see cref="Regular"/>.</summary>
     public static FontFace Resolve(string family, bool bold, bool italic)
     {

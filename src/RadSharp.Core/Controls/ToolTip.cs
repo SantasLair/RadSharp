@@ -10,7 +10,7 @@ internal sealed class ToolTipPopup(string text) : Control
         if (string.IsNullOrEmpty(text)) return;
 
         var theme = canvas.Theme;
-        var font = canvas.DefaultFont;
+        var font = canvas.Resolve(EffectiveFont);
         int padding = canvas.Px(8);
         int lineHeight = (int)Math.Ceiling(font.LineHeight);
 
