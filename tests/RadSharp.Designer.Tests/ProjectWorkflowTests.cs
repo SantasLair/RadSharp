@@ -23,7 +23,9 @@ public class ProjectWorkflowTests
         }
         public void CloseForm(Form form) => Shown.Remove(form);
         public void ProcessEventsUntil(Func<bool> done) { }
-        public void ShowFileDialog(FileDialogKind kind, Form? owner, FileDialogOptions options, Action<string[]?> done) => done(null);
+        public void ShowFileDialog(FileDialogKind kind, Form? owner, FileDialogOptions options, Action<FileResult[]?> done) => done(null);
+        public void PostToUiThread(Action action) => action();
+        public void ShowModal(Form form, Action onClosed) { RunModal(form); onClosed(); }
     }
 
     static string TempDir() => Directory.CreateTempSubdirectory("radsharp-designer-").FullName;

@@ -1,7 +1,7 @@
 using RadSharp.Platform.Sdl;
 using RadSharp.Designer;
 
-Application.Initialize();
+SdlHost.Initialize();
 // The designer opens a project given on the command line; otherwise it shows the welcome page.
 // Test hook: RADSHARP_DESIGNER_NEW=<folder> creates a new application there (as File > New Application does) and opens it.
 if (Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_NEW") is { Length: > 0 } newFolder)
@@ -13,8 +13,8 @@ if (Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_SELECT") is { Length: 
 // Test hook: press F9 once the designer is up.
 switch (Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_RUN"))
 {
-    case "1": designer.Shown += _ => Application.Post(() => designer.Run()); break;
+    case "1": designer.Shown += _ => SdlHost.PostToUiThread(() => designer.Run()); break;
     // Clicks the Run tool button through the same input path as the mouse.
-    case "click": designer.Shown += _ => Application.Post(() => designer.Simulate.Click(designer.FindControl("btnRun")!)); break;
+    case "click": designer.Shown += _ => SdlHost.PostToUiThread(() => designer.Simulate.Click(designer.FindControl("btnRun")!)); break;
 }
-Application.Run(designer);
+SdlHost.Run(designer);

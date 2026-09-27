@@ -53,9 +53,6 @@ public partial class Control
     [Published(Category = "Behavior")] public int TabOrder { get; set; } = -1;
     [Published(Category = "Behavior")] public string Hint { get; set; } = "";
 
-    /// <summary>Right-click context menu (may be null to use no menu, or overridden by subclasses for defaults).</summary>
-    public virtual PopupMenu? ContextMenu { get; set; }
-
     // ---- Tree ----
 
     public void Add(Control child) => Insert(_children.Count, child);

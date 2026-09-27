@@ -10,6 +10,8 @@ public sealed class Picture
 
     Picture(SKImage image) => Image = image;
 
+    internal static Picture FromImage(SKImage image) => new(image);
+
     public int Width => Image.Width;
     public int Height => Image.Height;
 
@@ -44,7 +46,7 @@ public sealed class Picture
                     return FromBytes(ms.ToArray());
                 }
             }
-            return FromFile(System.IO.Path.IsPathRooted(source) ? source : System.IO.Path.Combine(AppContext.BaseDirectory, source));
+            return FromFile(Path.IsPathRooted(source) ? source : Path.Combine(AppContext.BaseDirectory, source));
         }
         catch (FormatException) { return null; }
         catch (IOException) { return null; }

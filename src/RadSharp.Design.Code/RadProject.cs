@@ -82,8 +82,8 @@ public sealed class RadProject
             using RadSharp.Platform.Sdl;
             using {ns};
 
-            Application.Initialize();
-            Application.Run(new MainForm());
+            SdlHost.Initialize();
+            SdlHost.Run(new MainForm());
 
             """);
         if (packageSource != null)
@@ -114,23 +114,23 @@ public sealed class RadProject
 
     string ProgramFile => Path.Combine(Directory, "Program.cs");
 
-    /// <summary>The class <c>Program.cs</c> passes to <c>Application.Run(new X())</c>, or null.</summary>
+    /// <summary>The class <c>Program.cs</c> passes to <c>SdlHost.Run(new X())</c>, or null.</summary>
     public string? MainFormClass
     {
         get
         {
             if (!File.Exists(ProgramFile)) return null;
-            var m = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(ProgramFile), @"Application\.Run\(\s*new\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(");
+            var m = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(ProgramFile), @"\bSdlHost\.Run\(\s*new\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(");
             return m.Success ? m.Groups[1].Value : null;
         }
     }
 
-    /// <summary>Makes <paramref name="className"/> the form <c>Application.Run</c> starts with.</summary>
+    /// <summary>Makes <paramref name="className"/> the form <c>SdlHost.Run</c> starts with.</summary>
     public bool SetMainForm(string className)
     {
         if (!File.Exists(ProgramFile)) return false;
         var text = File.ReadAllText(ProgramFile);
-        var updated = System.Text.RegularExpressions.Regex.Replace(text, @"(Application\.Run\(\s*new\s+)[A-Za-z_][A-Za-z0-9_]*(\s*\()", "${1}" + className + "${2}");
+        var updated = System.Text.RegularExpressions.Regex.Replace(text, @"(\bSdlHost\.Run\(\s*new\s+)[A-Za-z_][A-Za-z0-9_]*(\s*\()", "${1}" + className + "${2}");
         if (updated == text) return false;
         File.WriteAllText(ProgramFile, updated);
         return true;

@@ -83,7 +83,7 @@ public partial class DesignerForm
     {
         if (_project == null || _active == null) return;
         if (_project.SetMainForm(_active.ClassName)) Output($"{_active.ClassName} is now the main form (Program.cs).");
-        else Output("Program.cs has no Application.Run(new …()) line to change.");
+        else Output("Program.cs has no SdlHost.Run(new …()) line to change.");
         UpdateUi();
     }
 

@@ -24,10 +24,18 @@ public class DialogAndInspectorTests
         public void CloseForm(Form form) => Open.Remove(form);
         public void ProcessEventsUntil(Func<bool> done) { }
 
-        public void ShowFileDialog(FileDialogKind kind, Form? owner, FileDialogOptions options, Action<string[]?> done)
+        public void ShowFileDialog(FileDialogKind kind, Form? owner, FileDialogOptions options, Action<FileResult[]?> done)
         {
             LastDialog = kind;
-            done(DialogResult);
+            done(DialogResult?.Select(p => new FileResult(p, () => File.OpenRead(p), () => File.OpenWrite(p))).ToArray());
+        }
+
+        public void PostToUiThread(Action action) => action();
+
+        public void ShowModal(Form form, Action onClosed)
+        {
+            RunModal(form);
+            onClosed();
         }
     }
 

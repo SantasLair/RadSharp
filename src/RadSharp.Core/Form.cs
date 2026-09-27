@@ -152,7 +152,7 @@ public class Form : Control
     {
         if (_tooltipPopup != null) return;
 
-        _tooltipPopup = new ToolTipPopup(control.Hint ?? "", Theme);
+        _tooltipPopup = new ToolTipPopup(control.Hint ?? "");
         _tooltipPopup.SetBounds(control.AbsoluteLeft, control.AbsoluteTop + control.Height + 4, 200, 40);
         OpenPopup(_tooltipPopup, control.AbsoluteLeft, control.AbsoluteTop + control.Height + 4, control);
     }

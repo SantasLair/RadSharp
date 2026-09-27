@@ -29,7 +29,7 @@ public abstract class EditBase : Control
     protected sealed record Line(int Start, int End, TextLayout Layout, int Top);
 
     PopupMenu? _defaultContextMenu;
-    PopupMenu? _userContextMenu;
+    MenuItem? _mnuUndo, _mnuCut, _mnuCopy, _mnuPaste, _mnuDelete, _mnuSelectAll;
 
     protected EditBase()
     {
@@ -39,51 +39,43 @@ public abstract class EditBase : Control
         Editor.SelectionChanged += OnEditorSelectionChanged;
     }
 
-    /// <summary>Provides a default context menu (Undo/Cut/Copy/Paste/Delete/Select All) if none is explicitly set.</summary>
+    /// <summary>
+    /// The built-in Undo/Cut/Copy/Paste/Delete/Select All menu, unless a <c>PopupMenu</c> is assigned or
+    /// named via <see cref="Control.PopupMenuName"/>, which replaces it.
+    /// </summary>
     public override PopupMenu? ContextMenu
     {
         get
         {
-            if (_userContextMenu != null) return _userContextMenu;
-
-            // Build default context menu on first use, then update enabled states
+            if (base.ContextMenu is { } explicitMenu) return explicitMenu;
             _defaultContextMenu ??= BuildDefaultContextMenu();
-            UpdateDefaultContextMenuState(_defaultContextMenu);
+            UpdateDefaultContextMenuState();
             return _defaultContextMenu;
         }
-        set => _userContextMenu = value;
+        set => base.ContextMenu = value;
     }
 
     PopupMenu BuildDefaultContextMenu()
     {
         var menu = new PopupMenu();
-        menu.Add(new MenuItem { Caption = "Undo", Name = "mnuUndo" });
-        menu.Add(new MenuItem { Caption = "Cut", Name = "mnuCut" });
-        menu.Add(new MenuItem { Caption = "Copy", Name = "mnuCopy" });
-        menu.Add(new MenuItem { Caption = "Paste", Name = "mnuPaste" });
-        menu.Add(new MenuItem { Caption = "Delete", Name = "mnuDelete" });
-        menu.Add(new MenuItem { Caption = "-" }); // separator
-        menu.Add(new MenuItem { Caption = "Select All", Name = "mnuSelectAll" });
-
-        // Wire up click handlers
-        menu.FindMenuItemByName("mnuUndo").Click += (m) => { if (CanUndo) Undo(); };
-        menu.FindMenuItemByName("mnuCut").Click += (m) => CutToClipboard();
-        menu.FindMenuItemByName("mnuCopy").Click += (m) => CopyToClipboard();
-        menu.FindMenuItemByName("mnuPaste").Click += (m) => PasteFromClipboard();
-        menu.FindMenuItemByName("mnuDelete").Click += (m) => Editor.DeleteForward();
-        menu.FindMenuItemByName("mnuSelectAll").Click += (m) => SelectAll();
-
+        _mnuUndo = menu.Add("Undo", _ => { if (CanUndo) Undo(); });
+        _mnuCut = menu.Add("Cut", _ => CutToClipboard());
+        _mnuCopy = menu.Add("Copy", _ => CopyToClipboard());
+        _mnuPaste = menu.Add("Paste", _ => PasteFromClipboard());
+        _mnuDelete = menu.Add("Delete", _ => Editor.DeleteForward());
+        menu.Items.Add(new MenuItem { Caption = "-", Separator = true });
+        _mnuSelectAll = menu.Add("Select All", _ => SelectAll());
         return menu;
     }
 
-    void UpdateDefaultContextMenuState(PopupMenu menu)
+    void UpdateDefaultContextMenuState()
     {
-        menu.FindMenuItemByName("mnuUndo").Enabled = !ReadOnly && CanUndo;
-        menu.FindMenuItemByName("mnuCut").Enabled = !ReadOnly && Editor.HasSelection && !IsPassword;
-        menu.FindMenuItemByName("mnuCopy").Enabled = Editor.HasSelection && !IsPassword;
-        menu.FindMenuItemByName("mnuPaste").Enabled = !ReadOnly && Clipboard.GetText()?.Length > 0;
-        menu.FindMenuItemByName("mnuDelete").Enabled = !ReadOnly && Editor.HasSelection;
-        menu.FindMenuItemByName("mnuSelectAll").Enabled = Editor.Text.Length > 0;
+        _mnuUndo!.Enabled = !ReadOnly && CanUndo;
+        _mnuCut!.Enabled = !ReadOnly && Editor.HasSelection && !IsPassword;
+        _mnuCopy!.Enabled = Editor.HasSelection && !IsPassword;
+        _mnuPaste!.Enabled = !ReadOnly && Clipboard.GetText()?.Length > 0;
+        _mnuDelete!.Enabled = !ReadOnly && Editor.HasSelection;
+        _mnuSelectAll!.Enabled = Editor.Text.Length > 0;
     }
 
     // ---- Published ----

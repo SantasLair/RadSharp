@@ -2,44 +2,27 @@ using RadSharp.Drawing;
 
 namespace RadSharp;
 
-/// <summary>
-/// Internal tooltip popup control: renders a Hint string near the hovered control.
-/// </summary>
-internal sealed class ToolTipPopup : Control
+/// <summary>Internal tooltip popup: renders a control's <see cref="Control.Hint"/> in the popup layer.</summary>
+internal sealed class ToolTipPopup(string text) : Control
 {
-    private readonly string _text;
-    private readonly Theme _theme;
-
-    public ToolTipPopup(string text, Theme theme)
-    {
-        _text = text;
-        _theme = theme;
-        Visible = false;
-    }
-
     protected override void Paint(Canvas canvas)
     {
-        if (string.IsNullOrEmpty(_text)) return;
+        if (string.IsNullOrEmpty(text)) return;
 
-        var font = new Font(_theme.FontFace, (float)(_theme.FontSize * Scale));
-        var padding = 8;
-        var lines = _text.Split('\n');
+        var theme = canvas.Theme;
+        var font = canvas.DefaultFont;
+        int padding = canvas.Px(8);
+        int lineHeight = (int)Math.Ceiling(font.LineHeight);
 
-        var textWidth = (int)Math.Ceiling(lines.Max(l => font.MeasureWidth(l))) + 2 * padding;
-        var textHeight = (int)Math.Ceiling(font.LineHeight * lines.Length) + 2 * padding;
+        var bounds = new Rect(0, 0, Width, Height);
+        canvas.FillRect(bounds, theme.PopupBackground);
+        canvas.DrawBorder(bounds, theme.PopupBorder, canvas.Px(1));
 
-        // Draw background
-        var bgRect = new Rect(0, 0, Width, Height);
-        canvas.FillRect(bgRect, _theme.PopupBackground);
-        canvas.DrawRect(bgRect, _theme.PopupBorder);
-
-        // Draw text
-        var textRect = new Rect(padding, padding, Width - 2 * padding, Height - 2 * padding);
         int y = padding;
-        foreach (var line in lines)
+        foreach (var line in text.Split('\n'))
         {
-            canvas.DrawText(line, font, _theme.Foreground, new Rect(padding, y, Width - 2 * padding, (int)Math.Ceiling(font.LineHeight)), TextAlign.Left, VerticalAlign.Top);
-            y += (int)Math.Ceiling(font.LineHeight);
+            canvas.DrawText(line, font, theme.Text, new Rect(padding, y, Width - 2 * padding, lineHeight), TextAlign.Left, VerticalAlign.Top);
+            y += lineHeight;
         }
     }
 }

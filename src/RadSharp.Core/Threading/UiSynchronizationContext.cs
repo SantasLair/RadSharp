@@ -2,9 +2,10 @@ namespace RadSharp.Threading;
 
 /// <summary>
 /// A SynchronizationContext that queues continuations onto a UI thread callback.
-/// Used to make `await` statements in event handlers resume on the UI thread.
+/// Used to make `await` statements in event handlers resume on the UI thread. Host implementations
+/// install one of these via <see cref="SynchronizationContext.SetSynchronizationContext"/> at startup.
 /// </summary>
-internal sealed class UiSynchronizationContext : SynchronizationContext
+public sealed class UiSynchronizationContext : SynchronizationContext
 {
     private readonly Action<Action> _post;
 

@@ -17,6 +17,9 @@ public static class Application
         PlatformHost.Require().PostToUiThread(action);
     }
 
+    /// <summary>Alias for <see cref="Queue"/> (Delphi's <c>TThread.Queue</c>/<c>Synchronize</c> naming).</summary>
+    public static void Post(Action action) => Queue(action);
+
     /// <summary>Reports an unhandled exception, firing the ThreadException event with a default error dialog if no subscriber handles it.</summary>
     internal static void ReportException(Exception ex)
     {
@@ -32,58 +35,59 @@ public static class Application
 
     private static void ShowDefaultErrorDialog(Exception ex)
     {
-        var form = new Form
-        {
-            Caption = "Error",
-            Width = 500,
-            Height = 300,
-        };
+        double scale = Form.DefaultScale;
+        int S(int v) => LayoutMath.Round(v * scale);
+        int width = S(520), height = S(340), margin = S(12), buttonW = S(84), buttonH = S(28), gap = S(8);
 
-        var messageLabel = new Label
-        {
-            Text = ex.Message,
-            Left = 12,
-            Top = 12,
-            Width = 476,
-            Height = 60,
-            WordWrap = true,
-        };
+        var form = new Form { Caption = "Unhandled error" };
+        form.SetBounds(0, 0, width, height);
+        form.Scale = scale;
+        form.DesignWidth = width;
+        form.DesignHeight = height;
 
-        var stackMemo = new Memo
+        var message = new Label
         {
-            Text = ex.StackTrace ?? "(no stack trace)",
+            Name = "lblMessage",
+            Caption = ex.Message.ReplaceLineEndings(" "),
+            Anchors = Anchors.Left | Anchors.Top | Anchors.Right,
+        };
+        message.SetBounds(margin, margin, width - 2 * margin, S(24));
+
+        var details = new Memo
+        {
+            Name = "memDetails",
+            Text = ex.ToString(),
             ReadOnly = true,
-            Left = 12,
-            Top = 80,
-            Width = 476,
-            Height = 170,
-            ScrollBars = ScrollBars.Both,
+            WordWrap = false,
+            Anchors = Anchors.All,
         };
+        int detailsTop = margin + S(32);
+        details.SetBounds(margin, detailsTop, width - 2 * margin, height - detailsTop - buttonH - 2 * margin);
 
-        var continueBtn = new Button
+        var quit = new Button
         {
-            Caption = "Continue",
-            ModalResult = ModalResult.Ok,
-            Left = 332,
-            Top = 260,
-            Width = 75,
-            Height = 28,
-        };
-
-        var quitBtn = new Button
-        {
+            Name = "btnQuit",
             Caption = "Quit",
             ModalResult = ModalResult.Abort,
-            Left = 413,
-            Top = 260,
-            Width = 75,
-            Height = 28,
+            Anchors = Anchors.Right | Anchors.Bottom,
         };
+        quit.SetBounds(width - margin - buttonW, height - margin - buttonH, buttonW, buttonH);
 
-        form.Controls.Add(messageLabel);
-        form.Controls.Add(stackMemo);
-        form.Controls.Add(continueBtn);
-        form.Controls.Add(quitBtn);
+        var proceed = new Button
+        {
+            Name = "btnContinue",
+            Caption = "Continue",
+            ModalResult = ModalResult.Ok,
+            Default = true,
+            Anchors = Anchors.Right | Anchors.Bottom,
+        };
+        proceed.SetBounds(quit.Left - gap - buttonW, quit.Top, buttonW, buttonH);
+
+        form.Add(message);
+        form.Add(details);
+        form.Add(proceed);
+        form.Add(quit);
+        form.PerformLayout();
 
         var result = form.ShowModal();
         if (result == ModalResult.Abort)

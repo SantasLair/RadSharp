@@ -78,7 +78,7 @@ public static class PlatformHost
     public static IPlatformServices? Current { get; set; }
 
     internal static IPlatformServices Require() =>
-        Current ?? throw new InvalidOperationException("No platform host is running (call Application.Initialize() first).");
+        Current ?? throw new InvalidOperationException("No platform host is running (call SdlHost.Initialize() first).");
 }
 
 /// <summary>How a modal form was closed.</summary>

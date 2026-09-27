@@ -239,7 +239,7 @@ public static unsafe class SdlHost
         if (window == null) return;
         // While a modal form is open, other windows get no input (they still repaint).
         if (ModalStack.Count > 0 && window.Form != ModalStack[^1] && IsInput(type)) return;
-        window.HandleEvent(ref e);
+        window.HandleEvent(e);
     }
 
     static bool HasWindow(SDL_EventType t) =>
@@ -393,7 +393,9 @@ internal sealed unsafe class FormWindow : IDisposable
     public void Show() => SDL_ShowWindow(_window);
     public void Raise() => SDL_RaiseWindow(_window);
 
-    public void HandleEvent(ref SDL_Event e)
+    // By value, not ref: several branches close over e inside Guard.Run(() => ...), which a ref
+    // parameter can't do (CS1628), and SDL_Event is copied once per input event either way.
+    public void HandleEvent(SDL_Event e)
     {
         switch ((SDL_EventType)e.type)
         {
