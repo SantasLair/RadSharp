@@ -304,11 +304,25 @@ public class ProjectWorkflowTests
         var button = Assert.Single(standard.Nodes, n => n.Text == "Button");
         Assert.IsType<ComponentClass>(button.Tag);
         Assert.Equal("Button", ((ComponentClass)button.Tag!).Name);
+        Assert.NotNull(button.Icon);   // a toolbox icon, not just a text row
         Assert.Contains(tv.Nodes, n => n.Text == "Dialogs");   // OpenDialog/SaveDialog/FolderDialog
         Assert.Contains(tv.Nodes, n => n.Text == "System");    // Timer/ImageList
 
         tv.Selected = button;
         Assert.Equal("Button", d.ActiveForm!.Surface.PendingClass?.Name);
+    }
+
+    [Fact]
+    public void Palette_every_leaf_has_a_toolbox_icon()
+    {
+        var project = RadProject.Create(TempDir(), "PaletteIcons");
+        var (d, _) = Start(project.ProjectFile);
+        var tv = (TreeView)d.FindControl("tvPalette")!;
+
+        var leaves = tv.Nodes.SelectMany(category => category.Nodes).ToList();
+        Assert.True(leaves.Count > 10);   // sanity: the palette actually has entries
+        Assert.All(leaves, leaf => Assert.NotNull(leaf.Icon));
+        Assert.All(tv.Nodes, category => Assert.Null(category.Icon));   // category headers aren't components
     }
 
     [Fact]

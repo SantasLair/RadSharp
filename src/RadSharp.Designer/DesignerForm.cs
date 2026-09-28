@@ -390,7 +390,11 @@ public partial class DesignerForm : Form
         {
             var category = new TreeNode(g.Key) { Expanded = true };
             foreach (var cls in g.OrderBy(c => c.Name, StringComparer.Ordinal))
-                category.Add(cls.Name).Tag = cls;
+            {
+                var node = category.Add(cls.Name);
+                node.Tag = cls;
+                node.Icon = PaletteIcons.For(cls);
+            }
             tvPalette.Nodes.Add(category);
         }
         tvPalette.Invalidate();

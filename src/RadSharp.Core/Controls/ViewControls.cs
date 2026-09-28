@@ -220,6 +220,10 @@ public sealed class TreeNode(string text)
     public object? Tag { get; set; }
     public TreeNode? Parent { get; private set; }
 
+    /// <summary>Draws a small icon before this node's text, in the space between the expand arrow and the
+    /// label (a square roughly one row tall, minus a little padding). Null draws nothing.</summary>
+    public Action<Canvas, Rect>? Icon { get; set; }
+
     public TreeNode Add(string text)
     {
         var node = new TreeNode(text) { Parent = this };
@@ -287,6 +291,7 @@ public class TreeView : Control
 
     int RowHeight => Px(24);
     int Indent => Px(18);
+    int IconWidth => Px(20);
     Rect Area => new(Px(1), Px(1), Math.Max(0, Width - Px(2)), Math.Max(0, Height - Px(2)));
 
     void ScrollIntoView()
@@ -376,7 +381,13 @@ public class TreeView : Control
             if (node == _selected) canvas.FillRect(new Rect(area.X, y, area.Width, RowHeight), Focused ? t.Selection : t.SelectionInactive);
             if (node.Nodes.Count > 0)
                 canvas.DrawText(node.Expanded ? "▾" : "▸", canvas.DefaultFont, t.TextDisabled, new Rect(x, y, Indent, RowHeight), TextAlign.Center, VerticalAlign.Center);
-            canvas.DrawText(node.Text, EffectiveFont, t.Text, new Rect(x + Indent, y, area.Width - x - Indent, RowHeight), TextAlign.Left, VerticalAlign.Center);
+            int textX = x + Indent;
+            if (node.Icon != null)
+            {
+                node.Icon(canvas, new Rect(textX, y, IconWidth, RowHeight));
+                textX += IconWidth;
+            }
+            canvas.DrawText(node.Text, EffectiveFont, t.Text, new Rect(textX, y, area.Width - textX, RowHeight), TextAlign.Left, VerticalAlign.Center);
         }
         canvas.Restore();
         canvas.DrawBorder(r, Focused ? t.Accent : t.InputBorder, canvas.Px(1));

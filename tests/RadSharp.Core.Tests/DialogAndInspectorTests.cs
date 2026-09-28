@@ -1,3 +1,5 @@
+using RadSharp.Drawing;
+
 namespace RadSharp.Tests;
 
 /// <summary>Windows, dialogs, the property grid and the view controls. Uses a fake platform host.</summary>
@@ -390,5 +392,26 @@ public class DialogAndInspectorTests
         Assert.Equal(2, tree.VisibleNodes().Count);
         f.Simulate.Key(Key.End);
         Assert.Equal("Sprites", tree.Selected?.Text);
+    }
+
+    [Fact]
+    public void TreeView_paints_a_nodes_icon_and_leaves_icon_free_nodes_unchanged()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 300, 300);
+        var tree = new TreeView();
+        tree.SetBounds(0, 0, 300, 300);
+        f.Add(tree);
+        var plain = tree.Add("Plain");
+        var iconed = tree.Add("Iconed");
+        Rect? paintedRect = null;
+        iconed.Icon = (canvas, rect) => paintedRect = rect;
+        f.PerformLayout();
+
+        using var bitmap = FormRenderer.RenderToBitmap(f);   // exercises Paint for real; throws on a bad icon painter
+        Assert.NotNull(bitmap);
+        Assert.NotNull(paintedRect);
+        Assert.True(paintedRect!.Value.Width > 0 && paintedRect.Value.Height > 0);
+        Assert.Null(plain.Icon);   // a node with no icon set stays that way; Paint didn't invent one
     }
 }

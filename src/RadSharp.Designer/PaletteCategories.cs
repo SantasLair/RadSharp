@@ -1,3 +1,5 @@
+using RadSharp.Drawing;
+
 namespace RadSharp.Designer;
 
 /// <summary>
@@ -25,4 +27,17 @@ static class PaletteCategories
 
     /// <summary>The palette category for a component class named <paramref name="componentClassName"/>.</summary>
     public static string Of(string componentClassName) => ByName.GetValueOrDefault(componentClassName, Additional);
+
+    /// <summary>A fixed accent per category (Delphi-style tool-palette colour coding), used for the palette's
+    /// toolbox icons (<see cref="PaletteIcons"/>). Not theme-derived on purpose: four fixed, distinguishable
+    /// hues read as a stable colour code across sessions, the way a real toolbox's tab colours do.</summary>
+    static readonly Dictionary<string, Color> Colors = new(StringComparer.Ordinal)
+    {
+        [Standard] = Color.FromHex("#3B82C4"),
+        [Additional] = Color.FromHex("#2F9E6B"),
+        [Dialogs] = Color.FromHex("#C97A1E"),
+        [SystemCategory] = Color.FromHex("#8B5FBF"),
+    };
+
+    public static Color ColorOf(string category) => Colors.GetValueOrDefault(category, Colors[Additional]);
 }

@@ -99,6 +99,11 @@ open). +12 tests. Full suite: **196** passing.
 (icons and drag-from-palette stay open) — see the updated M16 entry below (closes the category/filter half of
 §3.7). +2 tests. Full suite: **198** passing.
 
+**Addendum 4 (2026-09-28):** palette icons pulled forward too, closing all but drag-and-drop in §3.7. Needed one
+small addition to `RadSharp.Core`'s `TreeView`/`TreeNode` (an opt-in `Icon` paint hook, mirroring `ListBox`'s
+existing `ItemPainter`), then a designer-only `PaletteIcons`/`PaletteCategories` pairing to draw a colour-coded
+initial per entry — no image assets. +4 tests. Full suite: **200** passing.
+
 ---
 
 ## M10: Trust the foundation (S)
@@ -257,13 +262,17 @@ under NativeAOT.
   place as four checkbox rows (akLeft/akTop/akRight/akBottom), no graphics. `PropertyGrid.ToggleAnchorsExpanded`/
   `IsAnchorFlag`/`SetAnchorFlag` implement exactly that, reusing the row-list mechanism M9's category headers
   already added; works under multi-select for free.
-- ~~**Component palette v2 — category grouping and a filter box**~~ **(done, 2026-09-27, pulled forward from
-  M16)**: closes the category/filter half of §3.7. `lstPalette` (a flat, text-only, alphabetical `ListBox`) is now
-  `tvPalette`, a `TreeView` grouped under Standard/Additional/Dialogs/System, with a filter `Edit` above it. No new
-  `ComponentClass` metadata: `PaletteCategories` is a small hand-maintained name→category lookup in the designer
-  project, not a `[Component(Category = ...)]` attribute across every control class, matching the heuristic this
-  plan called for. **Icons and drag-from-palette placement are still open** — separate, larger pieces (icon assets;
-  a new drag-source gesture on `DesignSurface`) — stretch, not required for 1.0.
+- ~~**Component palette v2 — category grouping, icons and a filter box**~~ **(done, 2026-09-27/28, pulled forward
+  from M16)**: closes all but the drag-and-drop part of §3.7. `lstPalette` (a flat, text-only, alphabetical
+  `ListBox`) is now `tvPalette`, a `TreeView` grouped under Standard/Additional/Dialogs/System, with a filter
+  `Edit` above it and a colour-coded initials icon per entry (`PaletteIcons.For`, drawn with `Canvas` primitives,
+  not image assets — real per-control artwork stays out of scope). No new `ComponentClass` metadata:
+  `PaletteCategories` is a small hand-maintained name→category lookup in the designer project, not a
+  `[Component(Category = ...)]` attribute across every control class, matching the heuristic this plan called for.
+  Icons needed one small, backward-compatible addition to `RadSharp.Core`: `TreeNode.Icon`
+  (`Action<Canvas, Rect>?`), a per-node paint hook mirroring `ListBox.ItemPainter` — opt-in, so every other
+  `TreeView` (the Structure tab included) is unaffected. **Drag-from-palette placement is still open** — best done
+  alongside the framework's own general in-app drag-and-drop rather than as a one-off, stretch, not required for 1.0.
 - **Debugging story:** make F5-in-the-IDE the documented way, add a launch profile to created projects, and write the
   "attach to the live run" instructions; a VS Code extension is post-1.0.
 
@@ -360,8 +369,8 @@ individually named in the original gap-analysis's single designer bullet (its ga
 | menu separator/altShortcut fields, Columns/Nodes editors (already in old gap 23) | M16 | open |
 | §3.2 multi-select property editing, §3.4 context menu, §3.5 property grid categories/filter, §3.10 lock controls, §3.12 project view, §3.13 rename reach | M9 | **done** |
 | §3.6 visual Anchors editor | M16 | **done** (pulled forward) |
-| §3.7 component palette v2 (categories, filter) | M16 | **done** (pulled forward) |
-| §3.7 component palette v2 (icons, drag-from-palette), §3.11 generic collection editor | M16 | open |
+| §3.7 component palette v2 (categories, icons, filter) | M16 | **done** (pulled forward) |
+| §3.7 component palette v2 (drag-from-palette), §3.11 generic collection editor | M16 | open |
 | §3.3 undo granularity (minor, no milestone — revisit only if it causes real memory/UX pain) | none | open |
 | §3.8 component tray, §3.9 dockable IDE panels | M18 | open (decision gate) |
 | §4 embedded code editor (named as a deliberate structural choice, not a gap to close) | none | not a gap |
