@@ -10,8 +10,8 @@
 > **Web is an eventual goal, not a 1.0 requirement.** Sections 2–4 are the 1.0 material. Section 5 is post-1.0
 > planning; its only 1.0 impact is a short list of *no-regret* decisions (5.0) that keep the door open cheaply.
 >
-> **Updated 2026-09-28:** gap 17's in-app half is closed — see the P1 table and [gap-plan.md](gap-plan.md)'s M13
-> status note. OS file drop (the other half of gap 17) is still open.
+> **Updated 2026-09-28:** gap 17 (drag and drop, both in-app and OS file drop) is closed — see the P1 table and
+> [gap-plan.md](gap-plan.md)'s M13 status note.
 
 ## 1. What is already solid
 
@@ -57,7 +57,7 @@ without a workaround; **P1** = painful but workable; **P2** = polish.
 | 14 | **Text-field basics.** No built-in context menu (right-click cut/copy/paste/select all) on Edit/Memo; no masked edit; no bidirectional text (Arabic/Hebrew unusable); IME unverified by hand on macOS/Linux. | bidi is a hard blocker for those markets |
 | 15 | **Accessibility.** Custom-drawn controls are invisible to screen readers. AccessKit is planned after 1.0. Some customers cannot buy software without it. | |
 | 16 | **Layout depth.** Only Align + Anchors: no flow/grid/stack panels, no auto-size labels or buttons, no preferred-size. Localized or DPI-scaled text overflows fixed rects. | Delphi has `TFlowPanel`, `TGridPanel`, `AutoSize`; FMX has flow/grid layouts |
-| 17 | **OS file drop.** No dropping files from the desktop onto a form (SDL supports it at the host level; nothing wires it to `Form`). In-app drag-and-drop is fixed — `Control.DragMode`/`OnDragOver`/`OnDragDrop`, driven by `Form.BeginDrag` (Delphi-style: the target inspects `DragEventArgs.Source` for what's being dragged, no separate payload type). First real use: dragging a component from the designer's palette onto a form. | |
+| 17 | **Drag and drop.** Both halves fixed. In-app: `Control.DragMode`/`OnDragOver`/`OnDragDrop`, driven by `Form.BeginDrag` (Delphi-style: the target inspects `DragEventArgs.Source` for what's being dragged, no separate payload type); first real use is dragging a component from the designer's palette onto a form. OS file drop: `Form.FilesDropped` (paths, drop position), wired from SDL's `SDL_EVENT_DROP_BEGIN`/`_FILE`/`_COMPLETE` in `FormWindow.HandleEvent` — several files dropped at once arrive as one event with every path, not one event per file. Unit-tested at the `Form` API level; not hand-verified against a real OS drag on any platform. | |
 | 18 | **Input beyond mouse and keyboard.** No touch, pen or gesture events in the input model (SDL emulates mouse from touch by default, which covers taps). Matters for tablets and for the web on phones. | |
 | 19 | **Images.** No SVG (raster only), no image on plain buttons, no animated images. Icons at several DPIs need SVG or multi-resolution lists. | |
 | 20 | **Clipboard is text only.** No images or file lists. | |

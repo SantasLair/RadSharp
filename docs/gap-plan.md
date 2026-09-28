@@ -109,6 +109,10 @@ the general in-app drag-and-drop primitive M13 had already reserved (`DragMode`/
 built the palette's drag-and-drop on top of it — see the updated M13 entry below. This also closes the in-app
 half of the original gap-analysis's gap 17 (OS file drop is still open). +6 tests. Full suite: **206** passing.
 
+**Addendum 6 (2026-09-28):** M13 item 4's other half, OS file drop, pulled forward too — `Form.FilesDropped` wired
+from SDL's `SDL_EVENT_DROP_*` events. This closes gap 17 completely, both halves. +2 tests. Full suite: **208**
+passing.
+
 ---
 
 ## M10: Trust the foundation (S)
@@ -187,8 +191,13 @@ at 100 % and 150 %; a form with mixed fonts round-trips byte-identically.
    same layout as a fresh load at 100 %, and the 150 % golden matches a fresh load at 150 %.
 3. **Mnemonics:** `&` in captions for Label (with `FocusControl`), Button, CheckBox, RadioButton, GroupBox, TabSheet and
    menus; Alt+letter activates; underline shown on Alt (Windows/Linux); documented as spec Appendix C additions.
-4. **Files dropped from the desktop:** `Form.FilesDropped` (paths, drop position). Still open — SDL supports the
-   host-level event; nothing wires it to `Form` yet.
+4. ~~**Files dropped from the desktop**~~ **(done, 2026-09-28)**: `Form.FilesDropped` (paths, drop position),
+   raised from `Form.ProcessFilesDropped`. Wired in `FormWindow.HandleEvent`
+   (`RadSharp.Platform.Sdl`) from `SDL_EVENT_DROP_BEGIN`/`_FILE`/`_COMPLETE`: paths accumulate between `BEGIN` and
+   `COMPLETE` so a multi-file drop raises one event with every path, not one event per file, at the position of
+   the last `DROP_FILE`. Added to `Dispatch`'s window-routing and modal-blocking checks alongside the other input
+   event types. 2 new tests at the `Form` API level (`InputTests.cs`); not hand-verified against a real OS drag on
+   any platform — nothing in this repo's test infrastructure drives actual SDL events end to end.
 
    ~~**In-app drag and drop**~~ **(done, 2026-09-28, pulled forward from M13)**: closed as a real, general
    primitive rather than a one-off — `designer-gap-analysis.md` §3.7's palette needed it, and building it bespoke
@@ -211,6 +220,11 @@ at 100 % and 150 %; a form with mixed fonts round-trips byte-identically.
 **Done when:** a form starts maximized on a chosen monitor, remembers its placement, survives being dragged between
 monitors of different scale, opens dialogs centered on their owner, activates buttons with Alt+letter, and accepts a
 dropped file.
+
+**Status:** items 4's two halves (in-app drag-and-drop, files dropped) are done, pulled forward 2026-09-28 ahead of
+the rest of the milestone — see the addenda near the top of this document. Items 1–3, 5 and 6 (window model,
+runtime scale change, mnemonics, application basics, pointer kind) are untouched; this milestone is not close to
+its own "done when" yet.
 
 ## M14: Data controls (L; the largest single piece)
 

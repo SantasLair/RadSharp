@@ -247,13 +247,15 @@ public static unsafe class SdlHost
           or SDL_EventType.SDL_EVENT_KEY_DOWN or SDL_EventType.SDL_EVENT_KEY_UP
           or SDL_EventType.SDL_EVENT_TEXT_EDITING or SDL_EventType.SDL_EVENT_TEXT_INPUT
           or SDL_EventType.SDL_EVENT_MOUSE_MOTION or SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN
-          or SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP or SDL_EventType.SDL_EVENT_MOUSE_WHEEL;
+          or SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP or SDL_EventType.SDL_EVENT_MOUSE_WHEEL
+          or SDL_EventType.SDL_EVENT_DROP_BEGIN or SDL_EventType.SDL_EVENT_DROP_FILE or SDL_EventType.SDL_EVENT_DROP_COMPLETE;
 
     static bool IsInput(SDL_EventType t) =>
         t is SDL_EventType.SDL_EVENT_KEY_DOWN or SDL_EventType.SDL_EVENT_KEY_UP
           or SDL_EventType.SDL_EVENT_TEXT_EDITING or SDL_EventType.SDL_EVENT_TEXT_INPUT
           or SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN or SDL_EventType.SDL_EVENT_MOUSE_WHEEL
-          or SDL_EventType.SDL_EVENT_WINDOW_CLOSE_REQUESTED;
+          or SDL_EventType.SDL_EVENT_WINDOW_CLOSE_REQUESTED
+          or SDL_EventType.SDL_EVENT_DROP_BEGIN or SDL_EventType.SDL_EVENT_DROP_FILE or SDL_EventType.SDL_EVENT_DROP_COMPLETE;
 
     internal static FormWindow? WindowOf(Form? form) => form != null && Windows.TryGetValue(form, out var w) ? w : null;
 
@@ -352,6 +354,8 @@ internal sealed unsafe class FormWindow : IDisposable
     readonly SDL_Renderer* _renderer;
     SDL_Texture* _texture;
     SKBitmap? _backBuffer;
+    readonly List<string> _pendingDrops = [];
+    float _lastDropX, _lastDropY;
 
     public FormWindow(Form form, FormWindow? owner, bool modal)
     {
@@ -439,6 +443,22 @@ internal sealed unsafe class FormWindow : IDisposable
                 break;
             case SDL_EventType.SDL_EVENT_TEXT_INPUT:
                 Guard.Run(() => _form.ProcessTextInput(Marshal.PtrToStringUTF8((nint)e.text.text) ?? ""));
+                break;
+            case SDL_EventType.SDL_EVENT_DROP_BEGIN:
+                _pendingDrops.Clear();
+                break;
+            case SDL_EventType.SDL_EVENT_DROP_FILE:
+                if (Marshal.PtrToStringUTF8((nint)e.drop.data) is { Length: > 0 } path) _pendingDrops.Add(path);
+                _lastDropX = e.drop.x;
+                _lastDropY = e.drop.y;
+                break;
+            case SDL_EventType.SDL_EVENT_DROP_COMPLETE:
+                if (_pendingDrops.Count > 0)
+                {
+                    var paths = _pendingDrops.ToArray();
+                    _pendingDrops.Clear();
+                    Guard.Run(() => _form.ProcessFilesDropped(paths, Px(_lastDropX), Px(_lastDropY)));
+                }
                 break;
         }
     }

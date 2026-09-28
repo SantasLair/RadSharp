@@ -654,6 +654,17 @@ public class Form : Control
         if (target.IsEffectivelyEnabled) target.OnTextComposition(new TextCompositionEventArgs(text, cursor, selectionLength));
     }
 
+    /// <summary>One or more files were dropped onto this form from the desktop (the host's file manager).</summary>
+    [Published] public event FilesDroppedEvent? FilesDropped;
+
+    /// <summary>Raises <see cref="FilesDropped"/>. The host calls this once per drop, even when the desktop
+    /// delivered it as several files in a row.</summary>
+    public void ProcessFilesDropped(IReadOnlyList<string> paths, int x, int y)
+    {
+        if (paths.Count == 0) return;
+        FilesDropped?.Invoke(this, new FilesDroppedEventArgs(paths, x, y));
+    }
+
     /// <summary>
     /// Where typed text goes: the focused control; while popups are open, only a focused control inside
     /// the topmost popup (an inline editor), otherwise the text is discarded.

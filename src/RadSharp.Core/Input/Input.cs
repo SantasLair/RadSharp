@@ -106,6 +106,17 @@ public delegate void KeyEvent(Control sender, KeyEventArgs e);
 public delegate void TextInputEvent(Control sender, TextInputEventArgs e);
 public delegate void DragEvent(Control sender, DragEventArgs e);
 
+/// <summary>One or more files dropped onto a form from the desktop (the host's file manager).</summary>
+public sealed class FilesDroppedEventArgs(IReadOnlyList<string> paths, int x, int y) : EventArgs
+{
+    public IReadOnlyList<string> Paths { get; } = paths;
+    /// <summary>Where the drop landed, in form pixels.</summary>
+    public int X { get; } = x;
+    public int Y { get; } = y;
+}
+
+public delegate void FilesDroppedEvent(Form sender, FilesDroppedEventArgs e);
+
 /// <summary>Delphi's <c>TDragMode</c>: whether pressing and moving on this control starts an in-app drag by
 /// itself, or only when its own code calls <see cref="Form.BeginDrag"/>.</summary>
 public enum DragMode { Manual, Automatic }

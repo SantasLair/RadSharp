@@ -315,6 +315,32 @@ public class InputTests
         Assert.DoesNotContain(inner.Log, l => l.StartsWith("dragdrop"));
     }
 
+    // ---- Files dropped from the desktop ----
+
+    [Fact]
+    public void Files_dropped_raises_the_event_with_every_path_and_the_drop_position()
+    {
+        var f = NewForm();
+        FilesDroppedEventArgs? received = null;
+        f.FilesDropped += (sender, e) => { Assert.Same(f, sender); received = e; };
+
+        f.ProcessFilesDropped(["a.map", "b.map"], 40, 60);
+
+        Assert.NotNull(received);
+        Assert.Equal(["a.map", "b.map"], received!.Paths);
+        Assert.Equal((40, 60), (received.X, received.Y));
+    }
+
+    [Fact]
+    public void Files_dropped_with_no_paths_raises_nothing()
+    {
+        var f = NewForm();
+        bool raised = false;
+        f.FilesDropped += (_, _) => raised = true;
+        f.ProcessFilesDropped([], 0, 0);
+        Assert.False(raised);
+    }
+
     // ---- Popups ----
 
     [Fact]
