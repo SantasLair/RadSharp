@@ -89,4 +89,5 @@ Your own controls: derive from `Control` (or `Component` for non-visual ones), m
 override `Paint(Canvas)` and the `On…` input methods. The metadata generator registers the class, so forms can
 use it and the inspector can edit it.
 
-See also: [the control reference](controls.md), [distribution notes](distribution.md), [the spec](spec.md).
+See also: [the control reference](controls.md), [distribution notes](distribution.md), [the spec](spec.md),
+[the AOT-safe stack](aot-safe-stack.md).

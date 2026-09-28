@@ -140,6 +140,32 @@ public class GoldenImageTests
         CompareOrUpdate(actual, "standard@100%-560x400.png");
     }
 
+    const string RedDotIcon =
+        "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAABHNCSVQICAgIfAhkiAAAANhJREFUOI3Fk7EKglAUhr97qcil2+zU4h6CED1JRLnpQwWCQYiPEhS9QItTc7YUFdp881qEQv/48/8fnHM4IptOSxpINim3AuiYTGsyYRiGdGwbgOfpxHm14rrdVrJC24GUDIMAtVyCEHqyLMnXa85RBEVhHqE/HqN8v1oGEALl+/RdV7M1gFosPg8sJWo+rwf0HOczwJBp94z34/Fr4T2jAfIk0TZcUVGQbzb1gNt+zyVJavt5HHM7HDRPmH6hOxoxmM2wPA+A627HJU15ZFkFagT8ov8/0wvtokFoZHGllgAAAABJRU5ErkJggg==";
+
+    /// <summary>M12: ImagesName/ImageIndex on Button and CheckBox-style controls, and ToolButton's fallback to its parent ToolBar's list.</summary>
+    [Fact]
+    public void Button_and_checkbox_icons_match_golden_image()
+    {
+        var form = new Form { Caption = "Icons" };
+        form.SetBounds(0, 0, 360, 200);
+        T Put<T>(Control parent, T c, int x, int y, int w, int h) where T : Control { c.SetBounds(x, y, w, h); parent.Add(c); return c; }
+
+        var images = Put(form, new ImageList { Name = "images", Images = [RedDotIcon] }, 0, 0, 0, 0);
+
+        Put(form, new Button { Caption = "Save", ImagesName = images.Name, ImageIndex = 0 }, 12, 12, 100, 28);
+        Put(form, new Button { ImagesName = images.Name, ImageIndex = 0 }, 128, 12, 40, 28);   // icon only, no caption
+        Put(form, new CheckBox { Caption = "Flag it", Checked = true, ImagesName = images.Name, ImageIndex = 0 }, 12, 56, 160, 20);
+        Put(form, new RadioButton { Caption = "Pick me", ImagesName = images.Name, ImageIndex = 0 }, 12, 84, 160, 20);
+
+        var tools = Put(form, new ToolBar { Align = Align.None, ImagesName = images.Name }, 12, 140, 260, 36);
+        Put(tools, new ToolButton { Caption = "Toolbar", ImageIndex = 0 }, 4, 4, 72, 28);
+
+        form.PerformLayout();
+        using var actual = FormRenderer.RenderToBitmap(form);
+        CompareOrUpdate(actual, "icons@100%-360x200.png");
+    }
+
     static void CompareOrUpdate(SKBitmap actual, string imageName, [CallerFilePath] string testFile = "")
     {
         var sourceGoldenDir = Path.Combine(Path.GetDirectoryName(testFile)!, "Golden");

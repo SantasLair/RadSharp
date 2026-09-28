@@ -128,18 +128,32 @@ drop arrived before any other input had triggered a layout pass. The rewritten t
 
 ## M10: Trust the foundation (S)
 
-*Closes gap 10.* Nothing else is worth building on until CI has actually run.
+*Closes gap 10.* Nothing else is worth building on until the pixel promise is actually checked somewhere.
 
-- Create the remote, push, and run the matrix (Windows x64, macOS arm64, Linux x64; all three are different CPU/OS
-  pairs, so this is also the ARM-vs-x64 test).
-- Triage every golden-image diff: identical, sub-threshold, or a real difference. Root-cause any difference (Skia SIMD
-  path, font metrics, PNG encoding) before choosing a policy.
-- Decide the golden policy and write it in `docs/spec.md`: one set for all OSes (preferred; the promise), or, if a
-  platform genuinely differs, per-arch goldens **plus** a documented reason. Do not add a tolerance silently.
-- Fix the README/roadmap contradiction ("run in CI" vs "not yet run"); record the outcome in the roadmap.
-- Add `dotnet test` result upload and the NativeAOT publish artifacts for all three OSes (already scripted).
+**Scope reduced (2026-09-28, by decision):** the original bar was a 3-OS GitHub Actions matrix (Windows, macOS,
+Linux). User decided local verification on Windows (native) + Linux (WSL2) is good enough for 1.0 planning
+purposes; macOS is explicitly deprioritized (no local Apple Silicon box, no near-term plan to get one). A real
+CI matrix remains desirable but is no longer the gate for calling this milestone done.
 
-**Done when:** CI is green on three OSes with the policy above, and a deliberate 1-pixel change fails it on all three.
+- ~~Create the remote, push, and run the matrix~~ — remote exists (`origin` → `github.com/SantasLair/DamonForms`)
+  and `.github/workflows/ci.yml` exists; whether Actions has actually run on it is unconfirmed (no `gh auth`
+  available locally to check run history). Not required to close this milestone under the reduced scope above.
+- ~~Triage every golden-image diff~~ **done for Linux**: full solution builds clean under WSL2 Ubuntu 24.04
+  (.NET 10.0.101 SDK x64), including `RadSharp.Platform.Sdl`'s native `libSDL3.so` link, and all 210 tests
+  across all 5 test projects pass — including every golden-image test in `RadSharp.Core.Tests` — with zero
+  diffs against the Windows-generated goldens. No SIMD-path or font-metric divergence observed. macOS: not
+  checked, out of scope per the decision above.
+- Golden policy: one set for all OSes, confirmed viable for Windows+Linux; still the default policy on the
+  (deferred) macOS question too, until evidence says otherwise.
+- README/roadmap "run in CI" vs "not yet run" contradiction: still open (`RADSharp-roadmap.md:46` says "not yet
+  run: no remote", which is now stale since a remote exists) — small copy fix, not blocking.
+- `dotnet test` result upload / NativeAOT publish artifacts in CI: still open, but not required for the reduced
+  local-verification bar.
+
+**Done when (reduced bar):** tests + golden images pass on native Windows and on Linux via WSL2. **Met
+(2026-09-28)** — see Linux verification above and the native Windows run in the same session (`dotnet build`/
+`dotnet test` on `RadSharp.slnx`, 210/210 passing). Full 3-OS CI matrix and the stale roadmap line remain as
+optional follow-ups, not blockers.
 
 ## M11: A runtime you can trust (M)
 
@@ -169,6 +183,15 @@ because they all touch the host boundary.
 **Done when:** a sample downloads a URL with `HttpClient` and updates a `Label` after `await`, throws from a handler
 without dying, opens an async modal and file dialog, and idles at ~0 % CPU; NativeAOT publish stays warning-free.
 
+**Status (2026-09-28):** all 7 items done. Items 1–6 — `SynchronizationContext`, `Application.ThreadException`,
+`ShowModalAsync`/`MessageDlgAsync`/`ExecuteAsync`, tooltips, and the Edit/Memo context menu — all exist and are
+exercised by tests (discovered already shipped, backfilled into this status note, before this document's
+`gap-analysis.md` counterpart was corrected to match). Item 7: the `dotnet new radsharp-app` template and
+`samples/Robustness` already had `EnableAotAnalyzer`/`EnableTrimAnalyzer`; the actual gap was the designer's own
+**File › New Application…** scaffold (`RadProject.Create` in `RadSharp.Design.Code`), which only set
+`PublishAot`. Both flags added there too, plus a new `docs/aot-safe-stack.md` page and a test asserting the
+generated `.csproj` carries them. M11 is closed.
+
 ## M12: Drawing and fonts (M)
 
 *Closes gaps 5, 6, 19 (part).*
@@ -187,6 +210,14 @@ without dying, opens an async modal and file dialog, and idles at ~0 % CPU; Nati
 
 **Done when:** a `PaintBox` sample draws a line chart with axes, gradient fill and antialiased polyline; golden images
 at 100 % and 150 %; a form with mixed fonts round-trips byte-identically.
+
+**Status (2026-09-28):** Canvas completeness, per-control `Font`, and Images are all done. `Button`, `CheckBox`,
+`RadioButton` and `ToolButton` all publish `ImagesName`/`ImageIndex`, resolved by a shared
+`ImageList.Resolve(Control, imagesName, imageIndex)` helper (`ToolButton` additionally falls back to its
+parent `ToolBar`'s image list, unchanged from before). SVG spiked and **rejected for 1.0**: `Svg.Skia`
+publishes and runs under NativeAOT for a basic case, but its dependencies (`Svg.Custom`, `ExCSS`) emit real
+`IL2104`/`IL3053` trim/AOT warnings — not AOT-clean per this milestone's own bar. Recorded in
+`gap-analysis.md` gap 19. M12 is closed.
 
 ## M13: Windows, DPI and input (M–L)
 
@@ -268,6 +299,12 @@ its own "done when" yet.
 a column click, edits a cell in place, and selects ranges; ListView/TreeView pass the same selection and scrolling test
 suite as the grid; every new control has a golden image and appears in `controls.md`.
 
+**Scope note (2026-09-28):** no data binding in M14. `OnGetItem`/`OnGetCell` virtual mode is the escape hatch for
+large/external data; binding syntax, `INotifyPropertyChanged` wiring, and item-source plumbing stay out of the
+controls entirely and belong to M15 item 3, decided separately later. Keep the M14 controls' public surface to
+plain in-memory items/rows, matching the existing `ListBox`/`ListView` shape — no bloat from a feature these
+controls don't need yet.
+
 ## M15: Reuse and data (L)
 
 *Closes gaps 9 and 11.*
@@ -323,8 +360,8 @@ under NativeAOT.
   `[Component(Category = ...)]` attribute across every control class, matching the heuristic this plan called for.
   Icons needed one small, backward-compatible addition to `RadSharp.Core`: `TreeNode.Icon`
   (`Action<Canvas, Rect>?`), a per-node paint hook mirroring `ListBox.ItemPainter` — opt-in, so every other
-  `TreeView` (the Structure tab included) is unaffected. **Drag-from-palette placement is still open** — best done
-  alongside the framework's own general in-app drag-and-drop rather than as a one-off, stretch, not required for 1.0.
+  `TreeView` (the Structure tab included) is unaffected. ~~Drag-from-palette placement~~ **is done too** (see M13's
+  updated entry above) — §3.7 is fully closed, not "all but" as this bullet said when first written.
 - **Debugging story:** make F5-in-the-IDE the documented way, add a launch profile to created projects, and write the
   "attach to the live run" instructions; a VS Code extension is post-1.0.
 

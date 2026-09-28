@@ -49,6 +49,8 @@ Defaults are the class defaults at 100 % scale; only values that differ are writ
 | `cancel` | bool | `false` | Behavior |
 | `caption` | string | "" | Appearance |
 | `default` | bool | `false` | Behavior |
+| `imageIndex` | int | `-1` | Appearance |
+| `images` | string | "" | Appearance |
 | `modalResult` | enum: none, ok, cancel, abort, retry, ignore, yes, no, close | `none` | Behavior |
 
 ## CheckBox
@@ -59,6 +61,8 @@ Inherits from [ToggleControl](#togglecontrol).
 |---|---|---|---|
 | `caption` | string | "" | Appearance |
 | `checked` | bool | `false` | Behavior |
+| `imageIndex` | int | `-1` | Appearance |
+| `images` | string | "" | Appearance |
 
 | Event | Handler parameters |
 |---|---|
@@ -288,6 +292,8 @@ Inherits from [Component](#component).
 
 | Property | Type | Default | Category |
 |---|---|---|---|
+| `arrangement` | enum: declared, alphabetical, categorized | `declared` | Behavior |
+| `filter` | string | "" | Behavior |
 | `mode` | enum: properties, events | `properties` | Behavior |
 | `nameWidth` | int | `120` | Appearance |
 
@@ -303,6 +309,8 @@ Inherits from [ToggleControl](#togglecontrol).
 |---|---|---|---|
 | `caption` | string | "" | Appearance |
 | `checked` | bool | `false` | Behavior |
+| `imageIndex` | int | `-1` | Appearance |
+| `images` | string | "" | Appearance |
 
 | Event | Handler parameters |
 |---|---|
@@ -421,6 +429,7 @@ Inherits from [Button](#button).
 | `default` | bool | `false` | Behavior |
 | `down` | bool | `false` | Behavior |
 | `imageIndex` | int | `-1` | Appearance |
+| `images` | string | "" | Appearance |
 | `modalResult` | enum: none, ok, cancel, abort, retry, ignore, yes, no, close | `none` | Behavior |
 
 ## ToolSeparator
@@ -456,6 +465,7 @@ Inherits from [Button](#button).
 | `align` | enum: none, top, bottom, left, right, client | `none` | Layout |
 | `anchors` | anchors | `left, top` | Layout |
 | `cursor` | enum: default, iBeam, hand, sizeWE, sizeNS, sizeNWSE, sizeNESW, sizeAll, wait, notAllowed, crosshair | `default` | Appearance |
+| `dragMode` | enum: manual, automatic | `manual` | Behavior |
 | `enabled` | bool | `true` | Behavior |
 | `font` | font | "" | Appearance |
 | `height` | int | `30` | Layout |
@@ -478,6 +488,8 @@ Inherits from [Button](#button).
 |---|---|
 | `onBlur` | `(Control sender)` |
 | `onClick` | `(Control sender)` |
+| `onDragDrop` | `(Control sender, DragEventArgs e)` |
+| `onDragOver` | `(Control sender, DragEventArgs e)` |
 | `onFocus` | `(Control sender)` |
 | `onKeyDown` | `(Control sender, KeyEventArgs e)` |
 | `onKeyUp` | `(Control sender, KeyEventArgs e)` |

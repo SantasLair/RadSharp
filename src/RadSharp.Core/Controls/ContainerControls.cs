@@ -186,7 +186,9 @@ public class ToolButton : Button
     /// <summary>Clicking toggles <see cref="Down"/>.</summary>
     [Published(Category = "Behavior")] public bool AllowToggle { get; set; }
     [Published(Category = "Behavior")] public bool Down { get => _down; set { _down = value; Invalidate(); } }
-    [Published(Category = "Appearance")] public int ImageIndex { get; set; } = -1;
+
+    /// <summary>Falls back to the parent <see cref="ToolBar"/>'s image list when <see cref="Button.ImagesName"/> isn't set.</summary>
+    protected override Picture? ResolveIcon() => base.ResolveIcon() ?? (Parent as ToolBar)?.Images?.Get(ImageIndex);
 
     protected internal override void OnClick()
     {
@@ -203,7 +205,7 @@ public class ToolButton : Button
         if (enabled && (IsPressed || _down)) canvas.FillRoundRect(r, radius, t.ButtonFacePressed);
         else if (enabled && IsHovered) canvas.FillRoundRect(r, radius, t.ButtonFaceHover);
         var textRect = r;
-        if ((Parent as ToolBar)?.Images?.Get(ImageIndex) is { } pic)
+        if (ResolveIcon() is { } pic)
         {
             int s = canvas.Px(16);
             int x = Caption.Length > 0 ? canvas.Px(6) : (Width - s) / 2;
@@ -305,4 +307,8 @@ public class ImageList : Component
         _pictures ??= new Picture?[_sources.Length];
         return _pictures[index] ??= Picture.FromSource(_sources[index], (OwningForm ?? (Control)this).GetType().Assembly);
     }
+
+    /// <summary>Looks up <paramref name="imagesName"/> on <paramref name="control"/>'s form and gets its picture at <paramref name="imageIndex"/>.</summary>
+    public static Picture? Resolve(Control control, string imagesName, int imageIndex) =>
+        (imagesName.Length > 0 ? control.OwningForm?.FindControl(imagesName) as ImageList : null)?.Get(imageIndex);
 }

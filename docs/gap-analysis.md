@@ -10,8 +10,12 @@
 > **Web is an eventual goal, not a 1.0 requirement.** Sections 2–4 are the 1.0 material. Section 5 is post-1.0
 > planning; its only 1.0 impact is a short list of *no-regret* decisions (5.0) that keep the door open cheaply.
 >
-> **Updated 2026-09-28:** gap 17 (drag and drop, both in-app and OS file drop) is closed — see the P1 table and
-> [gap-plan.md](gap-plan.md)'s M13 status note.
+> **Updated 2026-09-28:** this document had drifted from the code. Gaps 1, 2, 5, 6 (P0) and 12, 21, part of 14
+> (P1) were already fixed by M11/M12 in commits that predate this update — landed between when this doc was
+> written (2026-09-26) and now, never reflected back into it. Gap 17 (drag and drop, both halves) is closed this
+> session — see [gap-plan.md](gap-plan.md)'s M13 status note. Checked directly against the current code
+> (grep for the relevant types/members), not just against `gap-plan.md`'s own milestone notes, since those can
+> drift too — see each corrected row below for what to look for.
 
 ## 1. What is already solid
 
@@ -25,7 +29,8 @@ The foundation is better than its age suggests, and most of the gaps below are *
 - **Rendering.** Own glyph outlines + HarfBuzz + Skia CPU raster, golden-image tests, fractional-DPI rounding rules.
 - **Text editing.** Grapheme-aware caret, undo, IME composition inline, clipboard, Edit and Memo.
 - **The loop.** Designer → handler stub → F9 live run → NativeAOT build → generated cross-OS CI workflow.
-- **Tests.** 153 tests including layout vectors, golden images, simulated input, designer-drives-designer.
+- **Tests.** 153 at the time this doc was written; **210** now (2026-09-28), the difference mostly M11/M12 and this
+  session's designer/drag-and-drop work. Layout vectors, golden images, simulated input, designer-drives-designer.
 
 ## 2. Gaps that block real applications
 
@@ -36,36 +41,36 @@ without a workaround; **P1** = painful but workable; **P2** = polish.
 
 | # | Gap | Evidence | Delphi/RAD Studio has |
 |---|---|---|---|
-| 1 | **No UI-thread marshalling in Core, no `SynchronizationContext`.** `Application.Post` exists only in the SDL package. `await httpClient.GetAsync(...)` in a handler resumes on a thread-pool thread and touches controls off-thread. | `Application.Post` (`Platform.Sdl/Application.cs:97`); no `SynchronizationContext` anywhere | `TThread.Synchronize/Queue`, `Application.ProcessMessages` |
-| 2 | **An exception in any event handler is unhandled.** The event loop has no try/catch around `Dispatch`; the only guard is in the live-resize watch. A typo in a handler closes the app. | `Application.RunLoop` / `Dispatch` | `Application.OnException`, default error dialog |
-| 3 | **No grid.** No StringGrid/DrawGrid equivalent, and `ListView` is a minimal report list (below). Tabular data is the core of most business apps. | roadmap "After 1.0" lists it | `TStringGrid`, `TDrawGrid`, data-aware grids |
-| 4 | **List controls are too thin to hold data.** `ListView`: no scroll bars (wheel only), no horizontal scroll (columns wider than the view are unreachable), no icons, checkboxes, multi-select, sorting, or virtual mode. `TreeView`: no scroll bars, images, checkboxes, multi-select; nodes only from code (not in the form file). `ListBox`: `string[]` items only (no `Tag`/objects), no multi-select. `ComboBox` publishes only Items/ItemIndex/DropDownCount (no editable style or autocomplete as far as I could see). | `ViewControls.cs`, `ListControls.cs` | `TListView` (icons, checks, `OwnerData`), `TCheckListBox`, `TTreeView` state images |
-| 5 | **The `Canvas` can't draw lines, paths, gradients or arcs.** It has rects, round rects, ellipses, a check mark, text and pictures; the `SKCanvas` is private. A `PaintBox` chart, diagram or custom control can't draw a line. | `Drawing/Canvas.cs` (read in full) | `TCanvas` (LineTo, Polygon, Arc, Draw…) |
-| 6 | **No per-control font.** Only `Label` has `FontSize/FontBold/FontColor`; the font is the theme's. No family, italic, underline, and no way to add a family from the form file. | `BasicControls.cs`, `Theme.FontFace` | `Font` on every control |
+| 1 | ~~**No UI-thread marshalling in Core, no `SynchronizationContext`.**~~ **Fixed** (M11, predates this doc's last real read). `SdlHost` installs a real `SynchronizationContext` (`SynchronizationContext.SetSynchronizationContext`) so `await` in a handler resumes on the UI thread; `Application.Post`/`PostToUiThread` still work as the explicit form. | `SdlHost.cs`: `_uiContext`, `UiSynchronizationContext` | `TThread.Synchronize/Queue`, `Application.ProcessMessages` |
+| 2 | ~~**An exception in any event handler is unhandled.**~~ **Fixed** (M11). `Application.ThreadException` (`ThreadExceptionEventArgs`) reports an unhandled exception with a default path if nothing subscribes. | `Application.cs`: `ThreadException`, `ReportException` | `Application.OnException`, default error dialog |
+| 3 | **No grid.** No StringGrid/DrawGrid equivalent, and `ListView` is a minimal report list (below). Tabular data is the core of most business apps. | roadmap "After 1.0" lists it; still true — only `PropertyGrid` exists among `*Grid` classes | `TStringGrid`, `TDrawGrid`, data-aware grids |
+| 4 | **List controls are too thin to hold data.** `ListView`: no scroll bars (wheel only), no horizontal scroll (columns wider than the view are unreachable), no icons, checkboxes, multi-select, sorting, or virtual mode. `TreeView`: no scroll bars, images, checkboxes, multi-select; nodes only from code (not in the form file — though a leaf can now carry a drawn icon via `TreeNode.Icon`, added this session for the designer's palette, not for data). `ListBox`: `string[]` items only (no `Tag`/objects), no multi-select. `ComboBox` publishes only Items/ItemIndex/DropDownCount (no editable style or autocomplete as far as I could see). | `ViewControls.cs`, `ListControls.cs` | `TListView` (icons, checks, `OwnerData`), `TCheckListBox`, `TTreeView` state images |
+| 5 | ~~**The `Canvas` can't draw lines, paths, gradients or arcs.**~~ **Fixed** (M12). `DrawLine`, `DrawPolyline`, `DrawArc`, `FillPolygon`, `Fill(GraphicsPath, …)`, and gradient overloads of `FillRect`/`FillRoundRect`/`FillEllipse`/`Fill` all exist now. | `Drawing/Canvas.cs` | `TCanvas` (LineTo, Polygon, Arc, Draw…) |
+| 6 | ~~**No per-control font.**~~ **Fixed** (M12). Every control has `EffectiveFont` (own `Font`, else the parent's, else the theme's — Delphi's *ParentFont* model), propagated into every control's `Paint()`. | `Control.cs`: `EffectiveFont`, `_font` | `Font` on every control |
 | 7 | **Windows are under-specified.** No `WindowState` (maximize/minimize/fullscreen), border style (dialog, tool, none), start position (centre, remembered), window icon, min/max size passed to the OS, always-on-top, or a screen/monitor API. | grep for `WindowState`/`Icon`/`Position` in Core and Sdl: no hits | `Position`, `WindowState`, `BorderStyle`, `BorderIcons`, `Icon`, `Screen` |
 | 8 | **Scale is fixed at form load.** `Form.DefaultScale` is read once at `Initialize`; dragging a window to a monitor with a different DPI (or, on the web, zooming the page) doesn't re-layout at the new scale. (Inferred: pixel density is tracked per window for pixels ↔ points, but lengths are scaled once at load.) | `Application.Initialize`, `Form.Scale` | per-monitor-v2 DPI, `ScaleBy` |
 | 9 | **Reusable UI.** No frames / user controls (a form file whose root is a `Panel` embeddable in other forms), no visual form inheritance. Every real app needs shared composite pieces. | roadmap "After 1.0" | `TFrame`, visual inheritance |
-| 10 | **Cross-platform claim is unverified.** The roadmap says the CI matrix has not run (no remote); the README says macOS and Linux "run in CI". Golden images were generated on Windows. "Same pixels on every OS" is the headline promise, and Skia's CPU raster may pick different SIMD paths on ARM (Apple Silicon) than on x64. | roadmap M0, M2 status; `README.md` | n/a |
+| 10 | **Cross-platform claim partially verified.** ~~Linux x64 half~~ **Verified (2026-09-28), via local WSL2 Ubuntu 24.04, .NET 10.0.101 SDK.** Full solution builds clean (including `RadSharp.Platform.Sdl`'s `libSDL3.so` native link), and all 210 tests across all 5 test projects pass — including every golden-image test in `RadSharp.Core.Tests`, run against the same Windows-generated goldens with no pixel diffs. macOS remains unverified (no CI matrix run, no local Apple Silicon box) and is deprioritized for now. | roadmap M0, M2 status; `README.md`; local WSL2 run 2026-09-28 | n/a |
 
 ### P1
 
 | # | Gap | Notes |
 |---|---|---|
 | 11 | **Data binding.** Listed for after 1.0. Without it every app copies model ↔ controls by hand. Smallest useful version: a generator-emitted, AOT-safe binding of a property path to a control property with change notification. | Delphi: DataSource / LiveBindings |
-| 12 | **Tooltips.** `Control.Hint` is published but nothing displays it. | trivial to fix; users expect it |
-| 13 | **Keyboard mnemonics.** No `&File` / Alt+letter in captions or menus. Menus have shortcuts but not accelerator letters. | accessibility and speed for keyboard users |
-| 14 | **Text-field basics.** No built-in context menu (right-click cut/copy/paste/select all) on Edit/Memo; no masked edit; no bidirectional text (Arabic/Hebrew unusable); IME unverified by hand on macOS/Linux. | bidi is a hard blocker for those markets |
+| 12 | ~~**Tooltips.**~~ **Fixed** (M11). `Form` tracks a hovered control's `Hint` and shows it after a delay (`_tooltipControl`, `ShowTooltip`). | trivial to fix; users expect it |
+| 13 | **Keyboard mnemonics.** No `&File` / Alt+letter in captions or menus. Menus have shortcuts but not accelerator letters. Still true. | accessibility and speed for keyboard users |
+| 14 | **Text-field basics.** ~~No built-in context menu~~ — **fixed** (M11): Edit/Memo now build a default Cut/Copy/Paste/Select All `ContextMenu`, overridable by an explicit one. No masked edit; no bidirectional text (Arabic/Hebrew unusable); IME unverified by hand on macOS/Linux — all still open. | bidi is a hard blocker for those markets |
 | 15 | **Accessibility.** Custom-drawn controls are invisible to screen readers. AccessKit is planned after 1.0. Some customers cannot buy software without it. | |
 | 16 | **Layout depth.** Only Align + Anchors: no flow/grid/stack panels, no auto-size labels or buttons, no preferred-size. Localized or DPI-scaled text overflows fixed rects. | Delphi has `TFlowPanel`, `TGridPanel`, `AutoSize`; FMX has flow/grid layouts |
 | 17 | **Drag and drop.** Both halves fixed, on one unified mechanism: `Control.DragMode`/`OnDragOver`/`OnDragDrop`, driven by `Form.BeginDrag` for an in-app drag (Delphi-style: inspect `DragEventArgs.Source` for what's being dragged, no separate payload type), and by `Form.ProcessFilesDropped` — wired from SDL's `SDL_EVENT_DROP_BEGIN`/`_FILE`/`_COMPLETE` — for a file dropped from the desktop, which sets `DragEventArgs.Files`/`IsFileDrop` instead. Either way the same `OnDragOver`/`OnDragDrop` on a specific control fires, so e.g. an image viewer can accept a file dropped on *it* directly, not just somewhere on the form. First real in-app use: dragging a component from the designer's palette onto a form. Unit-tested at the `Form`/`Control` API level; not hand-verified against a real OS drag on any platform. | |
 | 18 | **Input beyond mouse and keyboard.** No touch, pen or gesture events in the input model (SDL emulates mouse from touch by default, which covers taps). Matters for tablets and for the web on phones. | |
-| 19 | **Images.** No SVG (raster only), no image on plain buttons, no animated images. Icons at several DPIs need SVG or multi-resolution lists. | |
+| 19 | **Images.** ~~No image on plain buttons~~ **fixed**: `Button`/`CheckBox`/`RadioButton`/`ToolButton` all publish `ImagesName`/`ImageIndex` now, resolved through a shared `ImageList.Resolve` helper. **SVG deferred post-1.0, raster `ImageList` only** — spiked `Svg.Skia` (2026-09-28): it publishes and runs under NativeAOT for a basic case, but its dependencies (`Svg.Custom`, `ExCSS`) emit real `IL2104`/`IL3053` trim/AOT warnings, not spurious ones, so it fails the "AOT-clean" bar the milestone set. No animated images. Icons at several DPIs still need multi-resolution `ImageList` entries. | |
 | 20 | **Clipboard is text only.** No images or file lists. | |
-| 21 | **Idle cost.** The loop wakes at ~60 Hz forever (`SDL_WaitEventTimeout(…, 16)`). Fine for a demo, poor for a laptop app left open. Compute the next deadline (caret blink, timers) instead. | |
-| 22 | **Localization.** No mechanism; strings live in the form file. | Delphi: resource strings, ITE |
-| 23 | **Designer.** No alignment/size tools (align lefts, same width), no zoom, PageControl page editing only by clicking tabs, no menu-editor altShortcut/separator fields, component libraries from NuGet not yet used in live runs. (All listed as "not yet" in the roadmap.) | |
+| 21 | ~~**Idle cost.**~~ **Fixed** (M11). `Form.NextWakeMs` computes the next real deadline (caret blink, timers, tooltips); `SDL_WaitEventTimeout` uses it instead of a fixed 16 ms. | |
+| 22 | **Localization.** No mechanism; strings live in the form file. Still true. | Delphi: resource strings, ITE |
+| 23 | **Designer.** Mostly fixed this session — see [designer-gap-analysis.md](designer-gap-analysis.md) for the full, since-superseded picture: alignment/size tools, a real component palette (categories, icons, filter, drag-and-drop), the property grid (categories, filter, multi-select, an Anchors editor), a right-click context menu, Lock Controls, a full project view, and wider rename reach are all done. Still open: zoom, PageControl page editing only by clicking tabs, menu-editor altShortcut/separator fields, a generic collection editor (needed for future Columns/Nodes editors), component libraries from NuGet not yet used in live runs, a component tray, and dockable panels. | |
 | 24 | **Debugging.** External IDE only; F9 runs inside the designer with no debugger story. F5 in the IDE works since the project is ordinary .NET, but design edits need the designer. A VS Code/Rider extension is the natural fix. | Delphi's integrated debugger is part of "the Delphi loop" |
-| 25 | **AOT gap between F9 and Build.** F9 runs on the JIT; Build is NativeAOT. Reflection-based code (many JSON, DI, ORM libraries) works in F9 and fails or trims away in the published exe. Turn on the AOT/trim analyzers in the template and list an AOT-safe stack in the docs. | |
+| 25 | **AOT gap between F9 and Build.** F9 runs on the JIT; Build is NativeAOT. Reflection-based code (many JSON, DI, ORM libraries) works in F9 and fails or trims away in the published exe. ~~Turn on the AOT/trim analyzers in the template and list an AOT-safe stack in the docs.~~ **Fixed** (M11, 2026-09-28): the `dotnet new` template and `samples/Robustness` already had `EnableAotAnalyzer`/`EnableTrimAnalyzer`; added to the designer's own new-project scaffold (`RadProject.Create`) too, plus `docs/aot-safe-stack.md`. | |
 | 26 | **Distribution.** No `.app` bundling, no exe icon or version resource, no installer/MSIX/AppImage tooling; three native libraries ship next to the exe; the designer is 230 MB and building needs the SDK plus C++ tools, which strains "light". Signing is documented but not automated. | |
 
 ### P2 (API polish)
@@ -84,34 +89,41 @@ without a workaround; **P1** = painful but workable; **P2** = polish.
 | Layout | Align, Anchors, plus Flow/Grid/Stack panels, AutoSize | Align, Anchors, constraints | Missing flow/grid/auto-size |
 | Standard controls | ~40 common, plus grids, calendar, date picker, rich edit, masked edit, check-list, up-down | ~35 (no grid, date/calendar, rich/masked edit, check-list) | Missing data-entry set |
 | Data | DataSets, FireDAC, LiveBindings, data-aware controls | none | Missing (bindings are a start) |
-| Custom drawing | Full canvas | rects/ellipses/text/images only | Missing lines/paths/gradients |
+| Custom drawing | Full canvas | rects/ellipses/lines/paths/gradients/text/images | **On par** (fixed, M12) |
 | Actions | `TActionList` (one command, many UI surfaces) | none (menu items and buttons share handlers) | Missing; a light `Action` would help |
 | Reuse | Frames, inheritance, packages, DataModules | none yet | Missing |
 | Windows/App | full window model, `Screen`, `Application` events, tray | Show/ShowModal/Close only | Missing basics |
-| Threading | `TThread`, `Synchronize`, `TTask` | none in Core | Missing |
+| Threading | `TThread`, `Synchronize`, `TTask` | `SynchronizationContext` installed, `Application.Post`/`PostToUiThread`, `Application.ThreadException` | **Fixed** (M11); no `TThread`/`TTask` equivalent, but `await` and `Task.Run` + marshal-back both work |
 | Localization/RTL | yes | none / none | Missing |
 | Accessibility | UIA/MSAA (VCL); FMX partial | none | Missing |
-| IDE | inspector, structure, tab order, align tools, code editor, debugger, refactoring | inspector, structure, tab order, external editor, Roslyn rename | Fine for "light"; debugger via the IDE |
+| IDE | inspector, structure, tab order, align tools, code editor, debugger, refactoring | inspector, structure, tab order, align/size/space tools, a categorized palette, external editor, Roslyn rename (project-wide, textual) | Fine for "light"; debugger via the IDE — see [designer-gap-analysis.md](designer-gap-analysis.md) |
 | Output | one exe (VCL), mobile, macOS, Linux | NativeAOT exe + 3 libs, Win/mac/Linux | **Ahead** on code protection; behind on mobile |
 | Web | none native (third parties transpile to JS) | not yet | Opportunity |
 | Pixel identity across OS | not a goal (VCL native; FMX styles) | goal, tested | **Ahead**, if CI confirms it |
 
 ## 4. Suggested order of work (native)
 
-Small first, because several P0s are a day each:
+**Status as of 2026-09-28:** items 1 and 3 are done (M11/M12, predating this update); drag-and-drop and file drop
+(part of item 8) are done this session; mnemonics (also item 8), CI (item 2), window model (item 4), lists/grid
+(item 5), frames (item 6), data binding (item 7), layout panels (item 8), SVG (item 8), and bidi/accessibility
+(item 9) are still open.
 
-1. **Robustness (S):** UI-thread marshalling in Core (`Form.Queue`, an installed `SynchronizationContext` so `await`
-   works), an `Application.OnException` with a default dialog, tooltips, Edit/Memo context menu.
+1. ~~**Robustness (S)**~~ — **done**: UI-thread marshalling (`SynchronizationContext`), `Application.ThreadException`
+   with a default dialog, tooltips, Edit/Memo context menu.
 2. **Get CI green on macOS and Linux (S–M):** push the repo, look at the golden diffs, decide whether ARM needs
-   its own goldens or a tolerance of 0. Everything else depends on trusting this.
-3. **Canvas completeness (S):** lines, polylines, paths, arcs, gradients, offscreen bitmaps; per-control `Font`.
+   its own goldens or a tolerance of 0. Everything else depends on trusting this. **Still open** — no evidence the
+   matrix has actually run since this was written; verify before assuming otherwise.
+3. ~~**Canvas completeness (S)**~~ — **done**: lines, polylines, paths, arcs, gradients, offscreen bitmaps
+   (`Bitmap`); per-control `Font` (`EffectiveFont`).
 4. **Window model (M):** `WindowState`, border style, position, icon, min/max size, and per-monitor scale change.
+   Still open.
 5. **Lists and grid (L):** scroll bars and horizontal scroll in ListView/TreeView, icons, checkboxes, multi-select,
-   sort; then a StringGrid/DrawGrid with virtual mode.
-6. **Frames / user controls (M):** allow a non-Form root in `*.radform.json`.
-7. **Data binding (M–L).**
-8. **Layout panels and auto-size (M), mnemonics (S), file drop (S), SVG (M).**
-9. **Bidi, accessibility (L each)**, decided by target market.
+   sort; then a StringGrid/DrawGrid with virtual mode. Still open.
+6. **Frames / user controls (M):** allow a non-Form root in `*.radform.json`. Still open.
+7. **Data binding (M–L).** Still open.
+8. **Layout panels and auto-size (M), mnemonics (S),** ~~**file drop (S)**~~ **(done)**, ~~**in-app drag-and-drop**~~
+   **(done, not originally listed here — see gap 17)**, **SVG (M) still open.**
+9. **Bidi, accessibility (L each)**, decided by target market. Still open.
 
 ## 5. Running on the web with WebAssembly (post-1.0)
 
@@ -224,14 +236,16 @@ Everything else in this section can wait until after 1.0.
 
 ## 6. Bottom line
 
+**Status as of 2026-09-28:** 1 and 3 below are done (M11/M12); the rest are still the real list.
+
 RADSharp's core is a credible base for real apps. For 1.0 the gaps that hurt most are not exotic:
 
-1. safe UI-thread access and error handling,
+1. ~~safe UI-thread access and error handling~~ — **done**,
 2. a real grid and fuller list/tree controls,
-3. a complete canvas and per-control fonts,
+3. ~~a complete canvas and per-control fonts~~ — **done**,
 4. a proper window and DPI model,
 5. reusable frames,
-6. proof that the pixel-identical promise holds on macOS and Linux.
+6. ~~proof that the pixel-identical promise holds on Linux~~ — **done (WSL2 Ubuntu x64, 2026-09-28)**; macOS still unverified, deprioritized.
 
 The web can wait until after 1.0. Its shape is clear and mostly bounded: a new browser host on Mono WASM with
 Skia/HarfBuzz WASM, presenting a CPU bitmap. The one decision that reaches into today's API is **synchronous modals

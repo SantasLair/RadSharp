@@ -54,6 +54,16 @@ public class CodeIntegrationTests
 
     static string TempDir() => Directory.CreateTempSubdirectory("radsharp-").FullName;
 
+    /// <summary>M11 item 7: designer-created projects opt into the AOT/trim analyzers, not just the template.</summary>
+    [Fact]
+    public void New_project_enables_aot_and_trim_analyzers()
+    {
+        var project = RadProject.Create(TempDir(), "AnalyzedApp");
+        var csproj = File.ReadAllText(project.ProjectFile);
+        Assert.Contains("<EnableAotAnalyzer>true</EnableAotAnalyzer>", csproj);
+        Assert.Contains("<EnableTrimAnalyzer>true</EnableTrimAnalyzer>", csproj);
+    }
+
     /// <summary>
     /// Roadmap M8, "done when": new project → drop a Button → double-click → write the handler → F9
     /// (live run: the handler really runs) → (Build: see the slow test below).

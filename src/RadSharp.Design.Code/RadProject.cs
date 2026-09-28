@@ -69,6 +69,8 @@ public sealed class RadProject
                 <ImplicitUsings>enable</ImplicitUsings>
                 <RootNamespace>{ns}</RootNamespace>
                 <PublishAot>true</PublishAot>
+                <EnableAotAnalyzer>true</EnableAotAnalyzer>
+                <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
               </PropertyGroup>
 
               <ItemGroup>

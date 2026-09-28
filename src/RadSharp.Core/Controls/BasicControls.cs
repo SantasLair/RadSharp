@@ -74,6 +74,13 @@ public class Button : Control
     /// <summary>Clicking the button sets its form's <see cref="Form.ModalResult"/>, which closes a modal dialog.</summary>
     [Published(Category = "Behavior")] public ModalResult ModalResult { get; set; }
 
+    /// <summary>The name of an ImageList whose pictures this button shows by <see cref="ImageIndex"/>.</summary>
+    [Published("images", Category = "Appearance")] public string ImagesName { get; set; } = "";
+    [Published(Category = "Appearance")] public int ImageIndex { get; set; } = -1;
+
+    /// <summary>The icon to draw, if any. Overridden by <see cref="ToolButton"/> to fall back to its toolbar's image list.</summary>
+    protected virtual Picture? ResolveIcon() => ImageList.Resolve(this, ImagesName, ImageIndex);
+
     protected internal override void OnClick()
     {
         base.OnClick();
@@ -147,7 +154,16 @@ public class Button : Control
         var border = enabled && (IsHovered || Default) ? t.Accent : t.ButtonBorder;
         canvas.DrawRoundBorder(r, radius, border, canvas.Px(1));
         if (Focused && OwningForm is { ShowFocusCues: true }) canvas.DrawFocusRing(r, radius);
-        canvas.DrawText(Caption, EffectiveFont, enabled ? t.Text : t.TextDisabled, r, TextAlign.Center, VerticalAlign.Center);
+        var textRect = r;
+        if (ResolveIcon() is { } pic)
+        {
+            int s = canvas.Px(16);
+            int x = Caption.Length > 0 ? canvas.Px(10) : (Width - s) / 2;
+            canvas.DrawPicture(pic, new Rect(x, (Height - s) / 2, s, s));
+            if (Caption.Length > 0) textRect = new Rect(x + s + canvas.Px(6), 0, Width - x - s - canvas.Px(16), Height);
+        }
+        canvas.DrawText(Caption, EffectiveFont, enabled ? t.Text : t.TextDisabled, textRect,
+            textRect == r ? TextAlign.Center : TextAlign.Left, VerticalAlign.Center);
     }
 
 }

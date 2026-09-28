@@ -16,6 +16,10 @@ public abstract class ToggleControl : Control
 
     [Published(Category = "Appearance")] public string Caption { get => _caption; set { _caption = value; Invalidate(); } }
 
+    /// <summary>The name of an ImageList whose pictures this control shows by <see cref="ImageIndex"/>, between the indicator and the caption.</summary>
+    [Published("images", Category = "Appearance")] public string ImagesName { get; set; } = "";
+    [Published(Category = "Appearance")] public int ImageIndex { get; set; } = -1;
+
     [Published(Category = "Behavior")]
     public bool Checked
     {
@@ -64,6 +68,12 @@ public abstract class ToggleControl : Control
     protected void PaintCaption(Canvas canvas, Rect indicator)
     {
         int x = indicator.Width + canvas.Px(6);
+        if (ImageList.Resolve(this, ImagesName, ImageIndex) is { } pic)
+        {
+            int s = canvas.Px(16);
+            canvas.DrawPicture(pic, new Rect(x, (Height - s) / 2, s, s));
+            x += s + canvas.Px(4);
+        }
         var color = IsEffectivelyEnabled ? canvas.Theme.Text : canvas.Theme.TextDisabled;
         canvas.DrawText(Caption, EffectiveFont, color, new Rect(x, 0, Width - x, Height), TextAlign.Left, VerticalAlign.Center);
     }
