@@ -44,7 +44,7 @@ public sealed record Theme
 
     public static Theme Dark { get; } = new()
     {
-        FormBackground = Color.FromHex("#1E1E1E"),
+        FormBackground = Color.FromHex("#252526"),
         PanelBackground = Color.FromHex("#252526"),
         PanelBorder = Color.FromHex("#3E3E42"),
         Text = Color.FromHex("#E0E0E0"),
