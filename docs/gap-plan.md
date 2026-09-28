@@ -113,6 +113,17 @@ half of the original gap-analysis's gap 17 (OS file drop is still open). +6 test
 from SDL's `SDL_EVENT_DROP_*` events. This closes gap 17 completely, both halves. +2 tests. Full suite: **208**
 passing.
 
+**Addendum 7 (2026-09-28):** corrected Addendum 6 the same day, before anything downstream depended on it — a
+stated real use case ("drop image files onto a control or a form") showed `Form.FilesDropped` was too narrow: a
+whole-form-only event can't tell a specific control a file landed on *it*. Removed `Form.FilesDropped`/
+`FilesDroppedEventArgs` and unified file drop onto the existing `Control.OnDragOver`/`OnDragDrop`
+(`DragEventArgs.Files`/`IsFileDrop`), sharing the bubbling logic with in-app dragging
+(`Form.BubbleDragOver`, generalised from the private helper the previous addendum added). Also caught a real bug
+while rewriting the tests: `ProcessFilesDropped` was missing the `PerformLayout()` call every other `Process*`
+entry point makes, so `AbsoluteLeft`/`AbsoluteTop` (and therefore a drop's local coordinates) could be stale if a
+drop arrived before any other input had triggered a layout pass. The rewritten tests caught this immediately.
+4 tests replace the previous 2 (+2 net). Full suite: **210** passing.
+
 ---
 
 ## M10: Trust the foundation (S)
@@ -191,13 +202,20 @@ at 100 % and 150 %; a form with mixed fonts round-trips byte-identically.
    same layout as a fresh load at 100 %, and the 150 % golden matches a fresh load at 150 %.
 3. **Mnemonics:** `&` in captions for Label (with `FocusControl`), Button, CheckBox, RadioButton, GroupBox, TabSheet and
    menus; Alt+letter activates; underline shown on Alt (Windows/Linux); documented as spec Appendix C additions.
-4. ~~**Files dropped from the desktop**~~ **(done, 2026-09-28)**: `Form.FilesDropped` (paths, drop position),
-   raised from `Form.ProcessFilesDropped`. Wired in `FormWindow.HandleEvent`
-   (`RadSharp.Platform.Sdl`) from `SDL_EVENT_DROP_BEGIN`/`_FILE`/`_COMPLETE`: paths accumulate between `BEGIN` and
-   `COMPLETE` so a multi-file drop raises one event with every path, not one event per file, at the position of
-   the last `DROP_FILE`. Added to `Dispatch`'s window-routing and modal-blocking checks alongside the other input
-   event types. 2 new tests at the `Form` API level (`InputTests.cs`); not hand-verified against a real OS drag on
-   any platform — nothing in this repo's test infrastructure drives actual SDL events end to end.
+4. ~~**Files dropped from the desktop**~~ **(done, 2026-09-28)**: unified onto the same `OnDragOver`/`OnDragDrop`
+   a control already uses for in-app drags, rather than a separate form-only event — a real use case (drop image
+   files onto a specific control, e.g. an image viewer) needs the drop delivered to *that* control directly, not
+   just "somewhere on the form, go figure out where." `DragEventArgs` gained `Files` (set only for a desktop drop;
+   null for an in-app drag) and `IsFileDrop`; `Form.ProcessFilesDropped(paths, x, y)` bubbles from whatever's under
+   the drop point up to the form (extracted as `Form.BubbleDragOver`, shared with in-app dragging) — a control
+   accepts in `OnDragOver` exactly like an in-app drag, and reads `e.Files` in `OnDragDrop`. If nothing accepts,
+   nothing fires, not even on the form; the form has to opt in via its own `DragOver`/`DragDrop` like any other
+   control. Wired in `FormWindow.HandleEvent` (`RadSharp.Platform.Sdl`) from
+   `SDL_EVENT_DROP_BEGIN`/`_FILE`/`_COMPLETE`: paths accumulate between `BEGIN` and `COMPLETE` so a multi-file drop
+   is one call with every path, not one per file, at the position of the last `DROP_FILE`. Added to `Dispatch`'s
+   window-routing and modal-blocking checks alongside the other input event types. 4 tests at the `Form` API level
+   (`InputTests.cs`); not hand-verified against a real OS drag on any platform — nothing in this repo's test
+   infrastructure drives actual SDL events end to end.
 
    ~~**In-app drag and drop**~~ **(done, 2026-09-28, pulled forward from M13)**: closed as a real, general
    primitive rather than a one-off — `designer-gap-analysis.md` §3.7's palette needed it, and building it bespoke

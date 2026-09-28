@@ -316,19 +316,56 @@ public class InputTests
     }
 
     // ---- Files dropped from the desktop ----
+    //
+    // Delivered through the same OnDragOver/OnDragDrop a control already uses for in-app drags, bubbling
+    // from whatever's under the drop point up to the form, so a specific control (an image viewer, say) can
+    // accept a file dropped on it directly, without hand-checking coordinates against every control's bounds.
 
     [Fact]
-    public void Files_dropped_raises_the_event_with_every_path_and_the_drop_position()
+    public void Files_dropped_on_a_control_that_accepts_deliver_the_paths_via_drag_over_and_drag_drop()
     {
         var f = NewForm();
-        FilesDroppedEventArgs? received = null;
-        f.FilesDropped += (sender, e) => { Assert.Same(f, sender); received = e; };
+        var target = Put(f, new Probe { Name = "target" }, 10, 10, 100, 100);
+        DragEventArgs? overArgs = null, dropArgs = null;
+        target.DragOver += (_, e) => { overArgs = e; e.Accept = true; };
+        target.DragDrop += (_, e) => dropArgs = e;
 
-        f.ProcessFilesDropped(["a.map", "b.map"], 40, 60);
+        f.ProcessFilesDropped(["a.png", "b.png"], 30, 30);
 
-        Assert.NotNull(received);
-        Assert.Equal(["a.map", "b.map"], received!.Paths);
-        Assert.Equal((40, 60), (received.X, received.Y));
+        Assert.True(overArgs!.IsFileDrop);
+        Assert.Equal(["a.png", "b.png"], overArgs.Files!);
+        Assert.Equal((20, 20), (overArgs.X, overArgs.Y));   // 30,30 relative to target's 10,10
+        Assert.NotNull(dropArgs);
+        Assert.Equal(["a.png", "b.png"], dropArgs!.Files!);
+    }
+
+    [Fact]
+    public void Files_dropped_bubble_to_the_form_when_no_control_accepts_but_the_form_does()
+    {
+        var f = NewForm();
+        Put(f, new Probe { Name = "target" }, 10, 10, 100, 100);   // never sets Accept
+        DragEventArgs? formDrop = null;
+        f.DragOver += (_, e) => e.Accept = true;
+        f.DragDrop += (_, e) => formDrop = e;
+
+        f.ProcessFilesDropped(["a.png"], 30, 30);
+
+        Assert.NotNull(formDrop);
+        Assert.Equal(["a.png"], formDrop!.Files!);
+    }
+
+    [Fact]
+    public void Files_dropped_where_nothing_accepts_fire_no_drag_drop_anywhere()
+    {
+        var f = NewForm();
+        var target = Put(f, new Probe { Name = "target" }, 10, 10, 100, 100);
+        bool dropped = false;
+        target.DragDrop += (_, _) => dropped = true;
+        f.DragDrop += (_, _) => dropped = true;
+
+        f.ProcessFilesDropped(["a.png"], 30, 30);
+
+        Assert.False(dropped);
     }
 
     [Fact]
@@ -336,7 +373,7 @@ public class InputTests
     {
         var f = NewForm();
         bool raised = false;
-        f.FilesDropped += (_, _) => raised = true;
+        f.DragOver += (_, e) => { raised = true; e.Accept = true; };
         f.ProcessFilesDropped([], 0, 0);
         Assert.False(raised);
     }

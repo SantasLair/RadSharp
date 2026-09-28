@@ -481,7 +481,7 @@ public class Form : Control
     public void ProcessMouseMove(int x, int y, KeyModifiers modifiers = KeyModifiers.None)
     {
         PerformLayout();
-        if (_dragSource != null) { _dragAcceptedTarget = UpdateDragOver(x, y); return; }
+        if (_dragSource != null) { _dragAcceptedTarget = BubbleDragOver(_dragSource, x, y); return; }
         UpdateHover(x, y);
         var target = _capture ?? _hover;
         if (target == null || !target.IsEffectivelyEnabled) return;
@@ -491,7 +491,7 @@ public class Form : Control
             && (Math.Abs(x - _pressX) > DragThreshold || Math.Abs(y - _pressY) > DragThreshold))
         {
             BeginDrag(_capture);
-            _dragAcceptedTarget = UpdateDragOver(x, y);
+            _dragAcceptedTarget = BubbleDragOver(_dragSource!, x, y);
             return;
         }
         target.OnMouseMove(Local(target, x, y, MouseButton.Left, modifiers));
@@ -510,13 +510,15 @@ public class Form : Control
     }
 
     /// <summary>Bubbles <c>OnDragOver</c> from the control under (x, y) up through its parents (like
-    /// <see cref="ProcessMouseWheel"/>) until one accepts or handles it. Returns the accepting control, if any.</summary>
-    Control? UpdateDragOver(int x, int y)
+    /// <see cref="ProcessMouseWheel"/>) until one accepts or handles it. Returns the accepting control, if
+    /// any. Shared by in-app dragging and <see cref="ProcessFilesDropped"/>, so one control's <c>OnDragOver</c>
+    /// can handle both the same way — check <c>e.IsFileDrop</c> to tell them apart.</summary>
+    Control? BubbleDragOver(Control source, int x, int y, IReadOnlyList<string>? files = null)
     {
         for (Control? c = HitTestForm(x, y); c != null; c = c.Parent)
         {
             if (!c.IsEffectivelyEnabled) continue;
-            var e = new DragEventArgs(_dragSource!, x - c.AbsoluteLeft, y - c.AbsoluteTop);
+            var e = new DragEventArgs(source, x - c.AbsoluteLeft, y - c.AbsoluteTop) { Files = files };
             c.OnDragOver(e);
             if (e.Accept) return c;
             if (e.Handled) break;
@@ -654,15 +656,21 @@ public class Form : Control
         if (target.IsEffectivelyEnabled) target.OnTextComposition(new TextCompositionEventArgs(text, cursor, selectionLength));
     }
 
-    /// <summary>One or more files were dropped onto this form from the desktop (the host's file manager).</summary>
-    [Published] public event FilesDroppedEvent? FilesDropped;
-
-    /// <summary>Raises <see cref="FilesDropped"/>. The host calls this once per drop, even when the desktop
-    /// delivered it as several files in a row.</summary>
+    /// <summary>
+    /// One or more files were dropped onto this form from the desktop (the host's file manager). Delivered
+    /// through the same <see cref="Control.OnDragOver"/>/<see cref="Control.OnDragDrop"/> a control already
+    /// uses for in-app drags (<see cref="DragEventArgs.Files"/> is set, <see cref="DragEventArgs.IsFileDrop"/>
+    /// is true), bubbling from whatever's directly under the drop up to the form — so a specific control (an
+    /// image viewer, say) can accept files dropped on *it* without hand-checking coordinates, and the form
+    /// itself still sees the drop if nothing more specific wants it. The host calls this once per drop, even
+    /// when the desktop delivered it as several files in a row.
+    /// </summary>
     public void ProcessFilesDropped(IReadOnlyList<string> paths, int x, int y)
     {
         if (paths.Count == 0) return;
-        FilesDropped?.Invoke(this, new FilesDroppedEventArgs(paths, x, y));
+        PerformLayout();
+        if (BubbleDragOver(this, x, y, paths) is { } target)
+            target.OnDragDrop(new DragEventArgs(this, x - target.AbsoluteLeft, y - target.AbsoluteTop) { Files = paths });
     }
 
     /// <summary>

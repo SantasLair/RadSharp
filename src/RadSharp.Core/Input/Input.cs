@@ -52,10 +52,13 @@ public sealed class MouseWheelEventArgs(int x, int y, float deltaX, float deltaY
 }
 
 /// <summary>
-/// An in-app drag in progress (Delphi's OnDragOver/OnDragDrop): <see cref="Source"/> is the control the
-/// drag began on, since there's no separate payload object — a target inspects the source itself (e.g.
-/// <c>e.Source is TreeView tv ? tv.Selected?.Tag : null</c>) to decide what's being dragged, the same way
-/// Delphi's own <c>Source: TObject</c> parameter works.
+/// An in-app drag, or a file drop from the desktop, in progress (Delphi's OnDragOver/OnDragDrop). For an
+/// in-app drag, <see cref="Source"/> is the control it began on and there's no separate payload object — a
+/// target inspects the source itself (e.g. <c>e.Source is TreeView tv ? tv.Selected?.Tag : null</c>) to
+/// decide what's being dragged, the same way Delphi's own <c>Source: TObject</c> parameter works. A file
+/// drop from the desktop uses the same event so one control (say, an image viewer) can handle both a drag
+/// from elsewhere in the app and a file dragged in from Explorer/Finder the same way — <see cref="Files"/>
+/// is set, and <see cref="Source"/> is the form, which carries no useful "what's being dragged" itself.
 /// </summary>
 public sealed class DragEventArgs(Control source, int x, int y) : EventArgs
 {
@@ -63,6 +66,9 @@ public sealed class DragEventArgs(Control source, int x, int y) : EventArgs
     /// <summary>Pointer position relative to the control receiving the event.</summary>
     public int X { get; } = x;
     public int Y { get; } = y;
+    /// <summary>Set only for a file drop from the desktop: the paths being dropped. Null for an in-app drag.</summary>
+    public IReadOnlyList<string>? Files { get; init; }
+    public bool IsFileDrop => Files != null;
     /// <summary>Set true by an <c>OnDragOver</c> handler to allow a drop here; read again on drop.</summary>
     public bool Accept { get; set; }
     /// <summary>Set by a handler to stop the event bubbling to the parent.</summary>
@@ -105,17 +111,6 @@ public delegate void MouseWheelEvent(Control sender, MouseWheelEventArgs e);
 public delegate void KeyEvent(Control sender, KeyEventArgs e);
 public delegate void TextInputEvent(Control sender, TextInputEventArgs e);
 public delegate void DragEvent(Control sender, DragEventArgs e);
-
-/// <summary>One or more files dropped onto a form from the desktop (the host's file manager).</summary>
-public sealed class FilesDroppedEventArgs(IReadOnlyList<string> paths, int x, int y) : EventArgs
-{
-    public IReadOnlyList<string> Paths { get; } = paths;
-    /// <summary>Where the drop landed, in form pixels.</summary>
-    public int X { get; } = x;
-    public int Y { get; } = y;
-}
-
-public delegate void FilesDroppedEvent(Form sender, FilesDroppedEventArgs e);
 
 /// <summary>Delphi's <c>TDragMode</c>: whether pressing and moving on this control starts an in-app drag by
 /// itself, or only when its own code calls <see cref="Form.BeginDrag"/>.</summary>
