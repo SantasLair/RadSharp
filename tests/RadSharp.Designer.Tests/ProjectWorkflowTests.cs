@@ -313,6 +313,51 @@ public class ProjectWorkflowTests
     }
 
     [Fact]
+    public void Dragging_a_palette_entry_onto_the_surface_creates_it_there()
+    {
+        var project = RadProject.Create(TempDir(), "DragPlace");
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        var tv = (TreeView)d.FindControl("tvPalette")!;
+        var buttonNode = tv.Nodes.Single(n => n.Text == "Standard").Nodes.Single(n => n.Text == "Button");
+
+        // Establish the source's capture with a real press, then pick the entry actually being dragged
+        // (a raw pixel press would land on whatever row is there, likely a category header, not Button)
+        // before starting the drag with the same general primitive DragMode.Automatic uses internally.
+        d.Simulate.Press(tv.AbsoluteLeft + 5, tv.AbsoluteTop + 5);
+        tv.Selected = buttonNode;
+        d.BeginDrag(tv);
+
+        var surface = d.ActiveForm!.Surface;
+        var (sx, sy) = surface.DesignToScreen(64, 88);   // already grid-aligned: no snap rounding to reason about
+        d.Simulate.MoveTo(surface.AbsoluteLeft + sx, surface.AbsoluteTop + sy);
+        Assert.Equal(Cursor.Default, d.CurrentCursor);   // the surface accepted the drop
+        d.Simulate.Release(surface.AbsoluteLeft + sx, surface.AbsoluteTop + sy);
+
+        var created = Assert.IsType<Button>(doc.Primary);
+        Assert.Equal((64, 88), (created.Left, created.Top));
+    }
+
+    [Fact]
+    public void Dragging_a_palette_entry_that_does_not_land_on_the_surface_creates_nothing()
+    {
+        var project = RadProject.Create(TempDir(), "DragMiss");
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        var tv = (TreeView)d.FindControl("tvPalette")!;
+        var buttonNode = tv.Nodes.Single(n => n.Text == "Standard").Nodes.Single(n => n.Text == "Button");
+
+        d.Simulate.Press(tv.AbsoluteLeft + 5, tv.AbsoluteTop + 5);
+        tv.Selected = buttonNode;
+        d.BeginDrag(tv);
+        d.Simulate.MoveTo(tv.AbsoluteLeft + 5, tv.AbsoluteTop + 60);   // still over the palette itself
+        Assert.Equal(Cursor.NotAllowed, d.CurrentCursor);
+        d.Simulate.Release(tv.AbsoluteLeft + 5, tv.AbsoluteTop + 60);
+
+        Assert.Empty(doc.Form.Children);
+    }
+
+    [Fact]
     public void Palette_every_leaf_has_a_toolbox_icon()
     {
         var project = RadProject.Create(TempDir(), "PaletteIcons");

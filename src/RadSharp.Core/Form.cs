@@ -14,6 +14,9 @@ public class Form : Control
 
     Control? _hover, _capture, _focused;
     MouseButton _captureButton;
+    int _pressX, _pressY;
+    Control? _dragSource, _dragAcceptedTarget;
+    const int DragThreshold = 4;
     readonly List<Control> _popups = [];
     readonly List<Control?> _popupOwners = [];
     bool _showFocusCues;
@@ -427,8 +430,11 @@ public class Form : Control
     // Input routing (spec, Appendix C). Coordinates are form pixels.
     // =====================================================================
 
-    /// <summary>The cursor for the control under the pointer (or the one capturing the mouse).</summary>
-    public Cursor CurrentCursor => (_capture ?? _hover)?.Cursor ?? Cursor.Default;
+    /// <summary>The cursor for the control under the pointer (or the one capturing the mouse); while an
+    /// in-app drag is on, it instead shows whether the current position would accept a drop.</summary>
+    public Cursor CurrentCursor => _dragSource != null
+        ? (_dragAcceptedTarget != null ? Cursor.Default : Cursor.NotAllowed)
+        : (_capture ?? _hover)?.Cursor ?? Cursor.Default;
 
     /// <summary>The deepest control at a form point: open popups first (topmost first), then the form.</summary>
     public Control HitTestForm(int x, int y)
@@ -475,10 +481,47 @@ public class Form : Control
     public void ProcessMouseMove(int x, int y, KeyModifiers modifiers = KeyModifiers.None)
     {
         PerformLayout();
+        if (_dragSource != null) { _dragAcceptedTarget = UpdateDragOver(x, y); return; }
         UpdateHover(x, y);
         var target = _capture ?? _hover;
-        if (target != null && target.IsEffectivelyEnabled)
-            target.OnMouseMove(Local(target, x, y, MouseButton.Left, modifiers));
+        if (target == null || !target.IsEffectivelyEnabled) return;
+        // Automatic drag: once the press moves past a small threshold, start dragging instead of
+        // delivering further ordinary moves to the source (Delphi's dmAutomatic).
+        if (_capture != null && _capture.DragMode == DragMode.Automatic
+            && (Math.Abs(x - _pressX) > DragThreshold || Math.Abs(y - _pressY) > DragThreshold))
+        {
+            BeginDrag(_capture);
+            _dragAcceptedTarget = UpdateDragOver(x, y);
+            return;
+        }
+        target.OnMouseMove(Local(target, x, y, MouseButton.Left, modifiers));
+    }
+
+    /// <summary>Starts an in-app drag from <paramref name="source"/> (Delphi's <c>BeginDrag</c>): further
+    /// mouse movement raises <see cref="Control.OnDragOver"/> on whatever's under the pointer instead of
+    /// the source's own <c>OnMouseMove</c>, until the button is released over a control that accepted it.
+    /// Call this from a control's own input handling for <see cref="DragMode.Manual"/>; automatic mode
+    /// calls it for you.</summary>
+    public void BeginDrag(Control source)
+    {
+        if (_dragSource != null) return;
+        _dragSource = source;
+        _dragAcceptedTarget = null;
+    }
+
+    /// <summary>Bubbles <c>OnDragOver</c> from the control under (x, y) up through its parents (like
+    /// <see cref="ProcessMouseWheel"/>) until one accepts or handles it. Returns the accepting control, if any.</summary>
+    Control? UpdateDragOver(int x, int y)
+    {
+        for (Control? c = HitTestForm(x, y); c != null; c = c.Parent)
+        {
+            if (!c.IsEffectivelyEnabled) continue;
+            var e = new DragEventArgs(_dragSource!, x - c.AbsoluteLeft, y - c.AbsoluteTop);
+            c.OnDragOver(e);
+            if (e.Accept) return c;
+            if (e.Handled) break;
+        }
+        return null;
     }
 
     public void ProcessMouseDown(int x, int y, MouseButton button, KeyModifiers modifiers = KeyModifiers.None, int clicks = 1)
@@ -501,6 +544,7 @@ public class Form : Control
         if (hit.TabStop) SetFocus(hit);
         _capture = hit;
         _captureButton = button;
+        _pressX = x; _pressY = y;
         UpdateHover(x, y);
         hit.OnMouseDown(Local(hit, x, y, button, modifiers, clicks));
 
@@ -520,6 +564,18 @@ public class Form : Control
     public void ProcessMouseUp(int x, int y, MouseButton button, KeyModifiers modifiers = KeyModifiers.None)
     {
         PerformLayout();
+        if (_dragSource != null)
+        {
+            if (button != _captureButton) return;
+            var source = _dragSource;
+            var accepted = _dragAcceptedTarget;
+            _dragSource = null;
+            _dragAcceptedTarget = null;
+            _capture = null;
+            accepted?.OnDragDrop(new DragEventArgs(source, x - accepted.AbsoluteLeft, y - accepted.AbsoluteTop));
+            UpdateHover(x, y);
+            return;
+        }
         if (_capture == null || button != _captureButton) return;
         var target = _capture;
         _capture = null;

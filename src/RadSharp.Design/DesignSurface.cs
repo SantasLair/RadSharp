@@ -161,6 +161,25 @@ public class DesignSurface : Control
         return form;
     }
 
+    /// <summary>
+    /// Creates a control of <paramref name="cls"/> at a surface-local point, default-sized and grid-snapped,
+    /// same placement rule as a plain click from the palette (<c>Mode.Create</c> in <see cref="OnMouseUp"/>).
+    /// For drag-and-drop from the palette: the surface itself doesn't know where a drag's class comes from
+    /// (it has no idea what a <c>TreeView</c> or a palette even is) — the designer resolves that from
+    /// <c>DragEventArgs.Source</c> and calls this. Returns null if there's no open document.
+    /// </summary>
+    public Control? CreateAt(ComponentClass cls, int screenX, int screenY)
+    {
+        if (_doc == null) return null;
+        var (dx, dy) = ScreenToDesign(screenX, screenY);
+        int sx = Snap(dx, free: false), sy = Snap(dy, free: false);
+        var parent = ContainerAt(sx, sy, cls);
+        var (ox, oy) = ParentOrigin(parent);
+        var control = _doc.Create(cls, typeof(Component).IsAssignableFrom(cls.Type) ? _doc.Form : parent, sx - ox, sy - oy);
+        Created?.Invoke(control);
+        return control;
+    }
+
     // ---- Mouse ----
 
     protected override void OnMouseDown(MouseEventArgs e)

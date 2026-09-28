@@ -17,6 +17,13 @@ public partial class Control
     [Published("onFocus")] public event NotifyEvent? GotFocus;
     [Published("onBlur")] public event NotifyEvent? LostFocus;
     [Published("onResize")] public event NotifyEvent? Resized;
+    [Published] public event DragEvent? DragOver;
+    [Published] public event DragEvent? DragDrop;
+
+    /// <summary>Manual (the default): this control starts a drag only when its own code calls
+    /// <see cref="Form.BeginDrag"/>. Automatic: pressing and moving past a small threshold starts one by
+    /// itself, the way dragging an item out of a list or tree normally works.</summary>
+    [Published(Category = "Behavior")] public DragMode DragMode { get; set; } = DragMode.Manual;
 
     PopupMenu? _contextMenu;
 
@@ -65,6 +72,12 @@ public partial class Control
     protected internal virtual void OnTextInput(TextInputEventArgs e) => TextInput?.Invoke(this, e);
     protected internal virtual void OnGotFocus() { Invalidate(); GotFocus?.Invoke(this); }
     protected internal virtual void OnLostFocus() { Invalidate(); LostFocus?.Invoke(this); }
+
+    /// <summary>An in-app drag is over this control; set <c>e.Accept</c> to allow dropping here. Bubbles to
+    /// the parent (like <see cref="OnMouseWheel"/>) unless a handler sets <c>e.Accept</c> or <c>e.Handled</c>.</summary>
+    protected internal virtual void OnDragOver(DragEventArgs e) => DragOver?.Invoke(this, e);
+    /// <summary>An in-app drag was released over this control after it accepted <see cref="OnDragOver"/>.</summary>
+    protected internal virtual void OnDragDrop(DragEventArgs e) => DragDrop?.Invoke(this, e);
 
     /// <summary>An IME composition changed while this control has focus.</summary>
     protected internal virtual void OnTextComposition(TextCompositionEventArgs e) { }

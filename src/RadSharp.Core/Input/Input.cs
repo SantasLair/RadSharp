@@ -51,6 +51,24 @@ public sealed class MouseWheelEventArgs(int x, int y, float deltaX, float deltaY
     public bool Handled { get; set; }
 }
 
+/// <summary>
+/// An in-app drag in progress (Delphi's OnDragOver/OnDragDrop): <see cref="Source"/> is the control the
+/// drag began on, since there's no separate payload object — a target inspects the source itself (e.g.
+/// <c>e.Source is TreeView tv ? tv.Selected?.Tag : null</c>) to decide what's being dragged, the same way
+/// Delphi's own <c>Source: TObject</c> parameter works.
+/// </summary>
+public sealed class DragEventArgs(Control source, int x, int y) : EventArgs
+{
+    public Control Source { get; } = source;
+    /// <summary>Pointer position relative to the control receiving the event.</summary>
+    public int X { get; } = x;
+    public int Y { get; } = y;
+    /// <summary>Set true by an <c>OnDragOver</c> handler to allow a drop here; read again on drop.</summary>
+    public bool Accept { get; set; }
+    /// <summary>Set by a handler to stop the event bubbling to the parent.</summary>
+    public bool Handled { get; set; }
+}
+
 public sealed class KeyEventArgs(Key key, KeyModifiers modifiers, bool repeat = false) : EventArgs
 {
     public Key Key { get; } = key;
@@ -86,6 +104,11 @@ public delegate void MouseEvent(Control sender, MouseEventArgs e);
 public delegate void MouseWheelEvent(Control sender, MouseWheelEventArgs e);
 public delegate void KeyEvent(Control sender, KeyEventArgs e);
 public delegate void TextInputEvent(Control sender, TextInputEventArgs e);
+public delegate void DragEvent(Control sender, DragEventArgs e);
+
+/// <summary>Delphi's <c>TDragMode</c>: whether pressing and moving on this control starts an in-app drag by
+/// itself, or only when its own code calls <see cref="Form.BeginDrag"/>.</summary>
+public enum DragMode { Manual, Automatic }
 
 /// <summary>
 /// A key combination written as text, e.g. <c>"Mod+Shift+Z"</c> (spec, Appendix C). <c>Mod</c> is the

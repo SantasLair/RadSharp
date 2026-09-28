@@ -104,6 +104,11 @@ small addition to `RadSharp.Core`'s `TreeView`/`TreeNode` (an opt-in `Icon` pain
 existing `ItemPainter`), then a designer-only `PaletteIcons`/`PaletteCategories` pairing to draw a colour-coded
 initial per entry — no image assets. +4 tests. Full suite: **200** passing.
 
+**Addendum 5 (2026-09-28):** rather than build a one-off cross-control drag just for the palette, pulled forward
+the general in-app drag-and-drop primitive M13 had already reserved (`DragMode`/`OnDragOver`/`OnDragDrop`) and
+built the palette's drag-and-drop on top of it — see the updated M13 entry below. This also closes the in-app
+half of the original gap-analysis's gap 17 (OS file drop is still open). +6 tests. Full suite: **206** passing.
+
 ---
 
 ## M10: Trust the foundation (S)
@@ -182,8 +187,23 @@ at 100 % and 150 %; a form with mixed fonts round-trips byte-identically.
    same layout as a fresh load at 100 %, and the 150 % golden matches a fresh load at 150 %.
 3. **Mnemonics:** `&` in captions for Label (with `FocusControl`), Button, CheckBox, RadioButton, GroupBox, TabSheet and
    menus; Alt+letter activates; underline shown on Alt (Windows/Linux); documented as spec Appendix C additions.
-4. **Files dropped from the desktop:** `Form.FilesDropped` (paths, drop position). In-app drag and drop
-   (`DragMode`/`OnDragOver`/`OnDragDrop`) is **stretch**; do it only if the reference app (M17) needs it.
+4. **Files dropped from the desktop:** `Form.FilesDropped` (paths, drop position). Still open — SDL supports the
+   host-level event; nothing wires it to `Form` yet.
+
+   ~~**In-app drag and drop**~~ **(done, 2026-09-28, pulled forward from M13)**: closed as a real, general
+   primitive rather than a one-off — `designer-gap-analysis.md` §3.7's palette needed it, and building it bespoke
+   for just the palette would have meant guessing at the API this milestone already named. `Control.DragMode`
+   (Manual/Automatic), `Control.OnDragOver`/`OnDragDrop` (+ matching published events), and `Form.BeginDrag` land
+   in `RadSharp.Core`: `DragMode.Automatic` starts a drag once a press moves past a small threshold (`Form`
+   tracks it); `Manual` (the default) only starts one when a control's own code calls `BeginDrag` — so every
+   existing control is unaffected until it opts in. While dragging, `OnDragOver` bubbles from whatever's under
+   the pointer up through its parents (like `OnMouseWheel`) until one sets `e.Accept`, and the source's own
+   `OnMouseMove`/`OnClick` don't fire — matching Delphi's model, where a target inspects `e.Source` (there's no
+   separate payload type) rather than a typed drag object. `RadSharp.Core` picked up 4 new tests
+   (`InputTests.cs`); the palette's `tvPalette.DragMode = Automatic` plus `DesignSurface.CreateAt` (a new public
+   method — the surface still has no idea what a `TreeView` or a palette even is; `DesignerForm` resolves the
+   dragged `ComponentClass` from `DragEventArgs.Source` and calls it) close out §3.7 completely. +6 tests
+   (2 designer-level, 4 core). Full suite: **206** passing.
 5. **Application basics:** `Application.Title`, `OnIdle`, `Terminate`, exit code.
 6. **Input model:** add `PointerKind` (mouse/touch/pen) to mouse events, no gestures for now; keeps touch taps working
    on tablets and leaves room for the web.
@@ -369,8 +389,8 @@ individually named in the original gap-analysis's single designer bullet (its ga
 | menu separator/altShortcut fields, Columns/Nodes editors (already in old gap 23) | M16 | open |
 | §3.2 multi-select property editing, §3.4 context menu, §3.5 property grid categories/filter, §3.10 lock controls, §3.12 project view, §3.13 rename reach | M9 | **done** |
 | §3.6 visual Anchors editor | M16 | **done** (pulled forward) |
-| §3.7 component palette v2 (categories, icons, filter) | M16 | **done** (pulled forward) |
-| §3.7 component palette v2 (drag-from-palette), §3.11 generic collection editor | M16 | open |
+| §3.7 component palette v2 (categories, icons, filter, drag-from-palette) | M16 (drag-from-palette via M13's general primitive) | **done** (pulled forward) |
+| §3.11 generic collection editor | M16 | open |
 | §3.3 undo granularity (minor, no milestone — revisit only if it causes real memory/UX pain) | none | open |
 | §3.8 component tray, §3.9 dockable IDE panels | M18 | open (decision gate) |
 | §4 embedded code editor (named as a deliberate structural choice, not a gap to close) | none | not a gap |

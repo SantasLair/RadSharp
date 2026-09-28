@@ -44,6 +44,7 @@ public partial class DesignerForm : Form
             .Where(c => c.CanCreate && c.Type != typeof(Control) && !typeof(Form).IsAssignableFrom(c.Type) && c.Type != typeof(DesignSurface))
             .OrderBy(c => c.Name, StringComparer.Ordinal)];
         RebuildPalette();
+        tvPalette.DragMode = DragMode.Automatic;   // drag a palette entry onto a form to place it, not just click
 
         foreach (var grid in new[] { gridProps, gridEvents })
         {
@@ -139,6 +140,10 @@ public partial class DesignerForm : Form
         surface.Created += _ => tvPalette.Selected = null;
         surface.DoubleClicked += c => { if (CodeIntegration.DefaultEvent(c) is { } ev) EditHandler(c, ev); };
         surface.ContextMenuRequested += (x, y) => ShowSurfaceContextMenu(surface, x, y);
+        // Drag a palette entry onto the surface to place it (an alternative to click-then-place); the surface
+        // itself has no idea what a palette or a TreeView is, so the class comes from the drag's own source.
+        surface.DragOver += (_, e) => e.Accept = DraggedPaletteClass(e.Source) != null;
+        surface.DragDrop += (_, e) => { if (DraggedPaletteClass(e.Source) is { } cls) surface.CreateAt(cls, e.X, e.Y); };
         doc.SelectionChanged += () => { if (_active == form) UpdateInspector(); };
         doc.FormReplaced += () => { if (_active == form) { UpdateInspector(); RebuildStructure(); } };
         doc.Changed += () =>
@@ -374,6 +379,11 @@ public partial class DesignerForm : Form
     }
 
     void edtPaletteFilter_Change(Control sender) => RebuildPalette();
+
+    /// <summary>What a drag started on <paramref name="source"/> is placing, if it's the palette tree
+    /// dragging one of its component leaves — the one place that needs to know <c>tvPalette</c> is a
+    /// <see cref="TreeView"/> of <see cref="ComponentClass"/> tags; <see cref="DesignSurface"/> doesn't.</summary>
+    static ComponentClass? DraggedPaletteClass(Control source) => source is TreeView tv ? tv.Selected?.Tag as ComponentClass : null;
 
     /// <summary>Rebuilds the palette tree from <see cref="_palette"/>, grouped by <see cref="PaletteCategories"/>
     /// and filtered by <c>edtPaletteFilter</c>'s text; clears any pending placement, since the armed class may

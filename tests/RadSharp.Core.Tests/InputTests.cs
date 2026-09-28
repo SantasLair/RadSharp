@@ -20,6 +20,10 @@ public class InputTests
         protected override void OnMouseWheel(MouseWheelEventArgs e) { Log.Add($"wheel {e.DeltaY}"); base.OnMouseWheel(e); }
         protected override bool ProcessShortcut(KeyEventArgs e) => Shortcut?.Invoke(e) ?? false;
         protected override void OnPopupClosed() { Log.Add("closed"); base.OnPopupClosed(); }
+
+        public bool AcceptDrops;
+        protected override void OnDragOver(DragEventArgs e) { Log.Add($"dragover {e.X},{e.Y} from {e.Source.Name}"); e.Accept = AcceptDrops; base.OnDragOver(e); }
+        protected override void OnDragDrop(DragEventArgs e) { Log.Add($"dragdrop {e.X},{e.Y} from {e.Source.Name}"); base.OnDragDrop(e); }
     }
 
     static Form NewForm(int w = 400, int h = 300)
@@ -237,6 +241,78 @@ public class InputTests
         f.Simulate.Wheel(20, 20, 1);
         Assert.Equal(["wheel 1"], inner.Log);
         Assert.Equal(["wheel 1"], outer.Log);
+    }
+
+    // ---- Drag and drop ----
+
+    [Fact]
+    public void Automatic_drag_mode_starts_a_drag_past_a_threshold_and_suppresses_ordinary_moves()
+    {
+        var f = NewForm();
+        var source = Put(f, new Probe { Name = "source", DragMode = DragMode.Automatic }, 0, 0, 60, 60);
+        var target = Put(f, new Probe { Name = "target", AcceptDrops = true }, 100, 0, 60, 60);
+        f.Simulate.Press(20, 20);
+        f.Simulate.MoveTo(22, 20);         // within the threshold: still an ordinary move, no drag yet
+        Assert.Contains("move 22,20", source.Log);
+        Assert.DoesNotContain(target.Log, l => l.StartsWith("dragover"));
+
+        f.Simulate.MoveTo(120, 20);        // past the threshold, and now over target
+        Assert.Contains("dragover 20,20 from source", target.Log);
+        Assert.Equal(Cursor.Default, f.CurrentCursor);   // target accepts
+
+        f.Simulate.Release(120, 20);
+        Assert.Contains("dragdrop 20,20 from source", target.Log);
+        Assert.DoesNotContain(source.Log, l => l == "up 120,20" || l == "click");   // the source, not a normal release
+    }
+
+    [Fact]
+    public void Drag_over_a_control_that_does_not_accept_shows_not_allowed_and_drops_nothing()
+    {
+        var f = NewForm();
+        var source = Put(f, new Probe { Name = "source", DragMode = DragMode.Automatic }, 0, 0, 60, 60);
+        var target = Put(f, new Probe { Name = "target" }, 100, 0, 60, 60);   // AcceptDrops left false
+        f.Simulate.Press(20, 20);
+        f.Simulate.MoveTo(120, 20);
+        Assert.Contains("dragover 20,20 from source", target.Log);
+        Assert.Equal(Cursor.NotAllowed, f.CurrentCursor);
+
+        f.Simulate.Release(120, 20);
+        Assert.DoesNotContain(target.Log, l => l.StartsWith("dragdrop"));
+    }
+
+    [Fact]
+    public void Manual_drag_mode_only_starts_when_begin_drag_is_called()
+    {
+        var f = NewForm();
+        var source = Put(f, new Probe { Name = "source" }, 0, 0, 60, 60);   // DragMode.Manual (default)
+        var target = Put(f, new Probe { Name = "target", AcceptDrops = true }, 100, 0, 60, 60);
+        f.Simulate.Press(20, 20);
+        f.Simulate.MoveTo(120, 20);
+        Assert.DoesNotContain(target.Log, l => l.StartsWith("dragover"));   // no drag: an ordinary (captured) move
+        f.Simulate.Release(120, 20);
+
+        f.Simulate.Press(20, 20);
+        f.BeginDrag(source);
+        f.Simulate.MoveTo(120, 20);
+        Assert.Contains("dragover 20,20 from source", target.Log);
+        f.Simulate.Release(120, 20);
+        Assert.Contains("dragdrop 20,20 from source", target.Log);
+    }
+
+    [Fact]
+    public void Drag_over_bubbles_to_the_parent_when_the_child_does_not_accept()
+    {
+        var f = NewForm();
+        var source = Put(f, new Probe { Name = "source", DragMode = DragMode.Automatic }, 0, 0, 60, 60);
+        var outer = Put(f, new Probe { Name = "outer", AcceptDrops = true }, 100, 0, 100, 100);
+        var inner = Put(outer, new Probe { Name = "inner" }, 10, 10, 50, 50);   // does not accept
+        f.Simulate.Press(20, 20);
+        f.Simulate.MoveTo(120, 20);                // over inner, which sits inside outer
+        Assert.Contains("dragover 10,10 from source", inner.Log);
+        Assert.Contains("dragover 20,20 from source", outer.Log);
+        f.Simulate.Release(120, 20);
+        Assert.Contains("dragdrop 20,20 from source", outer.Log);
+        Assert.DoesNotContain(inner.Log, l => l.StartsWith("dragdrop"));
     }
 
     // ---- Popups ----
