@@ -23,6 +23,10 @@ public enum Key
     Enter, Escape, Tab, Backspace, Delete, Insert, Space,
     Home, End, PageUp, PageDown, Left, Right, Up, Down,
     Minus, Equals, Comma, Period, Slash, Backslash, Semicolon, Apostrophe, LeftBracket, RightBracket, Grave,
+    /// <summary>The context-menu (Application) key.</summary>
+    Menu,
+    /// <summary>An Alt key by itself (left or right); sent with <see cref="KeyModifiers.Alt"/>.</summary>
+    Alt,
 }
 
 public enum Cursor { Default, IBeam, Hand, SizeWE, SizeNS, SizeNWSE, SizeNESW, SizeAll, Wait, NotAllowed, Crosshair }
@@ -133,6 +137,7 @@ public readonly record struct Shortcut(Key Key, KeyModifiers Modifiers)
         ["PgUp"] = Key.PageUp, ["PageUp"] = Key.PageUp, ["PgDn"] = Key.PageDown, ["PageDown"] = Key.PageDown,
         ["Left"] = Key.Left, ["Right"] = Key.Right, ["Up"] = Key.Up, ["Down"] = Key.Down,
         ["-"] = Key.Minus, ["="] = Key.Equals, [","] = Key.Comma, ["."] = Key.Period, ["/"] = Key.Slash,
+        ["Menu"] = Key.Menu, ["Apps"] = Key.Menu,
     };
 
     public static bool TryParse(string? text, out Shortcut shortcut)

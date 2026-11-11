@@ -62,6 +62,8 @@ internal static class SdlInput
             SDL_Keycode.SDLK_LEFTBRACKET => RadSharp.Key.LeftBracket,
             SDL_Keycode.SDLK_RIGHTBRACKET => RadSharp.Key.RightBracket,
             SDL_Keycode.SDLK_GRAVE => RadSharp.Key.Grave,
+            SDL_Keycode.SDLK_APPLICATION or SDL_Keycode.SDLK_MENU => RadSharp.Key.Menu,
+            SDL_Keycode.SDLK_LALT or SDL_Keycode.SDLK_RALT => RadSharp.Key.Alt,
             _ => RadSharp.Key.Unknown,
         };
     }
