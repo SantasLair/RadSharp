@@ -4,6 +4,7 @@ using System.Runtime.Loader;
 using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Diagnostics;
+using Microsoft.CodeAnalysis.Emit;
 using Microsoft.CodeAnalysis.Text;
 using RadSharp.Generators;
 
@@ -48,12 +49,20 @@ public sealed class LiveSession : IDisposable
     /// Compiles <paramref name="project"/>. <paramref name="formOverrides"/> maps form file paths to text
     /// that replaces the file on disk (the designer's unsaved state).
     /// </summary>
-    public static LiveSession Compile(RadProject project, IReadOnlyDictionary<string, string>? formOverrides = null)
+    public static LiveSession Compile(RadProject project, IReadOnlyDictionary<string, string>? formOverrides = null) =>
+        Compile(project, formOverrides, debugInformation: false);
+
+    /// <summary>
+    /// As <see cref="Compile(RadProject, IReadOnlyDictionary{string, string}?)"/>; with <paramref name="debugInformation"/>
+    /// the assembly carries an embedded portable PDB, so stack traces of exceptions thrown by live code show source
+    /// files and lines (see <see cref="ExceptionReport"/>).
+    /// </summary>
+    public static LiveSession Compile(RadProject project, IReadOnlyDictionary<string, string>? formOverrides, bool debugInformation)
     {
         var parse = CompilationSetup.ParseOptions;
         var trees = new List<SyntaxTree>
         {
-            CSharpSyntaxTree.ParseText(CompilationSetup.GlobalUsingsText, parse, CompilationSetup.GlobalUsingsFileName),
+            CSharpSyntaxTree.ParseText(CompilationSetup.GlobalUsingsText, parse, CompilationSetup.GlobalUsingsFileName, debugInformation ? System.Text.Encoding.UTF8 : null),
         };
         foreach (var file in project.SourceFiles)
         {
@@ -87,7 +96,9 @@ public sealed class LiveSession : IDisposable
         });
 
         using var pe = new MemoryStream();
-        var result = output.Emit(pe, manifestResources: resources);
+        var result = debugInformation
+            ? output.Emit(pe, options: new EmitOptions(debugInformationFormat: DebugInformationFormat.Embedded), manifestResources: resources)
+            : output.Emit(pe, manifestResources: resources);
         var messages = generatorDiagnostics.Concat(result.Diagnostics)
             .Where(d => d.Severity == DiagnosticSeverity.Error)
             .Select(ToMessage)
@@ -158,6 +169,7 @@ public static class ProjectBuilder
         process.ErrorDataReceived += (_, e) => Line(e.Data);
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
+        using var killOnCancel = cancel.Register(() => AppProcess.KillTree(process));   // a cancelled publish must not run on
         await process.WaitForExitAsync(cancel);
         return (process.ExitCode, process.ExitCode == 0 ? output : null);
     }

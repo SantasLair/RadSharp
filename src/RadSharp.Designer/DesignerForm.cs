@@ -56,6 +56,7 @@ public partial class DesignerForm : Form
         _external = new ExternalEditorNavigator(_settings, () => _project);
         _embedded = new EmbeddedEditorNavigator(file => OpenCodeFile(file));
         BuildShell();
+        InitBuildSupport();
         RegisterCommands();
         _commands.LoadKeymap(_paths.Keymap);
         BuildMenus();
@@ -141,6 +142,7 @@ public partial class DesignerForm : Form
     {
         if (!ConfirmSave(_docs.Documents)) return false;
         CloseLiveForm();
+        ResetBuildState();
         foreach (var d in _docs.Documents.ToList()) RemoveDocument(d);
         _project = null;
         _docs.SplitView = false;

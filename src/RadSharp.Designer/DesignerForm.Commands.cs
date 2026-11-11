@@ -82,7 +82,6 @@ public partial class DesignerForm
 
         // Run
         Reg("Run.Run", "Run", "Run", () => Run(), "F9", () => HasProject);
-        Reg("Run.Build", "Build", "Run", Build, "Ctrl+F9", () => HasProject);
 
         // Component
         Reg("Component.MenuEditor", "Menu Editor…", "Component", OpenMenuEditor, "Mod+M", () => HasForm);
@@ -108,6 +107,8 @@ public partial class DesignerForm
         // Tools
         Reg("Tools.Options", "Options…", "Tools", ShowOptions);
         Reg("Tools.KeyboardShortcuts", "Keyboard Shortcuts…", "Tools", ShowKeyboardShortcuts);
+
+        RegisterBuildCommands();
 
         c.ShortcutsChanged += () => RefreshCommandState();
     }
@@ -182,11 +183,19 @@ public partial class DesignerForm
         Cmd(project, "Project.RemoveForm");
         Cmd(project, "Project.SetMainForm");
         project.AddSeparator();
+        Cmd(project, "Project.RunConfiguration");
+        project.AddSeparator();
         Cmd(project, "Project.OpenInIde");
 
         var run = Top("Run");
         Cmd(run, "Run.Run");
+        Cmd(run, "Run.RunWithoutDebugging");
+        Cmd(run, "Run.StartDebugging");
+        Cmd(run, "Run.Stop");
+        run.AddSeparator();
         Cmd(run, "Run.Build");
+        Cmd(run, "Run.CancelBuild");
+        Cmd(run, "Run.Publish");
 
         var component = Top("Component");
         Cmd(component, "Component.MenuEditor");
