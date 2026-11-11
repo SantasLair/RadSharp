@@ -55,19 +55,20 @@ dotnet run --project src/RadSharp.Designer    # Launch the designer
 
 ### Agent Strategy
 
-**Main session:** Haiku 4.5 (fast, efficient parsing and planning)
+The orchestration session (the main session) is free to use any skill and any model as the task needs. Choose what fits the work; don't default to a fixed model or skill for a task type.
 
-**Spawned agents** (task-appropriate models):
-- **Planning & Architecture** → Opus 5.5 (deep reasoning, complex design)
-- **Code Review & Refactoring** → Sonnet 5 (thorough analysis, nuanced suggestions)
-- **Research & Investigation** → Sonnet 5 (exploration, pattern finding)
-- **Fast iteration tasks** → Haiku 4.5 (when speed matters, quality sufficient)
+**Guidelines, not rules:**
+- **Cheapest adequate model first.** Use Haiku 5.5 (`claude-haiku-5-5`) for mechanical work, lookups, and simple summaries. Use Sonnet 5.5 (`claude-sonnet-5-5`) for multi-file reasoning, implementation with clear requirements, and bounded reviews. Use Opus 5.5 (`claude-opus-5-5`) for architecture trade-offs, subtle debugging, security review, and large or ambiguous refactors.
+- **Go up a tier when a result looks thin or wrong**, and say so when you do.
+- **Fable 5.2 (`claude-fable-5-2`) needs approval first.** It costs twice Opus 5.5 and runs for many minutes on hard tasks. Use it only for the hardest problems, after Opus 5.5 has fallen short, and only once the user has approved that specific use. Propose it with the reason and the expected cost, then wait for a yes.
+- **Pick the skill that fits** (see Recommended Skills and Usage Patterns below). Skills may run in the main session or in a spawned agent, whichever is cheaper for the task.
+- **Set the model explicitly** on every spawned agent so cost is a deliberate choice.
 
 ### Usage Patterns
 
-- **Architecture questions** → `/anthropic-skills:deep-research` (spawns Sonnet for thorough research)
-- **Visual explanations** → `/artifact-diagramming` for rendering/layout diagrams (Haiku)
-- **Feature roadmap** → `/dataviz` for milestone tracking (Haiku)
-- **Before major refactors** → `/code-review` (spawns Sonnet for careful analysis)
-- **Form UI feedback** → `/artifact-design` (Haiku)
-- **Complex planning** → `/EnterPlanMode` (spawns Opus for deep architectural thinking)
+- **Architecture questions** → `/anthropic-skills:deep-research` (model per depth; Sonnet is a typical default, Opus for hard trade-offs)
+- **Visual explanations** → `/artifact-diagramming` (Haiku or Sonnet, depending on complexity)
+- **Feature roadmap** → `/dataviz` for milestone tracking (Haiku or Sonnet)
+- **Before major refactors** → `/code-review` (Sonnet; Opus for high-risk changes)
+- **Form UI feedback** → `/artifact-design` (Haiku or Sonnet)
+- **Complex planning** → `/EnterPlanMode` (Opus for deep architectural thinking)
