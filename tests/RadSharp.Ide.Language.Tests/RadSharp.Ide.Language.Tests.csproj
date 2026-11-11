@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RadSharp.Ide.Language\RadSharp.Ide.Language.csproj" />
+    <!-- The fixtures: built (so they're restored and RadSharp.Platform.Sdl has an output to reference), not referenced. -->
+    <ProjectReference Include="..\..\samples\TileEditor\TileEditor.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\samples\SettingsDialog\SettingsDialog.csproj" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

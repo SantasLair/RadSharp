@@ -10,6 +10,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The IDE language service builds its workspace with the same CompilationSetup as the live run. -->
+    <InternalsVisibleTo Include="RadSharp.Ide.Language" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\RadSharp.Design\RadSharp.Design.csproj" />
     <!-- The generators run in-process for live runs. -->
     <ProjectReference Include="..\RadSharp.Generators\RadSharp.Generators.csproj" />
