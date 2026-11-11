@@ -583,8 +583,16 @@ public class DesignSurface : Control
         canvas.FillRoundRect(r, Px(4), t.InputBackground);
         canvas.DrawRoundBorder(r, Px(4), t.InputBorder, Math.Max(1, Px(1)));
         var name = ComponentRegistry.Of(c).Name;
-        var initials = new string([.. name.Where(char.IsUpper).Take(2)]);
-        canvas.DrawText(initials.Length > 0 ? initials : name[..1], canvas.DefaultBoldFont, t.Accent, r, TextAlign.Center, VerticalAlign.Center);
+        if (PaletteIcons.HasArt(name))
+        {
+            // The toolbox picture, at 16/28 of the tile so it lands on whole pixels at 100 %.
+            int size = r.Width * 16 / ComponentIconSize;
+            PaletteIcons.Paint(canvas, name, new Rect(r.X + (r.Width - size) / 2, r.Y + (r.Height - size) / 2, size, size));
+        }
+        else
+        {
+            canvas.DrawText(PaletteIcons.Initials(name), canvas.DefaultBoldFont, t.Accent, r, TextAlign.Center, VerticalAlign.Center);
+        }
         var label = new Rect(r.X - Px(20), r.Y + r.Height, r.Width + Px(40), Px(16));
         canvas.DrawText(c.Name, canvas.DefaultFont.WithSize(canvas.DefaultFont.Size * 0.8f), t.Text, label, TextAlign.Center, VerticalAlign.Top);
     }

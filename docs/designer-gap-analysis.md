@@ -54,7 +54,7 @@ double-click for a handler" loop is solid and the fundamentals are in the right 
 | **Right-click context menu on the surface** | Yes: Align, Order, Edit menu items, View as Text, Create/Delete handler | Yes: Align, Bring/Send, View Code, Properties, Document Outline | `DesignSurface.ContextMenuRequested` + `DesignerForm.ShowSurfaceContextMenu` | **Fixed** — see §3.4 |
 | Property grid layout | Categorized (collapsible bands) or alphabetical, toggle | Categorized or alphabetical, toggle, **search box** (VS2019+) | `PropertyGridArrangement` (Declared/Alphabetical/Categorized) + `Filter`, with a toolbar on the designer's Properties/Events tabs | **Fixed** — see §3.5 |
 | Anchors editor | Expandable composite row: akLeft/akTop/akRight/akBottom as checkboxes | Visual "kite" widget (4 clickable bars) | `PropertyGrid.ToggleAnchorsExpanded`/`IsAnchorFlag` — same expand-to-checkboxes model as Delphi | **Fixed** — see §3.6 |
-| Component palette | Tabbed by category (Standard, Additional, Data Access, …), icons, drag-drop, search (RAD Studio) | Toolbox: categorized, icons, drag-drop, search box, "General" auto-bucket for new libraries | A `TreeView` grouped by category (`PaletteCategories`) with a filter box, a colour-coded initials icon per entry (`PaletteIcons`), and drag-from-palette on the general `DragMode`/`OnDragOver`/`OnDragDrop` primitive | **Fixed** — see §3.7 |
+| Component palette | Tabbed by category (Standard, Additional, Data Access, …), icons, drag-drop, search (RAD Studio) | Toolbox: categorized, icons, drag-drop, search box, "General" auto-bucket for new libraries | A `TreeView` grouped by category (`PaletteCategories`) with a filter box, a vector picture per entry (`PaletteIcons`), and drag-from-palette on the general `DragMode`/`OnDragOver`/`OnDragDrop` primitive | **Fixed** — see §3.7 |
 | Non-visual components | Dedicated **component tray** strip below the form, fixed icon row | Same (component tray under the designer) | Icons painted *at the component's own X/Y* directly on the form surface | **Different, arguably worse** — see §3.8 |
 | Structure/outline view | Object TreeView (separate dockable window) | Document Outline / Solution Explorer (separate windows) | One `TreeView` inside a tab of the same panel as Properties/Events | Workable, less discoverable |
 | IDE panel layout | Fully dockable/floatable, savable desktop layouts, multi-monitor | Fully dockable/floatable, savable layouts, multi-monitor | Fixed `Splitter`-based left/right/bottom panels, no floating, no saved layouts | **Missing** — see §3.9 |
@@ -175,11 +175,12 @@ designer project — deliberately *not* a new `[Component(Category = ...)]` meta
 control class plus the source generator for a designer-polish item. An uncategorized class defaults to
 "Additional" rather than being hidden.
 
-Each entry also gets a small toolbox icon (`PaletteIcons.For`): a rounded, category-tinted swatch with the
-control's initials (e.g. "SB" for `ScrollBar`), drawn with the same `Canvas` primitives
-`DesignSurface.PaintComponentIcon` already uses for non-visual components on the form, rather than real
-per-control artwork — that would need actual icon assets, a genuinely separate and larger piece of work. Getting
-there needed one small addition to `TreeView` itself: `TreeNode.Icon` (`Action<Canvas, Rect>?`), a per-node custom
+Each entry also gets a toolbox icon (`PaletteIcons.For`): a picture of the control, such as a checked box for
+`CheckBox` or a stopwatch for `Timer`, in the flat outline-and-accent style of the Visual Studio icon set. Every
+icon is a vector drawing on a 16 × 16 grid made with `Canvas` paths, so there are no image assets and it stays
+sharp at any scale. Its colours switch with the theme: dark outlines on light themes, light outlines on dark ones.
+Non-visual components on the form (`DesignSurface.PaintComponentIcon`) show the same pictures. A class with no
+picture yet falls back to a category-tinted badge with its initials (e.g. "SB"). Getting there needed one small addition to `TreeView` itself: `TreeNode.Icon` (`Action<Canvas, Rect>?`), a per-node custom
 paint hook reserving a fixed icon column before the label, mirroring `ListBox`'s existing `ItemPainter`. It's
 opt-in and additive — a node that never sets `Icon` (the Structure tab's `tvStructure`, any other `TreeView` user)
 paints exactly as before.
