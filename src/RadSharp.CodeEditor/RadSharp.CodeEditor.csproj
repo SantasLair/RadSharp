@@ -1,0 +1,25 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>RadSharp</RootNamespace>
+    <IsAotCompatible>true</IsAotCompatible>
+    <Description>RADSharp code editor control: a piece-table text buffer with immutable snapshots and delta undo, a virtualised editor view with gutter, folding, multiple carets, find/replace and completion, and language-agnostic hooks for tokens, decorations, folding and completion.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RadSharp.Core\RadSharp.Core.csproj" />
+    <!-- Emits the published metadata for CodeEditor, so form files can use it like any control. -->
+    <ProjectReference Include="..\RadSharp.Generators\RadSharp.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="RadSharp.CodeEditor.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- JetBrains Mono (SIL OFL 1.1), embedded the same way RadSharp.Core embeds Inter. -->
+    <EmbeddedResource Include="Fonts\*.ttf" LogicalName="RadSharp.CodeEditor.Fonts.%(Filename)%(Extension)" />
+    <None Include="Fonts\JetBrainsMono-LICENSE.txt" Pack="true" PackagePath="licenses" />
+  </ItemGroup>
+
+</Project>
