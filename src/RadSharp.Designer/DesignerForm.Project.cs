@@ -261,7 +261,7 @@ public partial class DesignerForm
             OpenProjectItem(ItemOfNode(FindNode(file)) ?? new ProjectItem(template == FileTemplate.Form ? ProjectItemKind.Form : ProjectItemKind.File, file, project), preview: false);
             Output($"Created {Path.GetRelativePath(project.Directory, file)}");
         }
-        catch (IOException e) { ShowError(e.Message); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { ShowError(e.Message); }
     }
 
     void NewProjectFolder(object? parameter)
@@ -282,7 +282,7 @@ public partial class DesignerForm
             }
             Output($"Created folder {Path.GetRelativePath(project.Directory, folder)}");
         }
-        catch (IOException e) { ShowError(e.Message); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { ShowError(e.Message); }
     }
 
     // ---- Rename, move, delete ----
@@ -301,9 +301,21 @@ public partial class DesignerForm
         foreach (var file in _rewritten.Distinct())
             if (FindDocument(file) is { IsDirty: false } open) open.Reload();
         _rewritten.Clear();
-        RefreshGit(sync: true);
+        RefreshGit();
         UpdateUi();
         SaveSession();
+    }
+
+    /// <summary>
+    /// A rename or move failed. If it could not undo a half-done step, the changes that did happen still reach the open
+    /// tabs, so none points at a path that no longer exists.
+    /// </summary>
+    bool FailFileOperation(Exception e)
+    {
+        if (e is PartialOperationException { Completed.Count: > 0 } partial) ApplyFileChanges(partial.Completed);
+        else _rewritten.Clear();
+        ShowError(e.Message);
+        return false;
     }
 
     void SaveAllDirty()
@@ -324,7 +336,7 @@ public partial class DesignerForm
             if (changes.Count > 0) Output($"Renamed {Path.GetFileName(path)} to {newName}");
             return true;
         }
-        catch (IOException e) { ShowError(e.Message); return false; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return FailFileOperation(e); }
     }
 
     void RenameProjectItem(object? parameter)
@@ -370,7 +382,7 @@ public partial class DesignerForm
             if (changes.Count > 0) SelectInProjectTree(changes[0].NewPath);
             return true;
         }
-        catch (IOException e) { ShowError(e.Message); return false; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return FailFileOperation(e); }
     }
 
     void MoveProjectItemCommand(object? parameter)
@@ -402,7 +414,7 @@ public partial class DesignerForm
                 if (FindDocument(f) is { } doc) RemoveDocument(doc);
             if (project.MainFormClass is { } main && removed.Any(f => f.EndsWith(".radform.json", StringComparison.OrdinalIgnoreCase) && RadProject.FormClassName(f) == main))
                 Output($"{main} was the main form: choose another with Project › Set as Main Form.");
-            RefreshGit(sync: true);
+            RefreshGit();
             UpdateUi();
             Output($"Deleted {Path.GetFileName(path)}");
             return true;
@@ -454,50 +466,77 @@ public partial class DesignerForm
 
     // ---- Git ----
 
+    readonly object _reposLock = new();
+
     GitRepo? RepoFor(string path)
     {
         var dir = Directory.Exists(path) ? path : Path.GetDirectoryName(path);
         if (dir == null || !Directory.Exists(dir)) return null;
-        var key = ProjectOf(path)?.Directory ?? dir;
-        if (!_repos.TryGetValue(key, out var repo)) _repos[key] = repo = GitRepo.Find(key);
+        return RepoForDirectory(ProjectOf(path)?.Directory ?? dir);
+    }
+
+    /// <summary>The repository of a project folder (cached; safe from a worker thread).</summary>
+    GitRepo? RepoForDirectory(string key)
+    {
+        if (!Directory.Exists(key)) return null;
+        lock (_reposLock) if (_repos.TryGetValue(key, out var cached)) return cached;
+        var repo = GitRepo.Find(key);   // runs git: keep it outside the lock
+        lock (_reposLock) _repos[key] = repo;
         return repo;
     }
 
+    Task _gitRefresh = Task.CompletedTask;
+
+    /// <summary>Completes when the git refresh in flight (if any) has applied its result (for tests).</summary>
+    public Task GitRefreshed => _gitRefresh;
+
     /// <summary>
     /// Re-reads <c>git status</c> and refreshes the tree's markers if they changed. Runs on a worker thread (it is
-    /// also called on save, tree focus and a 5 s timer); <paramref name="sync"/> does it inline. Does nothing if git
-    /// is missing or the project is not in a repository.
+    /// also called on save, tree focus and a 5 s timer), so git never blocks the UI. <paramref name="sync"/> does it
+    /// inline on the calling thread (tests only; the IDE itself never uses it). Does nothing if git is missing or the
+    /// project is not in a repository. See <see cref="GitRefreshed"/> to await an async refresh.
     /// </summary>
     public void RefreshGit(bool sync = false)
     {
         if (_project == null || _gitBusy) return;
-        var repos = Projects.Select(p => RepoFor(p.Directory)).Where(r => r != null).Select(r => r!).DistinctBy(r => r.Root).ToList();
-        if (repos.Count == 0)
+        var projectDirs = Projects.Select(p => p.Directory).ToList();
+        (IReadOnlyDictionary<string, GitState> Files, IReadOnlyDictionary<string, GitState> Folders)? Compute()
         {
-            if (_gitStatus.Count > 0) { _gitStatus = new Dictionary<string, GitState>(); _gitFolders = new Dictionary<string, GitState>(); RebuildProjectTree(); }
-            return;
-        }
-        var roots = Projects.Select(p => p.Directory).ToList();
-        (IReadOnlyDictionary<string, GitState> Files, IReadOnlyDictionary<string, GitState> Folders) Compute()
-        {
+            var repos = projectDirs.Select(RepoForDirectory).Where(r => r != null).Select(r => r!).DistinctBy(r => r.Root).ToList();
+            if (repos.Count == 0) return null;
             var files = new Dictionary<string, GitState>(StringComparer.OrdinalIgnoreCase);
             foreach (var r in repos) foreach (var (k, v) in r.Status()) files[k] = v;
             var folders = new Dictionary<string, GitState>(StringComparer.OrdinalIgnoreCase);
-            foreach (var root in roots) foreach (var (k, v) in GitRepo.Aggregate(files, root)) folders[k] = v;
+            foreach (var root in projectDirs) foreach (var (k, v) in GitRepo.Aggregate(files, root)) folders[k] = v;
             return (files, folders);
         }
-        void Apply((IReadOnlyDictionary<string, GitState> Files, IReadOnlyDictionary<string, GitState> Folders) r)
+        void Apply((IReadOnlyDictionary<string, GitState> Files, IReadOnlyDictionary<string, GitState> Folders)? result)
         {
-            _gitBusy = false;
             if (_project == null) return;
+            if (result is not { } r)
+            {
+                if (_gitStatus.Count > 0) { _gitStatus = new Dictionary<string, GitState>(); _gitFolders = new Dictionary<string, GitState>(); RebuildProjectTree(); }
+                return;
+            }
             bool same = r.Files.Count == _gitStatus.Count && r.Files.All(kv => _gitStatus.TryGetValue(kv.Key, out var s) && s == kv.Value);
             _gitStatus = r.Files;
             _gitFolders = r.Folders;
             if (!same) RebuildProjectTree();
         }
         _gitBusy = true;
-        if (sync) { Apply(Compute()); return; }
-        _ = Task.Run(Compute).ContinueWith(t => Application.Post(() => { if (t.IsCompletedSuccessfully) Apply(t.Result); else _gitBusy = false; }));
+        if (sync)
+        {
+            try { Apply(Compute()); }
+            finally { _gitBusy = false; }
+            return;
+        }
+        var done = new TaskCompletionSource();
+        _gitRefresh = done.Task;
+        Task.Run(Compute).ContinueWith(t => Application.Post(() =>
+        {
+            try { if (t.IsCompletedSuccessfully) Apply(t.Result); }
+            finally { _gitBusy = false; done.TrySetResult(); }
+        }), TaskScheduler.Default);
     }
 
     /// <summary>The git state of a path (for tests and tooltips).</summary>
@@ -598,7 +637,7 @@ public partial class DesignerForm
     {
         _solutionFile = null;
         _solutionProjects = null;
-        _repos.Clear();
+        lock (_reposLock) _repos.Clear();
         _gitStatus = new Dictionary<string, GitState>();
         _gitFolders = new Dictionary<string, GitState>();
     }

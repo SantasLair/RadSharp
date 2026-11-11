@@ -17,7 +17,8 @@ public partial class DesignerForm
 {
     FindPanel _findPanel = null!;
     CancellationTokenSource? _findCts;
-    int _findSequence;
+    int _findSequence, _resultsSequence;
+    readonly List<string> _replaceSkipped = [];
     IReadOnlyList<FileHits> _findInFilesResults = [];
     Action?[]? _findRowActions;
 
@@ -107,6 +108,7 @@ public partial class DesignerForm
                         return;
                     }
                     _findPanel.Busy = false;
+                    _resultsSequence = sequence;
                     ShowFindInFilesResults(options, hits, files);
                 }
                 finally { done.TrySetResult(); }
@@ -201,10 +203,24 @@ public partial class DesignerForm
             return done.Task;
         }
         // Not awaited: the continuation must run on the UI thread (it shows a dialog and edits documents).
-        _ = FindInFilesAsync(options).ContinueWith(_ => Post(() =>
+        var search = FindInFilesAsync(options);
+        int sequence = _findSequence;   // FindInFilesAsync took its number synchronously
+        _ = search.ContinueWith(_ => Post(() =>
         {
             bool searching = false;
-            try { searching = ReplaceFound(options, regex, replacement, () => done.TrySetResult()); }
+            try
+            {
+                if (_resultsSequence != sequence)
+                {
+                    // The search was stopped, or a newer one replaced it: its results are not the ones to replace in.
+                    var message = "Replace cancelled: the search it needed was stopped or replaced by another one.";
+                    _findPanel.Status = message;
+                    sbMain.SimpleText = message;
+                    Output(message);
+                    return;
+                }
+                searching = ReplaceFound(options, regex, replacement, () => done.TrySetResult());
+            }
             finally { if (!searching) done.TrySetResult(); }
         }), TaskScheduler.Default);
         return done.Task;
@@ -226,6 +242,7 @@ public partial class DesignerForm
         if (Dialogs.MessageDlg(LastReplaceConfirmation, MessageType.Confirmation, MessageButtons.YesNo, this) != ModalResult.Yes) return false;
 
         int changed = 0, replaced = 0;
+        _replaceSkipped.Clear();
         foreach (var file in hits)
         {
             int n = ReplaceInFile(file.File, regex, replacement, literal: !options.UseRegex);
@@ -233,7 +250,8 @@ public partial class DesignerForm
         }
         RefreshGit();
         UpdateTitle();
-        var summary = $"Replaced {replaced} occurrence(s) in {changed} file(s)";
+        var summary = $"Replaced {replaced} occurrence(s) in {changed} file(s)"
+            + (_replaceSkipped.Count > 0 ? $"; skipped {_replaceSkipped.Count} file(s) (see Output)" : "");
         Output(summary);
         // The list described the old text; show what the search finds now (normally nothing).
         _ = FindInFilesAsync(options).ContinueWith(_ => Post(() =>
@@ -248,19 +266,36 @@ public partial class DesignerForm
     /// <summary>Replaces in one file, in the editor if it is open (a code buffer: one undo step; a form: an undoable change) and on disk otherwise. The number of matches changed.</summary>
     int ReplaceInFile(string file, System.Text.RegularExpressions.Regex regex, string replacement, bool literal)
     {
+        try { return ReplaceInFileCore(file, regex, replacement, literal); }
+        catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
+        {
+            Skip(file, "the pattern took too long to match");
+            return 0;
+        }
+    }
+
+    void Skip(string file, string why)
+    {
+        _replaceSkipped.Add(file);
+        Output($"Skipped {file}: {why}.");
+    }
+
+    int ReplaceInFileCore(string file, System.Text.RegularExpressions.Regex regex, string replacement, bool literal)
+    {
         switch (FindDocument(file))
         {
             case CodeDocument code:
             {
+                if (code.ReadOnly) { Skip(file, "it is open read-only"); return 0; }
                 var text = code.Text;
-                int n = FindInFiles.Count(regex, text);
+                int n = FindInFiles.CountStrict(regex, text);
                 if (n > 0) code.ApplyText(FindInFiles.ReplaceInText(regex, text, replacement, literal));
                 return n;
             }
             case FormDocument form:
             {
                 var text = OpenText(file) ?? FindInFiles.ReadText(file) ?? "";
-                int n = FindInFiles.Count(regex, text);
+                int n = FindInFiles.CountStrict(regex, text);
                 if (n == 0) return 0;
                 var updated = FindInFiles.ReplaceInText(regex, text, replacement, literal);
                 try { form.Document.ReplaceWithJson(updated); }   // one undo step, left unsaved
@@ -273,11 +308,13 @@ public partial class DesignerForm
             }
             default:
             {
-                var text = FindInFiles.ReadText(file);
-                if (text == null) return 0;
-                int n = FindInFiles.Count(regex, text);
+                var content = FindInFiles.ReadContent(file);
+                if (content == null) return 0;
+                if (content.IsLossy) { Skip(file, "it is not valid UTF-8 and has no byte order mark, so rewriting it could corrupt it"); return 0; }
+                var text = content.Text;
+                int n = FindInFiles.CountStrict(regex, text);
                 if (n == 0) return 0;
-                try { FindInFiles.WriteText(file, FindInFiles.ReplaceInText(regex, text, replacement, literal)); }
+                try { content.Write(file, FindInFiles.ReplaceInText(regex, text, replacement, literal)); }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException)
                 {
                     Output($"Could not write {file}: {e.Message}");

@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using RadSharp.Design.Code;
 
 namespace RadSharp.Designer;
 
@@ -183,16 +184,32 @@ public static class FindInFiles
         return result;
     }
 
-    /// <summary>The text of a file (the override from <paramref name="read"/> if it gives one), or null if it can't be read or looks binary.</summary>
+    /// <summary>
+    /// The text of a file (the override from <paramref name="read"/> if it gives one), or null if it can't be read or looks binary.
+    /// A file that isn't valid UTF-8 and has no BOM is read lossily (as Latin-1): good for searching, not for rewriting (see <see cref="ReadContent"/>).
+    /// </summary>
     public static string? ReadText(string file, Func<string, string?>? read = null)
     {
         if (read?.Invoke(file) is { } open) return open;
+        return ReadContent(file)?.Text;
+    }
+
+    /// <summary>
+    /// The file with its encoding (BOM, or strict UTF-8; see <see cref="TextFileContent"/>), or null if it can't be read or looks
+    /// binary. <see cref="TextFileContent.IsLossy"/> marks a file that must not be rewritten.
+    /// </summary>
+    public static TextFileContent? ReadContent(string file)
+    {
         try
         {
             var bytes = File.ReadAllBytes(file);
-            int probe = Math.Min(bytes.Length, 8000);
-            for (int i = 0; i < probe; i++) if (bytes[i] == 0) return null;
-            return File.ReadAllText(file);
+            var content = TextFileContent.Decode(bytes);
+            if (!content.HasBom)   // UTF-16/32 files are full of zero bytes; only a BOM-less file with one is binary
+            {
+                int probe = Math.Min(bytes.Length, 8000);
+                for (int i = 0; i < probe; i++) if (bytes[i] == 0) return null;
+            }
+            return content;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
     }
@@ -208,6 +225,14 @@ public static class FindInFiles
             ? regex.Replace(text, m => m.Length == 0 ? m.Value : replacement)
             : regex.Replace(text, m => m.Length == 0 ? m.Value : m.Result(replacement));
 
+    /// <summary>The number of matches (empty matches excluded); throws <see cref="RegexMatchTimeoutException"/> where <see cref="Count"/> gives up quietly.</summary>
+    public static int CountStrict(Regex regex, string text)
+    {
+        int n = 0;
+        foreach (Match m in regex.Matches(text)) if (m.Length > 0) n++;
+        return n;
+    }
+
     /// <summary>The number of matches (empty matches excluded).</summary>
     public static int Count(Regex regex, string text)
     {
@@ -217,18 +242,15 @@ public static class FindInFiles
         return n;
     }
 
-    /// <summary>Writes text to a file, keeping a UTF-8 byte order mark if it had one.</summary>
+    /// <summary>
+    /// Writes text to a file in the encoding it has (BOM and all), atomically. Throws <see cref="IOException"/> for a file that
+    /// isn't valid UTF-8 and has no BOM (it can't be rewritten without corrupting it).
+    /// </summary>
     public static void WriteText(string file, string text)
     {
-        bool bom = false;
-        try
-        {
-            using var s = File.OpenRead(file);
-            Span<byte> head = stackalloc byte[3];
-            bom = s.Read(head) == 3 && head[0] == 0xEF && head[1] == 0xBB && head[2] == 0xBF;
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
-        File.WriteAllText(file, text, new UTF8Encoding(bom));
+        var original = ReadContent(file);
+        if (original is { IsLossy: true }) throw new IOException($"{Path.GetFileName(file)} is not valid UTF-8 and has no byte order mark; it was left alone.");
+        (original ?? TextFileContent.NewUtf8()).Write(file, text);
     }
 }
 

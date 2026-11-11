@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using Microsoft.CodeAnalysis.CSharp;
 
 namespace RadSharp.Design.Code;
 
@@ -7,6 +8,15 @@ public enum FileTemplate { Class, Interface, Form }
 
 /// <summary>A file that moved or was renamed (the IDE retargets an open tab from <see cref="OldPath"/> to <see cref="NewPath"/>).</summary>
 public sealed record FileChange(string OldPath, string NewPath);
+
+/// <summary>
+/// An operation failed half-way and could not undo what it had done: <see cref="Completed"/> are the changes that did
+/// happen (the IDE must still retarget open tabs for them).
+/// </summary>
+public sealed class PartialOperationException(string message, IReadOnlyList<FileChange> completed, Exception? inner = null) : IOException(message, inner)
+{
+    public IReadOnlyList<FileChange> Completed { get; } = completed;
+}
 
 /// <summary>
 /// File operations on a <see cref="RadProject"/> that keep the code consistent: new files from templates (with the
@@ -42,7 +52,59 @@ public sealed class ProjectFileOps(RadProject project)
     }
 
     public static bool IsValidIdentifier(string name) =>
-        name.Length > 0 && (char.IsLetter(name[0]) || name[0] == '_') && name.All(c => char.IsLetterOrDigit(c) || c == '_');
+        name.Length > 0 && (char.IsLetter(name[0]) || name[0] == '_') && name.All(c => char.IsLetterOrDigit(c) || c == '_')
+        && !IsKeyword(name);   // 'class', 'int'... can't name a type
+
+    static bool IsKeyword(string name) => SyntaxFacts.GetKeywordKind(name) != SyntaxKind.None;
+
+    // ---- Guards ----
+
+    /// <summary>Throws unless <paramref name="path"/> lies strictly inside the project folder (the root itself and anything outside are refused).</summary>
+    void EnsureInsideProject(string path, bool allowRoot = false)
+    {
+        var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(Project.Directory));
+        var full = Path.TrimEndingDirectorySeparator(Path.GetFullPath(path));
+        var cmp = OperatingSystem.IsWindows() || OperatingSystem.IsMacOS() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        if (string.Equals(full, root, cmp))
+        {
+            if (allowRoot) return;
+            throw new IOException("The project folder itself can't be renamed, moved or deleted here.");
+        }
+        if (!full.StartsWith(root + Path.DirectorySeparatorChar, cmp))
+            throw new IOException($"{Path.GetFileName(full)} is outside the project folder.");
+    }
+
+    static bool CaseOnlyDifference(string a, string b) =>
+        string.Equals(a, b, StringComparison.OrdinalIgnoreCase) && !string.Equals(a, b, StringComparison.Ordinal);
+
+    /// <summary>Moves a file; a case-only rename goes through a temporary name (a case-insensitive file system sees source and target as one file).</summary>
+    static void MoveFile(string from, string to)
+    {
+        if (CaseOnlyDifference(from, to))
+        {
+            var temp = from + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
+            File.Move(from, temp);
+            try { File.Move(temp, to); }
+            catch { File.Move(temp, from); throw; }
+        }
+        else File.Move(from, to);
+    }
+
+    static void MoveDirectory(string from, string to)
+    {
+        if (CaseOnlyDifference(from, to))
+        {
+            var temp = from + "." + Guid.NewGuid().ToString("N")[..8] + ".tmp";
+            Directory.Move(from, temp);
+            try { Directory.Move(temp, to); }
+            catch { Directory.Move(temp, from); throw; }
+        }
+        else Directory.Move(from, to);
+    }
+
+    /// <summary>True if <paramref name="target"/> exists, other than as the case-only twin of the source being renamed.</summary>
+    static bool Occupied(string target, string? exceptSource = null) =>
+        (File.Exists(target) || Directory.Exists(target)) && !(exceptSource != null && CaseOnlyDifference(exceptSource, target));
 
     static readonly Regex NamespaceDeclaration = new(@"(?m)^(?<pre>[ \t]*namespace[ \t]+)(?<name>[A-Za-z_][A-Za-z0-9_.]*)", RegexOptions.Compiled);
 
@@ -73,7 +135,9 @@ public sealed class ProjectFileOps(RadProject project)
     /// </summary>
     public string NewFile(string directory, string name, FileTemplate template)
     {
-        if (!IsValidIdentifier(name)) throw new IOException($"'{name}' is not a valid C# type name.");
+        if (!IsValidIdentifier(name))
+            throw new IOException(IsKeyword(name) ? $"'{name}' is a C# keyword and can't be used as a type name." : $"'{name}' is not a valid C# type name.");
+        EnsureInsideProject(directory, allowRoot: true);
         Directory.CreateDirectory(directory);
         var ns = NamespaceFor(directory);
         if (template == FileTemplate.Form)
@@ -142,6 +206,7 @@ public sealed class ProjectFileOps(RadProject project)
     public IReadOnlyList<FileChange> Rename(string path, string newName)
     {
         path = Path.GetFullPath(path);
+        EnsureInsideProject(path);
         if (Directory.Exists(path)) return RenameFolder(path, newName);
         CheckName(newName, allowDots: PairOf(path) == null);
         var changes = new List<FileChange>();
@@ -152,23 +217,37 @@ public sealed class ProjectFileOps(RadProject project)
             var dir = Path.GetDirectoryName(formFile)!;
             var newForm = Path.Combine(dir, newName + ".radform.json");
             var newCode = RadProject.CodeFileFor(newForm);
-            if (File.Exists(newForm) || File.Exists(newCode)) throw new IOException($"{newName} already exists.");
+            if (Occupied(newForm, formFile) || Occupied(newCode, codeFile)) throw new IOException($"{newName} already exists.");
             var oldName = RadProject.FormClassName(formFile);
-            File.Move(formFile, newForm);
+            MoveFile(formFile, newForm);
             changes.Add(new(formFile, newForm));
-            if (File.Exists(codeFile)) { File.Move(codeFile, newCode); changes.Add(new(codeFile, newCode)); }
-            RenameIdentifierInProject(oldName, newName);
+            if (File.Exists(codeFile))
+            {
+                try { MoveFile(codeFile, newCode); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    // Transactional: put the form file back; if that fails too, say what did move.
+                    try { MoveFile(newForm, formFile); }
+                    catch (Exception undo) when (undo is IOException or UnauthorizedAccessException)
+                    {
+                        throw new PartialOperationException($"Renaming {Path.GetFileName(codeFile)} failed ({e.Message}) and {Path.GetFileName(newForm)} could not be moved back.", [.. changes], e);
+                    }
+                    throw;
+                }
+                changes.Add(new(codeFile, newCode));
+            }
+            RenameIdentifiersOrReport(oldName, newName, changes);
             return changes;
         }
         var ext = Path.GetExtension(path);
         var target = Path.Combine(Path.GetDirectoryName(path)!, newName + ext);
-        if (File.Exists(target) || Directory.Exists(target)) throw new IOException($"{Path.GetFileName(target)} already exists.");
+        if (Occupied(target, path)) throw new IOException($"{Path.GetFileName(target)} already exists.");
         var typeName = Path.GetFileNameWithoutExtension(path);
         bool declaresType = ext.Equals(".cs", StringComparison.OrdinalIgnoreCase) && IsValidIdentifier(newName)
-            && Regex.IsMatch(File.ReadAllText(path), $@"\b(class|interface|struct|record|enum)\s+{Regex.Escape(typeName)}\b");
-        File.Move(path, target);
+            && Regex.IsMatch(TextFileContent.Read(path).Text, $@"\b(class|interface|struct|record|enum)\s+{Regex.Escape(typeName)}\b");
+        MoveFile(path, target);
         changes.Add(new(path, target));
-        if (declaresType) RenameIdentifierInProject(typeName, newName);
+        if (declaresType) RenameIdentifiersOrReport(typeName, newName, changes);
         return changes;
     }
 
@@ -176,20 +255,31 @@ public sealed class ProjectFileOps(RadProject project)
     {
         CheckName(newName, allowDots: true);
         var target = Path.Combine(Path.GetDirectoryName(folder)!, newName);
-        if (Directory.Exists(target) || File.Exists(target)) throw new IOException($"{newName} already exists.");
+        if (Occupied(target, folder)) throw new IOException($"{newName} already exists.");
         var before = Directory.EnumerateFiles(folder, "*", SearchOption.AllDirectories).ToList();
-        Directory.Move(folder, target);
+        MoveDirectory(folder, target);
         return [.. before.Select(f => new FileChange(f, Path.Combine(target, Path.GetRelativePath(folder, f))))];
+    }
+
+    /// <summary>Renames a class in the sources after files moved; a failure then can't be undone, so it is reported with what did move.</summary>
+    void RenameIdentifiersOrReport(string oldName, string newName, IReadOnlyList<FileChange> changes)
+    {
+        try { RenameIdentifierInProject(oldName, newName); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            throw new PartialOperationException($"The files were renamed, but the class name could not be updated everywhere: {e.Message}", [.. changes], e);
+        }
     }
 
     void RenameIdentifierInProject(string oldName, string newName)
     {
         foreach (var file in Project.SourceFiles)
         {
-            var source = File.ReadAllText(file);
-            var updated = CodeIntegration.RenameIdentifier(source, oldName, newName);
-            if (updated == source) continue;
-            File.WriteAllText(file, updated);
+            var content = TextFileContent.Read(file);
+            if (content.IsLossy) continue;   // not UTF-8: rewriting it would corrupt it
+            var updated = CodeIntegration.RenameIdentifier(content.Text, oldName, newName);
+            if (updated == content.Text) continue;
+            content.Write(file, updated);
             SourceRewritten?.Invoke(file);
         }
     }
@@ -205,6 +295,8 @@ public sealed class ProjectFileOps(RadProject project)
     {
         path = Path.GetFullPath(path);
         targetDirectory = Path.GetFullPath(targetDirectory);
+        EnsureInsideProject(path);
+        EnsureInsideProject(targetDirectory, allowRoot: true);
         var changes = new List<FileChange>();
         if (Directory.Exists(path))
         {
@@ -214,7 +306,7 @@ public sealed class ProjectFileOps(RadProject project)
                 throw new IOException("A folder can't be moved into itself.");
             if (Directory.Exists(target) || File.Exists(target)) throw new IOException($"{Path.GetFileName(path)} already exists in the target folder.");
             var before = Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories).ToList();
-            Directory.Move(path, target);
+            MoveDirectory(path, target);
             foreach (var f in before) changes.Add(new(f, Path.Combine(target, Path.GetRelativePath(path, f))));
         }
         else
@@ -229,11 +321,30 @@ public sealed class ProjectFileOps(RadProject project)
             foreach (var f in files)
             {
                 var target = Path.Combine(targetDirectory, Path.GetFileName(f));
-                File.Move(f, target);
+                try { File.Move(f, target); }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                    // Transactional: put back what already moved; if that fails, report what did move.
+                    var stuck = new List<FileChange>();
+                    for (int i = changes.Count - 1; i >= 0; i--)
+                    {
+                        try { File.Move(changes[i].NewPath, changes[i].OldPath); }
+                        catch (Exception undo) when (undo is IOException or UnauthorizedAccessException) { stuck.Add(changes[i]); }
+                    }
+                    if (stuck.Count > 0) throw new PartialOperationException($"Moving {Path.GetFileName(f)} failed ({e.Message}) and the earlier move could not be undone.", stuck, e);
+                    throw;
+                }
                 changes.Add(new(f, target));
             }
         }
-        if (fixNamespace) FixNamespaces(changes.Select(c => c.NewPath));
+        if (fixNamespace)
+        {
+            try { FixNamespaces(changes.Select(c => c.NewPath)); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+                throw new PartialOperationException($"The files were moved, but a namespace could not be updated: {e.Message}", [.. changes], e);
+            }
+        }
         return changes;
     }
 
@@ -272,10 +383,11 @@ public sealed class ProjectFileOps(RadProject project)
         foreach (var f in files)
         {
             if (!f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || !File.Exists(f)) continue;
-            var source = File.ReadAllText(f);
-            var updated = RewriteNamespace(source, NamespaceFor(Path.GetDirectoryName(f)!));
-            if (updated == source) continue;
-            File.WriteAllText(f, updated);
+            var content = TextFileContent.Read(f);
+            if (content.IsLossy) continue;   // not UTF-8: rewriting it would corrupt it
+            var updated = RewriteNamespace(content.Text, NamespaceFor(Path.GetDirectoryName(f)!));
+            if (updated == content.Text) continue;
+            content.Write(f, updated);
             SourceRewritten?.Invoke(f);
             changed.Add(f);
         }
@@ -288,6 +400,7 @@ public sealed class ProjectFileOps(RadProject project)
     public IReadOnlyList<string> Delete(string path)
     {
         path = Path.GetFullPath(path);
+        EnsureInsideProject(path);
         if (Directory.Exists(path))
         {
             var files = Directory.EnumerateFiles(path, "*", SearchOption.AllDirectories).ToList();

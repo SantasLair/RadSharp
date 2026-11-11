@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using RadSharp.CodeEditing;
+using RadSharp.Design.Code;
 
 namespace RadSharp.Designer;
 
@@ -142,13 +143,23 @@ public sealed class CodeDocument : IDocumentView, IEditTarget
 
     public event Action? StateChanged;
 
+    // How the file was encoded when it was read (BOM or not, UTF-16...), so Save writes it back the same way.
+    TextFileContent _encoding = TextFileContent.NewUtf8();
+
+    /// <summary>Why the file opened read-only or in an unusual way (not valid UTF-8, no BOM), for the status bar and Output; null normally.</summary>
+    public string? LoadNotice { get; private set; }
+
     void Load()
     {
-        _editor.Text = File.ReadAllText(Path);
+        _encoding = TextFileContent.Read(Path);
+        _editor.Text = _encoding.Text;
         _editor.MarkClean();
+        LoadNotice = _encoding.IsLossy
+            ? $"{System.IO.Path.GetFileName(Path)} is not valid UTF-8 and has no byte order mark: opened read-only so saving can't corrupt it."
+            : null;
         bool readOnly;
-        try { readOnly = (File.GetAttributes(Path) & FileAttributes.ReadOnly) != 0; }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { readOnly = false; }
+        try { readOnly = _encoding.IsLossy || (File.GetAttributes(Path) & FileAttributes.ReadOnly) != 0; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { readOnly = _encoding.IsLossy; }
         if (readOnly != _editor.ReadOnly) { _editor.ReadOnly = readOnly; StateChanged?.Invoke(); }
         DiskTimestamp = DocumentFiles.Stamp(Path);
     }
@@ -166,8 +177,9 @@ public sealed class CodeDocument : IDocumentView, IEditTarget
 
     public bool Save()
     {
+        if (_encoding.IsLossy) return false;   // never write a file we could only read lossily
         var text = _editor.Text;
-        try { File.WriteAllText(Path, text); }
+        try { _encoding.Write(Path, text); }   // same encoding and BOM, atomically (temp file, then replace)
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
         _editor.MarkClean();
         DiskTimestamp = DocumentFiles.Stamp(Path);

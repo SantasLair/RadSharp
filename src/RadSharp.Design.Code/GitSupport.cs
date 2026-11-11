@@ -90,18 +90,38 @@ public sealed class GitRepo
         var folders = new Dictionary<string, GitState>(comparer);
         stopAt = Path.TrimEndingDirectorySeparator(Path.GetFullPath(stopAt));
         foreach (var path in files.Keys)
-            for (var dir = Path.GetDirectoryName(path); dir != null && dir.Length >= stopAt.Length
-                && dir.StartsWith(stopAt, StringComparison.OrdinalIgnoreCase); dir = Path.GetDirectoryName(dir))
+            for (var dir = Path.GetDirectoryName(path); dir != null && IsSameOrUnder(dir, stopAt, comparer); dir = Path.GetDirectoryName(dir))
                 folders[dir] = GitState.Modified;
         return folders;
     }
 
-    /// <summary>Runs git and returns stdout, or null if git is missing or exits non-zero.</summary>
-    static string? Run(string workingDirectory, params string[] args)
+    /// <summary>True if <paramref name="dir"/> is <paramref name="root"/> or lies below it (a separator boundary, so "App2" is not under "App").</summary>
+    static bool IsSameOrUnder(string dir, string root, StringComparer comparer)
+    {
+        if (dir.Length < root.Length) return false;
+        if (!comparer.Equals(dir[..root.Length], root)) return false;
+        return dir.Length == root.Length || dir[root.Length] == Path.DirectorySeparatorChar || dir[root.Length] == Path.AltDirectorySeparatorChar
+            || root.EndsWith(Path.DirectorySeparatorChar) || root.EndsWith(Path.AltDirectorySeparatorChar);
+    }
+
+    /// <summary>Runs git and returns stdout, or null if git is missing, exits non-zero or takes longer than 15 s.</summary>
+    static string? Run(string workingDirectory, params string[] args) =>
+        ProcessCapture.Run("git", args, workingDirectory, TimeSpan.FromSeconds(15), new Dictionary<string, string> { ["GIT_OPTIONAL_LOCKS"] = "0" });   // a status refresh must not take the index lock
+}
+
+/// <summary>Runs a short-lived process and captures its stdout, never blocking beyond a timeout.</summary>
+public static class ProcessCapture
+{
+    /// <summary>
+    /// Runs <paramref name="fileName"/> and returns its stdout, or null if it couldn't start, exited non-zero or ran
+    /// longer than <paramref name="timeout"/> (then its whole process tree is killed). stdout and stderr are read
+    /// asynchronously so a full pipe can't stall it, and the wait for them is bounded as well.
+    /// </summary>
+    public static string? Run(string fileName, IEnumerable<string> args, string workingDirectory, TimeSpan timeout, IReadOnlyDictionary<string, string>? environment = null)
     {
         try
         {
-            var psi = new ProcessStartInfo("git")
+            var psi = new ProcessStartInfo(fileName)
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -111,16 +131,21 @@ public sealed class GitRepo
                 StandardOutputEncoding = Encoding.UTF8,
             };
             foreach (var a in args) psi.ArgumentList.Add(a);
-            psi.Environment["GIT_OPTIONAL_LOCKS"] = "0";   // a status refresh must not take the index lock
+            if (environment != null) foreach (var (k, v) in environment) psi.Environment[k] = v;
             using var p = Process.Start(psi);
             if (p == null) return null;
+            var outTask = p.StandardOutput.ReadToEndAsync();
             var errTask = p.StandardError.ReadToEndAsync();
-            var output = p.StandardOutput.ReadToEnd();
-            if (!p.WaitForExit(15000)) { try { p.Kill(); } catch (InvalidOperationException) { } return null; }
-            errTask.Wait(1000);
-            return p.ExitCode == 0 ? output : null;
+            if (!p.WaitForExit((int)Math.Min(timeout.TotalMilliseconds, int.MaxValue)))
+            {
+                AppProcess.KillTree(p);
+                return null;
+            }
+            // The process ended; a grandchild that inherited the pipes may still hold them open, so don't wait forever.
+            if (!Task.WhenAll(outTask, errTask).Wait(2000)) return null;
+            return p.ExitCode == 0 ? outTask.Result : null;
         }
-        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or IOException) { return null; }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or IOException or AggregateException) { return null; }
     }
 }
 
