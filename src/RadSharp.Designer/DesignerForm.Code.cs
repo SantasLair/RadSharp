@@ -161,8 +161,9 @@ public partial class DesignerForm
         ClearOutput();
         Output($"Compiling {_project.Name}…");
         var overrides = _forms.ToDictionary(f => Path.GetFullPath(f.Path), f => f.Document.Save());
-        var session = LiveSession.Compile(_project, overrides);
+        var session = LiveSession.Compile(_project, overrides, debugInformation: true);
         foreach (var m in session.Messages) Output(m.ToString(), m);
+        _problemStore.Set(ProblemSources.LiveCompile, session.Messages);
         if (!session.Success)
         {
             Output($"{session.Messages.Count} error(s).");
@@ -176,6 +177,7 @@ public partial class DesignerForm
             var form = session.CreateForm(main);
             _live = session;
             _liveForm = form;
+            AttachLiveHooks();
             form.Closed += _ => CloseLiveForm();
             form.Show();
             Output($"Running {main} (close its window to return to the designer).");
@@ -185,6 +187,7 @@ public partial class DesignerForm
         {
             session.Dispose();
             Output("The application failed to start: " + (e.InnerException ?? e).Message);
+            foreach (var line in ExceptionReport.Describe(e.InnerException ?? e)) Output(line.Text, line.Location);
             return null;
         }
     }
@@ -194,29 +197,9 @@ public partial class DesignerForm
         var form = _liveForm;
         _liveForm = null;
         if (form != null && PlatformHost.Current != null) PlatformHost.Current.CloseForm(form);
+        DetachLiveHooks();
         _live?.Dispose();
         _live = null;
-    }
-
-    // ---- Build ----
-
-    async void Build()
-    {
-        if (_project == null || _building) return;
-        SaveAll();
-        _building = true;
-        ClearOutput();
-        Output($"Building {_project.Name} (NativeAOT, {System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier})…");
-        try
-        {
-            var (exit, dir) = await ProjectBuilder.PublishAsync(_project, line => Application.Post(() => Output(line)));
-            Application.Post(() =>
-            {
-                Output(exit == 0 ? $"Build succeeded: {dir}" : $"Build failed (exit code {exit}).");
-                sbMain.SimpleText = exit == 0 ? "Build succeeded" : "Build failed";
-            });
-        }
-        finally { _building = false; }
     }
 
     // ---- Output ----
