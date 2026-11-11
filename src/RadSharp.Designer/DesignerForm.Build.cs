@@ -23,7 +23,6 @@ public partial class DesignerForm
     Label _lblProblemCounts = null!;
     CancellationTokenSource? _buildCts;
     AppProcess? _app;
-    string? _pendingNote;
 
     /// <summary>All problems of all sources (the build's, the live compile's, later the language service's).</summary>
     public ProblemStore Problems => _problemStore;
@@ -70,9 +69,10 @@ public partial class DesignerForm
         Reg("Run.Build", "Build", "Run", () => _ = BuildProjectAsync(), "Ctrl+Shift+B", () => HasProject && !_building);
         Reg("Run.CancelBuild", "Cancel Build", "Run", CancelBuild, "", () => _building);
         Reg("Run.Publish", "Publish (NativeAOT)", "Run", () => _ = PublishAsync(), "Ctrl+F9", () => HasProject && !_building);
-        Reg("Run.RunWithoutDebugging", "Run Without Debugging", "Run", () => _ = RunWithoutDebuggingAsync(), "Ctrl+F5", () => HasProject && !_building && !AppRunning);
-        Reg("Run.StartDebugging", "Start Debugging", "Run", () => _ = StartDebuggingAsync(), "F5", () => HasProject && !_building && !AppRunning);
-        Reg("Run.Stop", "Stop", "Run", StopApp, "Shift+F5", () => AppRunning);
+        Reg("Run.RunWithoutDebugging", "Run Without Debugging", "Run", () => _ = RunWithoutDebuggingAsync(), "Ctrl+F5", () => HasProject && !_building && !AppRunning && !DebugActive);
+        Reg("Run.StartDebugging", "Start Debugging", "Run", () => _ = StartDebuggingAsync(), "F5",
+            () => _debugger.CanContinue || (HasProject && !_building && !AppRunning && _debugger.CanStart));   // F5 also continues when paused
+        Reg("Run.Stop", "Stop", "Run", StopApp, "Shift+F5", () => AppRunning || DebugActive);
         Reg("Project.RunConfiguration", "Run Configuration…", "Project", ShowRunConfiguration, "", () => HasProject);
     }
 
@@ -107,7 +107,6 @@ public partial class DesignerForm
         ClearOutput();
         _problemStore.Clear(ProblemSources.Build);
         Output($"Building {project.Name} (Debug)…");
-        if (_pendingNote != null) { Output(_pendingNote); _pendingNote = null; }
         BuildResult? result = null;
         try
         {
@@ -222,15 +221,15 @@ public partial class DesignerForm
     /// <summary>Completes after the separate-process app's exit was reported in Output (for tests).</summary>
     public Task AppExited => _appExited;
 
-    /// <summary>Stop (Shift+F5): kills the separate-process app and what it started.</summary>
-    public void StopApp() => _app?.Stop();
-
-    /// <summary>Start Debugging (F5): the debugger isn't wired yet, so it runs without it and says so.</summary>
-    public Task<bool> StartDebuggingAsync()
+    /// <summary>Stop (Shift+F5): ends the debugging session (killing the debuggee), or kills the separate-process app and what it started.</summary>
+    public void StopApp()
     {
-        _pendingNote = "Debugging isn't available yet: running without the debugger (Ctrl+F5).";   // shown after the build clears Output
-        return RunWithoutDebuggingAsync();
+        if (DebugActive) { _ = _debugger.StopAsync(); return; }
+        _app?.Stop();
     }
+
+    /// <summary>Start Debugging (F5): builds and starts the app under the debugger, or continues when paused (see DesignerForm.Debug.cs).</summary>
+    public Task<bool> StartDebuggingAsync() => StartOrContinueDebuggingAsync();
 
     // ---- Run configuration ----
 
@@ -271,6 +270,7 @@ public partial class DesignerForm
     /// <summary>Called when the project closes: stops the app, forgets the build's problems.</summary>
     void ResetBuildState()
     {
+        ResetDebugState();
         StopApp();
         _buildCts?.Cancel();
         _problemStore.Clear(ProblemSources.Build);

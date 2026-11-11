@@ -51,7 +51,7 @@ public partial class DesignerForm
         foreach (var project in Projects)
         {
             if (_languageHosts.ContainsKey(project.ProjectFile)) continue;
-            var host = new LanguageHost(project);
+            var host = new LanguageHost(project) { QuickInfoSuppressed = () => _debugger.IsPaused };
             _languageHosts[project.ProjectFile] = host;
             host.LiveDiagnosticsChanged += _ => UpdateLiveProblems();
             host.StateChanged += () =>
