@@ -15,19 +15,13 @@ public partial class DesignerForm
 
     // ---- File menu ----
 
-    void NewApplication()
+    void NewApplication() => NewApplication(ProjectTemplates.Empty);
+
+    void NewApplication(ProjectTemplate template)
     {
         var dialog = new NewApplicationDialog(_settings, this);
         if (dialog.ShowModal() != ModalResult.Ok) return;
-        if (_project != null && !CloseProject()) return;
-        try
-        {
-            var project = RadProject.Create(dialog.ProjectFolder, dialog.ProjectName, packageSource: dialog.PackageSource);
-            _settings.ProjectsFolder = dialog.Location;
-            OpenProject(project.ProjectFile);
-            Output($"Created {project.ProjectFile}");
-        }
-        catch (IOException e) { Dialogs.MessageDlg($"Could not create the project:\n{e.Message}", MessageType.Error, owner: this); }
+        if (CreateProject(template, dialog.ProjectFolder, dialog.ProjectName, dialog.PackageSource) != null) _settings.ProjectsFolder = dialog.Location;
     }
 
     void OpenProjectDialog()
@@ -77,7 +71,10 @@ public partial class DesignerForm
         if (_project == null) return;
         var (exe, name) = _external.Editor();
         if (!ExternalEditor.OpenProject(_settings.Editor, exe, _settings.CustomEditorCommand, _project))
+        {
             Output($"Could not start {name}; choose another editor in Tools › Options.");
+            NextStep("Open in IDE", $"Could not start {name}.", ("Choose another editor…", ShowOptions));
+        }
         else sbMain.SimpleText = $"Opened {_project.Name} in {name}";
     }
 
@@ -167,12 +164,13 @@ public partial class DesignerForm
         _problemStore.Set(ProblemSources.LiveCompile, session.Messages);
         if (!session.Success)
         {
-            Output($"{session.Messages.Count} error(s).");
+            Output($"{session.Messages.Count} error(s): see Problems (double-click one to go to it).");
+            _dock.Show(FindToolWindow(ToolWindows.Problems));
             session.Dispose();
             return null;
         }
         var main = _project.MainFormClass ?? _current?.ClassName;
-        if (main == null) { Output("The project has no main form."); session.Dispose(); return null; }
+        if (main == null) { Output("The project has no main form: open a form and choose Project › Set as Main Form."); session.Dispose(); return null; }
         try
         {
             var form = session.CreateForm(main);
@@ -255,12 +253,5 @@ public partial class DesignerForm
 
     // ---- Theme ----
 
-    void ToggleDarkMode()
-    {
-        _settings.Theme = _settings.Theme == "dark" ? "light" : "dark";
-        Theme.Current = _settings.Theme == "dark" ? Theme.Dark : Theme.Default;
-        this.Theme = Theme.Current;
-        SaveSettings();
-        InvalidateAll();
-    }
+    void ToggleDarkMode() => SetDarkTheme(_settings.Theme != "dark");
 }

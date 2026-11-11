@@ -113,6 +113,7 @@ public partial class DesignerForm
         RegisterProjectCommands();
         RegisterDebugCommands();
         RegisterNavigationCommands();
+        RegisterPolishCommands();
 
         c.ShortcutsChanged += () => RefreshCommandState();
     }
@@ -238,6 +239,7 @@ public partial class DesignerForm
         var toolsMenu = Top("Tools");
         Cmd(toolsMenu, "Tools.Options");
         Cmd(toolsMenu, "Tools.KeyboardShortcuts");
+        AddHelpMenuItems(Top("Help"));
 
         // Tool bar and welcome page buttons.
         _commands.Bind(btnOpenProject, "File.OpenProject");
@@ -384,6 +386,8 @@ public partial class DesignerForm
         dialog.Apply();
         SaveSettings();
         SaveIdeSettings();
+        ApplyEditorSettings();
+        ApplyOsTheme();
         UpdateUi();
     }
 

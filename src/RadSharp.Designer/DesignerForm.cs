@@ -67,6 +67,7 @@ public partial class DesignerForm : Form
         if (projectFile != null && File.Exists(projectFile)) OpenProject(projectFile, session);
         else if (projectFile == null && session.Project is { } last && File.Exists(last)) OpenProject(last, session);
         UpdateUi();
+        InitPolish();
         Shown += _ => CheckSdk();
     }
 
@@ -115,12 +116,14 @@ public partial class DesignerForm : Form
         if (RadSharp.Design.Code.SolutionFile.IsSolution(projectFile)) return OpenSolution(projectFile, session);
         if (_project != null && !CloseProject()) return false;
         try { _project = new RadProject(projectFile); }
-        catch (IOException e)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            Dialogs.MessageDlg($"Could not open the project:\n{e.Message}", MessageType.Error, owner: this);
+            NextStep("Open project", $"Could not open the project:\n{e.Message}", ("Try again", () => OpenProject(projectFile, session)),
+                ("Remove from the recent list", () => RemoveRecent(projectFile)), ("Open another project…", OpenProjectDialog));
             return false;
         }
         _settings.AddRecent(_project.ProjectFile);
+        NoteProjectOpened(_project.ProjectFile);
         SaveSettings();
         _restoring = true;
         try
@@ -191,7 +194,7 @@ public partial class DesignerForm : Form
         }
         catch (Exception e) when (e is IOException or FormFileException or UnauthorizedAccessException)
         {
-            Dialogs.MessageDlg($"Could not open {Path.GetFileName(path)}:\n{e.Message}", MessageType.Error, owner: this);
+            NextStep("Open form", $"Could not open {Path.GetFileName(path)}:" + NL + e.Message + NL + "The file may be damaged: open it as text to fix it.", ("Open as text", () => OpenCodeFile(path)), ("Try again", () => OpenFormFile(path, preview, activate)));
             return null;
         }
 
@@ -236,7 +239,7 @@ public partial class DesignerForm : Form
         try { doc = new CodeDocument(path); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            Dialogs.MessageDlg($"Could not open {Path.GetFileName(path)}:\n{e.Message}", MessageType.Error, owner: this);
+            NextStep("Open file", $"Could not open {Path.GetFileName(path)}:" + NL + e.Message, ("Try again", () => OpenCodeFile(path, preview, activate)));
             return null;
         }
         doc.FormFile = (ProjectOf(path) ?? _project)?.FormFiles.FirstOrDefault(f => SamePath(RadProject.CodeFileFor(f), path));
@@ -250,6 +253,7 @@ public partial class DesignerForm : Form
     void AddDocument(IDocumentView doc, bool preview, bool activate)
     {
         if (preview && _docs.Preview is { } old && old != doc && !old.IsDirty) RemoveDocument(old);
+        HookDocument(doc);
         _docs.Add(doc, preview, activate);
         UpdateUi();
         SaveSession();
@@ -322,7 +326,7 @@ public partial class DesignerForm : Form
     {
         if (!doc.Save())
         {
-            Dialogs.MessageDlg($"Could not save {doc.Title}.", MessageType.Error, owner: this);
+            NextStep("Save", $"Could not save {doc.Title}." + NL + "The file may be read-only, locked by another program, or on a disk that is full.", ("Try again", () => Save(doc)));
             return false;
         }
         UpdateTitle();
@@ -370,6 +374,7 @@ public partial class DesignerForm : Form
             ? $"RADSharp packages for new projects: {source}"
             : "RADSharp packages: none found locally, so new projects use nuget.org (run dotnet pack in the RADSharp repository).";
 
+        RefreshWelcome();
         RebuildReopenMenu();
 
         if (!hasProject || _current == null)
@@ -381,6 +386,7 @@ public partial class DesignerForm : Form
         }
         RefreshCommandState();
         UpdateTitle();
+        CheckProjectFilesChanged();
         InvalidateAll();
     }
 
@@ -588,6 +594,7 @@ public partial class DesignerForm : Form
         e.CanClose = ConfirmSave(_docs.Documents);
         if (!e.CanClose) return;
         SaveSession();
+        EndRecoverySession();
         CloseLiveForm();
     }
 }

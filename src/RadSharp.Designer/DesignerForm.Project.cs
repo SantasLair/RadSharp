@@ -581,6 +581,7 @@ public partial class DesignerForm
             return false;
         }
         _settings.AddRecent(_solutionFile);
+        NoteProjectOpened(_solutionFile);
         SaveSettings();
         Output($"Opened solution {_solutionFile} ({projects.Count} project(s)); designing and building target the project that owns the active file.");
         SaveSession();
