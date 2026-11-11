@@ -11,6 +11,21 @@ internal static partial class Win32Chrome
     [LibraryImport("dwmapi.dll")]
     private static partial int DwmSetWindowAttribute(nint hwnd, int attribute, ref int value, int size);
 
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool IsZoomed(nint hwnd);
+
+    [LibraryImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static partial bool IsIconic(nint hwnd);
+
+    /// <summary>The window's real OS state, which SDL's own flags can lag behind while the window is being maximised.</summary>
+    public static bool IsMaximizedOrMinimized(nint hwnd)
+    {
+        try { return IsZoomed(hwnd) || IsIconic(hwnd); }
+        catch (Exception e) when (e is DllNotFoundException or EntryPointNotFoundException) { return false; }
+    }
+
     static int ColorRef(Color c) => c.R | (c.G << 8) | (c.B << 16);
 
     /// <summary>Dark title bar; the caption is painted in <paramref name="caption"/> with <paramref name="text"/> where supported.</summary>

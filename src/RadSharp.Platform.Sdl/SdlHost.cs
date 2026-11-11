@@ -379,6 +379,7 @@ internal sealed unsafe class FormWindow : IDisposable
         _appliedResizable = form.Resizable;
         ApplyMinSize();
         PlaceWindow(owner);
+        RecordRestoredBounds();   // before ApplyWindowState maximises the window
         if (form.DarkTitleBar && OperatingSystem.IsWindows())
         {
             nint hwnd = (nint)SDL_GetPointerProperty(SDL_GetWindowProperties(_window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, 0);
@@ -457,6 +458,27 @@ internal sealed unsafe class FormWindow : IDisposable
         _form.NotifyWindowStateChanged(state);
     }
 
+    /// <summary>
+    /// Tells the form the window's normal rect (client-area origin and size, in form pixels) while the window is
+    /// neither maximised, minimised nor full screen. On Windows the real OS state decides, because SDL's flags can lag
+    /// behind the move/resize events sent while the window is being maximised.
+    /// </summary>
+    void RecordRestoredBounds()
+    {
+        bool normal;
+        if (OperatingSystem.IsWindows()
+            && (nint)SDL_GetPointerProperty(SDL_GetWindowProperties(_window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, 0) is var hwnd and not 0)
+            normal = !Win32Chrome.IsMaximizedOrMinimized(hwnd)
+                && (SDL_GetWindowFlags(_window) & SDL_WindowFlags.SDL_WINDOW_FULLSCREEN) == 0;
+        else
+            normal = (SDL_GetWindowFlags(_window) & (SDL_WindowFlags.SDL_WINDOW_MAXIMIZED | SDL_WindowFlags.SDL_WINDOW_MINIMIZED | SDL_WindowFlags.SDL_WINDOW_FULLSCREEN)) == 0;
+        if (!normal) return;
+        int x, y, w, h;
+        SDL_GetWindowPosition(_window, &x, &y);
+        SDL_GetWindowSize(_window, &w, &h);
+        _form.NotifyRestoredBounds(new Rect(Px(x), Px(y), Px(w), Px(h)));
+    }
+
     /// <summary>Positions the (still hidden) window per <see cref="Form.StartPosition"/>.</summary>
     void PlaceWindow(FormWindow? owner)
     {
@@ -500,6 +522,10 @@ internal sealed unsafe class FormWindow : IDisposable
             case SDL_EventType.SDL_EVENT_WINDOW_EXPOSED:
                 Guard.Run(() => _form.InvalidateAll());
                 break;
+            case SDL_EventType.SDL_EVENT_WINDOW_MOVED:
+            case SDL_EventType.SDL_EVENT_WINDOW_RESIZED:
+                Guard.Run(RecordRestoredBounds);
+                break;
             case SDL_EventType.SDL_EVENT_WINDOW_MAXIMIZED:
                 Guard.Run(() => OnWindowStateEvent(WindowState.Maximized));
                 break;
@@ -509,6 +535,7 @@ internal sealed unsafe class FormWindow : IDisposable
             case SDL_EventType.SDL_EVENT_WINDOW_RESTORED:
                 Guard.Run(() => OnWindowStateEvent(
                     (SDL_GetWindowFlags(_window) & SDL_WindowFlags.SDL_WINDOW_MAXIMIZED) != 0 ? WindowState.Maximized : WindowState.Normal));
+                Guard.Run(RecordRestoredBounds);
                 break;
             case SDL_EventType.SDL_EVENT_MOUSE_MOTION:
                 Guard.Run(() => _form.ProcessMouseMove(Px(e.motion.x), Px(e.motion.y), SdlInput.Modifiers(SDL_GetModState())));

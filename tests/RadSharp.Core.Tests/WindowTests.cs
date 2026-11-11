@@ -38,6 +38,25 @@ public class WindowTests
     }
 
     [Fact]
+    public void RestoredBounds_defaults_to_the_form_bounds_and_follows_the_host()
+    {
+        var f = new Form();
+        f.SetBounds(30, 40, 500, 300);
+        Assert.Equal(new Rect(30, 40, 500, 300), f.RestoredBounds);
+
+        int raised = 0;
+        f.RestoredBoundsChanged += _ => raised++;
+        f.NotifyRestoredBounds(new Rect(100, 120, 640, 480));
+        Assert.Equal(new Rect(100, 120, 640, 480), f.RestoredBounds);
+        f.NotifyRestoredBounds(new Rect(100, 120, 640, 480));   // unchanged: no event
+        Assert.Equal(1, raised);
+
+        f.WindowState = WindowState.Maximized;
+        f.Resize(1920, 1080);                                    // maximised size is not the restored size
+        Assert.Equal(new Rect(100, 120, 640, 480), f.RestoredBounds);
+    }
+
+    [Fact]
     public void WindowState_raises_an_event_only_when_it_changes_and_the_host_can_write_it_back()
     {
         var f = new Form();

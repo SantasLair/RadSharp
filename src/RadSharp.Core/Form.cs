@@ -94,6 +94,27 @@ public class Form : Control
     /// </summary>
     public void NotifyWindowStateChanged(WindowState state) => WindowState = state;
 
+    Rect? _restoredBounds;
+
+    /// <summary>
+    /// The window's last normal (not maximised, not minimised) bounds in screen coordinates, in form pixels (the same
+    /// units as <see cref="Control.Left"/>/<see cref="Control.Top"/>/<see cref="Control.Width"/>/<see cref="Control.Height"/>
+    /// for <see cref="FormStartPosition.Manual"/>). It stays available while the window is maximised, so an app can
+    /// save it. Until the host reports anything it is the form's own bounds.
+    /// </summary>
+    public Rect RestoredBounds => _restoredBounds ?? new Rect(Left, Top, Width, Height);
+
+    /// <summary>Raised when <see cref="RestoredBounds"/> changes because the host reported a new normal window rect.</summary>
+    public event Action<Form>? RestoredBoundsChanged;
+
+    /// <summary>Host callback: the window's normal rect (screen coordinates, form pixels) was set or changed.</summary>
+    public void NotifyRestoredBounds(Rect bounds)
+    {
+        if (_restoredBounds == bounds) return;
+        _restoredBounds = bounds;
+        RestoredBoundsChanged?.Invoke(this);
+    }
+
     /// <summary>
     /// Where the window first appears (Delphi's <c>Position</c>). Read when the window is created; changing it
     /// afterwards has no effect. <see cref="FormStartPosition.Manual"/> uses <see cref="Control.Left"/> and
