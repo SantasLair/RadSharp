@@ -7,6 +7,27 @@
 > not date; S ≈ days, M ≈ 1–2 weeks, L ≈ several weeks; every milestone has a **done when** that a test can check.
 > Milestones are numbered **I1–I9** so they don't clash with the M-numbers in `gap-plan.md`.
 
+## Status (2026-11-11)
+
+Built on branch `ide/main` (cut from `vs-designer`'s committed tip `99babdb`); 616 tests pass with
+`dotnet test -p:WarningsNotAsErrors=NU1903`.
+
+| Milestone | State | Notes |
+|---|---|---|
+| I1 code editor | done | 20k-line open 40 ms, keystroke 0.09 ms; JetBrains Mono bundled; no word wrap, no inline hints |
+| I2 language service | done | warm completion median 15 ms; uses reflection on two Roslyn 4.14 internals (fail-safe) |
+| I3 shell | done (phase A + B) | floating windows not built (seam only); no tab overflow |
+| I4 build / Problems / run modes | done | F9 passes no args (in-process run skips `Program.cs`) |
+| I5 navigation and search | done | find-in-files results arrive at the end, not incrementally |
+| I6 debugger | done | real netcoredbg 3.2.0 test passes on Windows; Linux/macOS acquisition untested; no hot reload spike |
+| I7 designer depth | **not started** | waits for the VS track (it is moving palette code into `RadSharp.Design`, uncommitted) |
+| I8 project and packages | done | multi-project is basic (one workspace per project, no project references) |
+| I9 polish | done | keystroke-to-paint p95 18.5 ms vs 16 ms target; "follow OS theme" Windows-only |
+| Review fixes | done | 24 findings from a focused review (shutdown cleanup, transactional file ops, async git, encodings, debugger races) |
+
+Open items before merging into the main line: the `Microsoft.DotNet.ILCompiler` 10.0.12 advisory (NU1903) breaks a
+plain `dotnet test`; reconciling `DesignerForm.cs` and the palette move with the VS track's uncommitted work.
+
 ## Goal
 
 Today the designer covers the form half of the Delphi loop well: placing controls, editing properties,
