@@ -60,6 +60,60 @@ public class Form : Control
 
     internal string? DesignedClass => DesignedClassName;
 
+    // =====================================================================
+    // Window: state, size limits, start position, border
+    // =====================================================================
+
+    WindowState _windowState;
+    FormStartPosition _startPosition;
+    bool _resizable = true;
+
+    /// <summary>
+    /// Whether the window is normal, maximised or minimised. Setting it while the window is open asks
+    /// the host to change it; when the user maximises or restores the window, the host writes the new
+    /// state back here (and raises <see cref="WindowStateChanged"/>).
+    /// </summary>
+    [Published(Category = "Window")]
+    public WindowState WindowState
+    {
+        get => _windowState;
+        set
+        {
+            if (_windowState == value) return;
+            _windowState = value;
+            WindowStateChanged?.Invoke(this);
+        }
+    }
+
+    /// <summary>Raised when <see cref="WindowState"/> changes, from code or because the user changed the window.</summary>
+    public event Action<Form>? WindowStateChanged;
+
+    /// <summary>
+    /// Host callback: the window's state was changed by the user or the OS. Updates <see cref="WindowState"/>
+    /// without asking the host to apply it again.
+    /// </summary>
+    public void NotifyWindowStateChanged(WindowState state) => WindowState = state;
+
+    /// <summary>
+    /// Where the window first appears (Delphi's <c>Position</c>). Read when the window is created; changing it
+    /// afterwards has no effect. <see cref="FormStartPosition.Manual"/> uses <see cref="Control.Left"/> and
+    /// <see cref="Control.Top"/> (form pixels, screen coordinates).
+    /// </summary>
+    [Published(Category = "Window")]
+    public FormStartPosition StartPosition { get => _startPosition; set => _startPosition = value; }
+
+    /// <summary>
+    /// Whether the user can resize the window by its border. Turn it off for fixed-size dialogs; the host
+    /// applies later changes to an open window. The window's minimum size is <see cref="Control.MinWidth"/> and
+    /// <see cref="Control.MinHeight"/> (form pixels); 0 means no minimum.
+    /// </summary>
+    [Published(Category = "Window")]
+    public bool Resizable
+    {
+        get => _resizable;
+        set => _resizable = value;
+    }
+
     /// <summary>Feeds synthetic input through the same code paths as real input (for tests).</summary>
     public InputSimulator Simulate { get; }
 

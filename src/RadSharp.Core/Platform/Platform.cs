@@ -71,6 +71,22 @@ public interface IPlatformServices
     void ShowModal(Form form, Action onClosed);
 }
 
+/// <summary>Whether a form's window is normal, maximised or minimised.</summary>
+public enum WindowState { Normal, Maximized, Minimized }
+
+/// <summary>Where a form's window first appears.</summary>
+public enum FormStartPosition
+{
+    /// <summary>The OS decides.</summary>
+    Default,
+    /// <summary>Centred on the screen the window opens on.</summary>
+    CenterScreen,
+    /// <summary>Centred on <see cref="Form.Owner"/> (falls back to the screen when there is none).</summary>
+    CenterOwner,
+    /// <summary>At <see cref="Control.Left"/>, <see cref="Control.Top"/>.</summary>
+    Manual,
+}
+
 public enum FileDialogKind { Open, Save, Folder }
 
 public static class PlatformHost

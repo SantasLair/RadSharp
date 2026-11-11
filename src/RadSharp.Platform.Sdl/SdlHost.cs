@@ -361,7 +361,8 @@ internal sealed unsafe class FormWindow : IDisposable
     {
         _form = form;
         // Window sizes are in points; with high pixel density a point can be several pixels.
-        var flags = SDL_WindowFlags.SDL_WINDOW_RESIZABLE | SDL_WindowFlags.SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WindowFlags.SDL_WINDOW_HIDDEN;
+        var flags = SDL_WindowFlags.SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WindowFlags.SDL_WINDOW_HIDDEN;
+        if (form.Resizable) flags |= SDL_WindowFlags.SDL_WINDOW_RESIZABLE;
         _window = SDL_CreateWindow(form.Caption, form.Width, form.Height, flags);
         if (_window == null) throw new InvalidOperationException($"SDL_CreateWindow failed: {SDL_GetError()}");
         float density = SDL_GetWindowPixelDensity(_window);
@@ -372,6 +373,10 @@ internal sealed unsafe class FormWindow : IDisposable
             if (modal) SDL_SetWindowModal(_window, true);
         }
         Id = SDL_GetWindowID(_window);
+        _appliedResizable = form.Resizable;
+        ApplyMinSize();
+        PlaceWindow(owner);
+        ApplyWindowState();
 
         _renderer = SDL_CreateRenderer(_window, (string?)null);
         if (_renderer == null) throw new InvalidOperationException($"SDL_CreateRenderer failed: {SDL_GetError()}");
@@ -394,6 +399,81 @@ internal sealed unsafe class FormWindow : IDisposable
     float Density => Math.Max(1f, SDL_GetWindowPixelDensity(_window));
     int Px(float points) => (int)MathF.Floor(points * Density);
 
+    // ---- Window state, minimum size, start position ----
+
+    WindowState _appliedState;
+    bool _appliedResizable;
+    int _appliedMinW = -1, _appliedMinH = -1;
+
+    /// <summary>Form pixels to window points.</summary>
+    int Points(int pixels) => (int)MathF.Round(pixels / Density);
+
+    void ApplyMinSize()
+    {
+        int w = Math.Max(0, _form.MinWidth), h = Math.Max(0, _form.MinHeight);
+        if (w == _appliedMinW && h == _appliedMinH) return;
+        _appliedMinW = w;
+        _appliedMinH = h;
+        SDL_SetWindowMinimumSize(_window, w == 0 ? 0 : Math.Max(1, Points(w)), h == 0 ? 0 : Math.Max(1, Points(h)));
+    }
+
+    void ApplyWindowState()
+    {
+        var wanted = _form.WindowState;
+        if (wanted == _appliedState) return;
+        _appliedState = wanted;
+        switch (wanted)
+        {
+            case WindowState.Maximized: SDL_MaximizeWindow(_window); break;
+            case WindowState.Minimized: SDL_MinimizeWindow(_window); break;
+            default: SDL_RestoreWindow(_window); break;
+        }
+    }
+
+    /// <summary>Applies the form's window properties that may change while the window is open.</summary>
+    void SyncWindowProperties()
+    {
+        ApplyMinSize();
+        ApplyWindowState();
+        if (_form.Resizable != _appliedResizable)
+        {
+            _appliedResizable = _form.Resizable;
+            SDL_SetWindowResizable(_window, _appliedResizable);
+        }
+    }
+
+    /// <summary>The OS reported a state change (user maximised, restored or minimised the window).</summary>
+    void OnWindowStateEvent(WindowState state)
+    {
+        _appliedState = state;   // already in effect; don't ask the OS again
+        _form.NotifyWindowStateChanged(state);
+    }
+
+    /// <summary>Positions the (still hidden) window per <see cref="Form.StartPosition"/>.</summary>
+    void PlaceWindow(FormWindow? owner)
+    {
+        int w, h;
+        SDL_GetWindowSize(_window, &w, &h);
+        switch (_form.StartPosition)
+        {
+            case FormStartPosition.CenterScreen:
+                SDL_SetWindowPosition(_window, unchecked((int)SDL_WINDOWPOS_CENTERED), unchecked((int)SDL_WINDOWPOS_CENTERED));
+                break;
+            case FormStartPosition.CenterOwner when owner != null:
+                int ox, oy, ow, oh;
+                SDL_GetWindowPosition(owner._window, &ox, &oy);
+                SDL_GetWindowSize(owner._window, &ow, &oh);
+                SDL_SetWindowPosition(_window, ox + (ow - w) / 2, oy + (oh - h) / 2);
+                break;
+            case FormStartPosition.CenterOwner:
+                SDL_SetWindowPosition(_window, unchecked((int)SDL_WINDOWPOS_CENTERED), unchecked((int)SDL_WINDOWPOS_CENTERED));
+                break;
+            case FormStartPosition.Manual:
+                SDL_SetWindowPosition(_window, Points(_form.Left), Points(_form.Top));
+                break;
+        }
+    }
+
     public void Show() => SDL_ShowWindow(_window);
     public void Raise() => SDL_RaiseWindow(_window);
 
@@ -411,6 +491,16 @@ internal sealed unsafe class FormWindow : IDisposable
                 break;
             case SDL_EventType.SDL_EVENT_WINDOW_EXPOSED:
                 Guard.Run(() => _form.InvalidateAll());
+                break;
+            case SDL_EventType.SDL_EVENT_WINDOW_MAXIMIZED:
+                Guard.Run(() => OnWindowStateEvent(WindowState.Maximized));
+                break;
+            case SDL_EventType.SDL_EVENT_WINDOW_MINIMIZED:
+                Guard.Run(() => OnWindowStateEvent(WindowState.Minimized));
+                break;
+            case SDL_EventType.SDL_EVENT_WINDOW_RESTORED:
+                Guard.Run(() => OnWindowStateEvent(
+                    (SDL_GetWindowFlags(_window) & SDL_WindowFlags.SDL_WINDOW_MAXIMIZED) != 0 ? WindowState.Maximized : WindowState.Normal));
                 break;
             case SDL_EventType.SDL_EVENT_MOUSE_MOTION:
                 Guard.Run(() => _form.ProcessMouseMove(Px(e.motion.x), Px(e.motion.y), SdlInput.Modifiers(SDL_GetModState())));
@@ -470,6 +560,7 @@ internal sealed unsafe class FormWindow : IDisposable
     {
         Guard.Run(() =>
         {
+            SyncWindowProperties();
             _form.ProcessTick(nowMs);
             var area = _form.TextInputArea;
             if (area == _textInputArea) return;
