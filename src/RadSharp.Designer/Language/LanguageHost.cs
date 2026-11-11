@@ -57,7 +57,7 @@ public sealed class LanguageHost : IDisposable
     volatile bool _disposed;
     readonly object _gate = new();
     ProjectWorkspace? _opening;   // opened in the background, not yet handed to the UI thread
-    readonly Dictionary<FormDocument, (Action Changed, Action Replaced)> _formHandlers = [];
+    readonly Dictionary<FormDocument, (Action Changed, Action<string> Moved)> _formHandlers = [];
 
     public LanguageHost(RadProject project, ProjectWorkspaceOptions? options = null)
     {
@@ -190,9 +190,11 @@ public sealed class LanguageHost : IDisposable
         if (_disposed || _forms.ContainsKey(form)) return;
         _forms[form] = (() => form.Document.Save(), null);
         Action changed = () => FormChanged(form);
-        _formHandlers[form] = (changed, changed);
+        Action<string> moved = _ => FormMoved(form);
+        _formHandlers[form] = (changed, moved);
         form.Document.Changed += changed;
         form.Document.FormReplaced += changed;
+        form.Moved += moved;
         FormChanged(form);
     }
 
@@ -204,7 +206,8 @@ public sealed class LanguageHost : IDisposable
         if (_formHandlers.Remove(form, out var handlers))
         {
             form.Document.Changed -= handlers.Changed;
-            form.Document.FormReplaced -= handlers.Replaced;
+            form.Document.FormReplaced -= handlers.Changed;
+            form.Moved -= handlers.Moved;
         }
         if (Workspace != null && entry.PushedPath != null) Workspace.CloseForm(entry.PushedPath);
         RequestReclassify();
@@ -215,6 +218,15 @@ public sealed class LanguageHost : IDisposable
         if (_disposed || !_forms.ContainsKey(form)) return;
         _pendingForms.Add(form);
         Debounce(ref _formPush, PushDelay, () => { FlushForms(); RequestReclassify(); });
+    }
+
+    /// <summary>A form file was moved or renamed: its workspace entry is re-keyed at once (not after the debounce).</summary>
+    void FormMoved(FormDocument form)
+    {
+        if (_disposed || !_forms.ContainsKey(form)) return;
+        _pendingForms.Add(form);
+        FlushForms();
+        RequestReclassify();
     }
 
     /// <summary>Holds form pushes back (a semantic control rename needs the workspace to keep the old name) until the scope ends.</summary>
@@ -339,7 +351,8 @@ public sealed class LanguageHost : IDisposable
         foreach (var (form, h) in _formHandlers)
         {
             form.Document.Changed -= h.Changed;
-            form.Document.FormReplaced -= h.Replaced;
+            form.Document.FormReplaced -= h.Changed;
+            form.Moved -= h.Moved;
         }
         _formHandlers.Clear();
         _forms.Clear();

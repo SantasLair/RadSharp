@@ -115,15 +115,15 @@ public sealed class ProblemsWindow : Control
         switch (m.SeverityOf())
         {
             case ProblemSeverity.Error:
-                canvas.FillEllipse(ir, Color.FromHex("#D13438"));
-                canvas.DrawLine(new PointF(ir.X + icon * 0.3f, ir.Y + icon * 0.3f), new PointF(ir.X + icon * 0.7f, ir.Y + icon * 0.7f), Color.FromHex("#FFFFFF"), canvas.Px(1));
-                canvas.DrawLine(new PointF(ir.X + icon * 0.7f, ir.Y + icon * 0.3f), new PointF(ir.X + icon * 0.3f, ir.Y + icon * 0.7f), Color.FromHex("#FFFFFF"), canvas.Px(1));
+                canvas.FillEllipse(ir, t.Error);
+                canvas.DrawLine(new PointF(ir.X + icon * 0.3f, ir.Y + icon * 0.3f), new PointF(ir.X + icon * 0.7f, ir.Y + icon * 0.7f), t.OnAccent, canvas.Px(1));
+                canvas.DrawLine(new PointF(ir.X + icon * 0.7f, ir.Y + icon * 0.3f), new PointF(ir.X + icon * 0.3f, ir.Y + icon * 0.7f), t.OnAccent, canvas.Px(1));
                 break;
             case ProblemSeverity.Warning:
-                canvas.FillPolygon([new PointF(ir.X + icon / 2f, ir.Y), new PointF(ir.X + icon, ir.Y + icon), new PointF(ir.X, ir.Y + icon)], Color.FromHex("#E8A200"));
+                canvas.FillPolygon([new PointF(ir.X + icon / 2f, ir.Y), new PointF(ir.X + icon, ir.Y + icon), new PointF(ir.X, ir.Y + icon)], t.Warning);
                 break;
             default:
-                canvas.FillEllipse(ir, Color.FromHex("#2F7FD8"));
+                canvas.FillEllipse(ir, t.Info);
                 break;
         }
         int x = ir.X + icon + pad;

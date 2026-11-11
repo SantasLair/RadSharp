@@ -26,9 +26,11 @@ public sealed class FormDocument : IDocumentView, IEditTarget
     /// <summary>The form file was renamed or moved (by the project tree): the open document follows it.</summary>
     public void MovedTo(string newPath)
     {
+        var old = Path;
         Path = newPath;
         Document.FileName = newPath;
         DiskTimestamp = DocumentFiles.Stamp(newPath);
+        Moved?.Invoke(old);
         StateChanged?.Invoke();
     }
     public DesignDocument Document { get; }
@@ -40,6 +42,9 @@ public sealed class FormDocument : IDocumentView, IEditTarget
     public bool IsDirty => _dirty;
     public Control View => Surface;
     public DateTime DiskTimestamp { get; private set; }
+
+    /// <summary>Raised by <see cref="MovedTo"/> with the old path (the language host re-keys the form).</summary>
+    public event Action<string>? Moved;
 
     public event Action? StateChanged;
 

@@ -120,14 +120,17 @@ public partial class DesignerForm
                     : $"Build failed: {result.Errors} error(s), {result.Warnings} warning(s) (exit code {result.ExitCode}).");
                 sbMain.SimpleText = result.Cancelled ? "Build cancelled" : result.Succeeded ? "Build succeeded" : "Build failed";
             });
+            if (result is { Succeeded: false, Cancelled: false, Errors: > 0 }) Application.Post(() => _dock.Show(FindToolWindow(ToolWindows.Problems)));   // show what to fix
             return result;
         }
-        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or IOException or UnauthorizedAccessException)
+        catch (System.ComponentModel.Win32Exception e)
         {
-            var hint = e is System.ComponentModel.Win32Exception
-                ? "dotnet could not be started: install the .NET SDK and make sure 'dotnet' is on the PATH, then restart the IDE. (" + e.Message + ")"
-                : "The build could not run: " + e.Message;
-            Application.Post(() => { Output(hint); sbMain.SimpleText = "The build could not run"; });
+            Application.Post(() => ReportMissingDotnet(e.Message));
+            return null;
+        }
+        catch (Exception e) when (e is InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            Application.Post(() => { Output("The build could not run: " + e.Message); sbMain.SimpleText = "The build could not run"; });
             return null;
         }
         finally

@@ -21,7 +21,7 @@ public sealed class IdePaths(string? designerSettingsPath)
 }
 
 /// <summary>IDE preferences that aren't in <see cref="DesignerSettings"/>.</summary>
-public sealed class IdeSettings
+public sealed partial class IdeSettings
 {
     /// <summary>Open code in the built-in editor (the default) or in the external IDE of <see cref="DesignerSettings.Editor"/>.</summary>
     public CodeNavigation CodeNavigation { get; set; } = CodeNavigation.Embedded;
@@ -36,6 +36,7 @@ public sealed class IdeSettings
                 s.CodeNavigation = n;
         }
         catch (Exception e) when (e is JsonException or IOException or InvalidOperationException) { }
+        s.LoadExtras(path);
         return s;
     }
 
@@ -43,6 +44,7 @@ public sealed class IdeSettings
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         var root = new JsonObject { ["codeNavigation"] = CodeNavigation.ToString() };
+        SaveExtras(root);
         File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }
 }
