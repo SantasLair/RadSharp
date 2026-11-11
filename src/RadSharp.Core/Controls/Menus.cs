@@ -32,6 +32,64 @@ public sealed class MenuItem
 
     [Published] public event MenuItemEvent? Click;
 
+    /// <summary>
+    /// Raised on a submenu item (top-level or nested) just before its dropdown is built and shown, so an app can
+    /// update the children's Enabled / Checked / Caption first.
+    /// </summary>
+    public event MenuItemEvent? Opening;
+
+    internal void RaiseOpening() => Opening?.Invoke(this);
+
+    /// <summary>The access key marked with <c>&amp;</c> in the caption, upper-cased; null if none.</summary>
+    public char? AccessKey
+    {
+        get
+        {
+            var text = StripAccessKey(Caption, out int i);
+            return i >= 0 ? char.ToUpperInvariant(text[i]) : null;
+        }
+    }
+
+    /// <summary>The caption without its <c>&amp;</c> markers (the text to measure and draw).</summary>
+    public string DisplayText => StripAccessKey(Caption, out _);
+
+    /// <summary>
+    /// Removes the access-key markers from a caption: <c>"&amp;File"</c> gives <c>"File"</c> with
+    /// <paramref name="index"/> 0 (the character to underline), <c>"&amp;&amp;"</c> is a literal <c>&amp;</c>.
+    /// <paramref name="index"/> is -1 when the caption has no access key.
+    /// </summary>
+    public static string StripAccessKey(string caption, out int index)
+    {
+        index = -1;
+        if (caption.IndexOf('&') < 0) return caption;
+        var sb = new System.Text.StringBuilder(caption.Length);
+        for (int i = 0; i < caption.Length; i++)
+        {
+            char c = caption[i];
+            if (c != '&') { sb.Append(c); continue; }
+            if (i + 1 >= caption.Length) break;                 // a trailing & is dropped
+            if (caption[i + 1] == '&') { sb.Append('&'); i++; continue; }
+            if (index < 0) index = sb.Length;                   // the next character is the access key
+        }
+        return sb.ToString();
+    }
+
+    /// <summary>Draws a caption with its access key underlined (1 px, just below the baseline), centred or left-aligned in <paramref name="r"/>.</summary>
+    internal static void DrawCaption(Canvas canvas, Font font, string caption, Color color, Rect r, TextAlign align)
+    {
+        var text = StripAccessKey(caption, out int index);
+        if (text.Length == 0) return;
+        var render = canvas.Resolve(font);
+        float width = render.MeasureWidth(text);
+        float x = align == TextAlign.Center ? r.X + (r.Width - width) / 2 : r.X;
+        float baseline = r.Y + (r.Height - (render.Ascent + render.Descent)) / 2 + render.Ascent;
+        canvas.DrawText(text, render, color, x, baseline);
+        if (index < 0) return;
+        float ux = MathF.Round(x, MidpointRounding.AwayFromZero) + render.MeasureWidth(text[..index]);
+        int uw = Math.Max(1, (int)MathF.Round(render.MeasureWidth(text[index].ToString())));
+        canvas.FillRect(new Rect((int)MathF.Round(ux), (int)MathF.Round(baseline, MidpointRounding.AwayFromZero) + canvas.Px(1), uw, canvas.Px(1)), color);
+    }
+
     public MenuItem() { }
     public MenuItem(string caption, MenuItemEvent? click = null, string shortcut = "")
     {
@@ -143,6 +201,11 @@ public interface IMenuOwner
 public class MainMenu : Control, IMenuOwner
 {
     int _openIndex = -1;
+    int _hot = -1;                  // the highlighted top-level item in menu mode
+    bool _menuMode;
+    bool _active;                   // menu mode or a dropdown from the bar is in use: focus is remembered
+    bool _switching;                // a dropdown is being replaced by a neighbour: don't end the session
+    Control? _restoreFocus;
 
     public MainMenu()
     {
@@ -170,7 +233,7 @@ public class MainMenu : Control, IMenuOwner
         foreach (var item in Items)
         {
             if (!item.Visible) continue;
-            int w = (int)Math.Ceiling(BarFont.MeasureWidth(item.Caption)) + 2 * pad;
+            int w = (int)Math.Ceiling(BarFont.MeasureWidth(item.DisplayText)) + 2 * pad;
             list.Add((item, new Rect(x, 0, w, Height)));
             x += w;
         }
@@ -190,14 +253,116 @@ public class MainMenu : Control, IMenuOwner
     {
         var rects = ItemRects();
         if (OwningForm is not { } form || index < 0 || index >= rects.Count) return;
-        var (item, rect) = rects[index];
+        BeginSession(form);
+        _switching = true;
         form.CloseAllPopups();
+        _switching = false;
+        var item = rects[index].Item;
+        item.RaiseOpening();
+        var after = ItemRects();
+        var rect = index < after.Count ? after[index].Rect : rects[index].Rect;
         _openIndex = index;
+        if (_menuMode) _hot = index;
         var popup = new MenuPopup(item.Items, this, null);
-        popup.Closed += () => { if (_openIndex == index) { _openIndex = -1; Invalidate(); } };
+        popup.Closed += () =>
+        {
+            if (_openIndex == index) { _openIndex = -1; Invalidate(); }
+            if (!_switching) EndSession(restoreFocus: true);
+        };
         popup.ShowAt(form, AbsoluteLeft + rect.X, AbsoluteTop + Height, this);
         if (selectFirst) popup.SelectFirst();
         Invalidate();
+    }
+
+    /// <summary>True while the bar is driven from the keyboard (after Alt or F10): one item is highlighted.</summary>
+    public bool InMenuMode => _menuMode;
+
+    /// <summary>The highlighted top-level item in menu mode (an index among the visible items), or -1.</summary>
+    public int HotIndex => _menuMode ? _hot : -1;
+
+    /// <summary>Enters menu mode: highlights the first item and takes the keyboard focus (remembered, and given back on exit).</summary>
+    public void EnterMenuMode()
+    {
+        if (_menuMode || OwningForm is not { } form || ItemRects().Count == 0) return;
+        form.CloseAllPopups();
+        BeginSession(form);
+        _menuMode = true;
+        _hot = 0;
+        if (!form.SetFocus(this)) { EndSession(restoreFocus: false); return; }
+        Invalidate();
+    }
+
+    /// <summary>Leaves menu mode (closing any dropdown) and gives the focus back to the control that had it.</summary>
+    public void ExitMenuMode()
+    {
+        _switching = false;
+        OwningForm?.CloseAllPopups();
+        EndSession(restoreFocus: true);
+    }
+
+    internal void ToggleMenuMode()
+    {
+        if (_openIndex >= 0 || _menuMode) ExitMenuMode();
+        else EnterMenuMode();
+    }
+
+    void BeginSession(Form form)
+    {
+        if (_active) return;
+        _active = true;
+        _restoreFocus = form.FocusedControl == this ? null : form.FocusedControl;
+    }
+
+    void EndSession(bool restoreFocus)
+    {
+        if (!_active) return;
+        _active = false;
+        _menuMode = false;
+        _hot = -1;
+        var target = _restoreFocus;
+        _restoreFocus = null;
+        Invalidate();
+        if (!restoreFocus || OwningForm is not { } form) return;
+        if (target != null && form.SetFocus(target)) return;
+        if (form.FocusedControl == this) form.SetFocus(null);
+    }
+
+    protected internal override void OnLostFocus()
+    {
+        base.OnLostFocus();
+        if (_menuMode && _openIndex < 0) EndSession(restoreFocus: false);   // focus went elsewhere (e.g. a click)
+    }
+
+    int IndexOfAccessKey(char c)
+    {
+        var rects = ItemRects();
+        for (int i = 0; i < rects.Count; i++)
+            if (rects[i].Item.Enabled && rects[i].Item.AccessKey == c) return i;
+        return -1;
+    }
+
+    internal static char? LetterOf(Key key) =>
+        key is >= Key.A and <= Key.Z ? (char)('A' + (key - Key.A))
+        : key is >= Key.D0 and <= Key.D9 ? (char)('0' + (key - Key.D0)) : null;
+
+    protected internal override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);
+        if (e.Handled || !_menuMode) return;
+        int count = ItemRects().Count;
+        if (count == 0) { ExitMenuMode(); e.Handled = true; return; }
+        if ((e.Modifiers & (KeyModifiers.Ctrl | KeyModifiers.Meta)) != 0) return;
+        switch (e.Key)
+        {
+            case Key.Left: _hot = (_hot - 1 + count) % count; Invalidate(); break;
+            case Key.Right: _hot = (_hot + 1) % count; Invalidate(); break;
+            case Key.Down or Key.Enter or Key.Space: OpenMenu(_hot, selectFirst: true); break;
+            case Key.Escape or Key.F10: ExitMenuMode(); break;
+            default:
+                if (LetterOf(e.Key) is { } c && IndexOfAccessKey(c) is var i and >= 0) { OpenMenu(i, selectFirst: true); break; }
+                return;
+        }
+        e.Handled = true;
     }
 
     /// <summary>Left/Right in an open top-level dropdown switch to the neighbouring menu.</summary>
@@ -226,9 +391,18 @@ public class MainMenu : Control, IMenuOwner
 
     protected internal override bool ProcessShortcut(KeyEventArgs e)
     {
-        if (MenuItem.FindShortcut(Items, e) is not { } item) return false;
-        OwningForm?.CloseAllPopups();
-        return item.PerformClick();
+        if (MenuItem.FindShortcut(Items, e) is { } item)
+        {
+            OwningForm?.CloseAllPopups();
+            return item.PerformClick();
+        }
+        if (e.Key == Key.F10 && e.Modifiers == KeyModifiers.None) { EnterMenuMode(); return _menuMode; }
+        if (e.Modifiers == KeyModifiers.Alt && LetterOf(e.Key) is { } c && IndexOfAccessKey(c) is var i and >= 0)
+        {
+            OpenMenu(i, selectFirst: true);
+            return true;
+        }
+        return false;
     }
 
     protected override void Paint(Canvas canvas)
@@ -240,8 +414,8 @@ public class MainMenu : Control, IMenuOwner
         for (int i = 0; i < rects.Count; i++)
         {
             var (item, r) = rects[i];
-            if (i == _openIndex) canvas.FillRoundRect(Canvas.Inflate(r, -canvas.Px(2)), canvas.Px(4), t.Selection);
-            canvas.DrawText(item.Caption, EffectiveFont, item.Enabled ? t.Text : t.TextDisabled, r, TextAlign.Center, VerticalAlign.Center);
+            if (i == _openIndex || (_menuMode && i == _hot)) canvas.FillRoundRect(Canvas.Inflate(r, -canvas.Px(2)), canvas.Px(4), t.Selection);
+            MenuItem.DrawCaption(canvas, EffectiveFont, item.Caption, item.Enabled ? t.Text : t.TextDisabled, r, TextAlign.Center);
         }
     }
 }
@@ -313,7 +487,7 @@ public class MenuPopup : Control
         int captionW = 0, shortcutW = 0;
         foreach (var item in _items)
         {
-            captionW = Math.Max(captionW, (int)Math.Ceiling(font.MeasureWidth(item.Caption)));
+            captionW = Math.Max(captionW, (int)Math.Ceiling(font.MeasureWidth(item.DisplayText)));
             if (RadSharp.Shortcut.TryParse(item.Shortcut, out var s))
                 shortcutW = Math.Max(shortcutW, (int)Math.Ceiling(font.MeasureWidth(s.ToString())));
         }
@@ -353,6 +527,7 @@ public class MenuPopup : Control
     {
         if (OwningForm is not { } form) return;
         var r = ItemRect(index);
+        _items[index].RaiseOpening();
         _childItems = _items[index].Items;
         _child = new MenuPopup(_items[index].Items, _bar, this);
         _child.Closed += () => { _child = null; _childItems = null; };
@@ -427,7 +602,18 @@ public class MenuPopup : Control
                 if (_parentPopup != null) OwningForm?.ClosePopup(this);
                 else if (_bar != null) _bar.OpenNeighbour(-1);
                 break;
-            default: return;
+            default:
+                // A letter runs the item with that access key (with or without Alt).
+                if ((e.Modifiers & (KeyModifiers.Ctrl | KeyModifiers.Meta)) != 0 || MainMenu.LetterOf(e.Key) is not { } c) return;
+                int hit = -1;
+                for (int n = 1; n <= _items.Count && hit < 0; n++)
+                {
+                    int i = (_hot + n + _items.Count) % _items.Count;
+                    if (Selectable(i) && _items[i].AccessKey == c) hit = i;
+                }
+                if (hit < 0) return;
+                Activate(hit);
+                break;
         }
         e.Handled = true;
     }
@@ -463,7 +649,7 @@ public class MenuPopup : Control
                 canvas.DrawCheckMark(new Rect(row.X + canvas.Px(7), row.Y + (row.Height - s) / 2, s, s), color, Math.Max(1.5f, canvas.Px(2)));
             }
             var textRect = new Rect(row.X + canvas.Px(28), row.Y, row.Width - canvas.Px(28) - canvas.Px(24), row.Height);
-            canvas.DrawText(item.Caption, font, color, textRect, TextAlign.Left, VerticalAlign.Center);
+            MenuItem.DrawCaption(canvas, font, item.Caption, color, textRect, TextAlign.Left);
             if (RadSharp.Shortcut.TryParse(item.Shortcut, out var sc))
                 canvas.DrawText(sc.ToString(), font, t.TextDisabled, textRect, TextAlign.Right, VerticalAlign.Center);
             if (item.HasSubmenu)

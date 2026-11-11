@@ -663,6 +663,7 @@ public class Form : Control
 
     public void ProcessMouseDown(int x, int y, MouseButton button, KeyModifiers modifiers = KeyModifiers.None, int clicks = 1)
     {
+        _altAlone = false;
         PerformLayout();
         // A click is never swallowed by a tooltip: it closes it (the tooltip isn't a "press outside" popup).
         DismissTooltip();
@@ -739,8 +740,25 @@ public class Form : Control
         }
     }
 
+    // Alt pressed and released with nothing in between toggles the menu bar's keyboard mode.
+    bool _altAlone;
+
+    /// <summary>The first shown <see cref="MainMenu"/> in the control tree, or null.</summary>
+    MainMenu? FindMainMenu(Control c)
+    {
+        foreach (var child in c.Children)
+        {
+            if (!child.IsShown) continue;
+            if (child is MainMenu m) return m;
+            if (FindMainMenu(child) is { } found) return found;
+        }
+        return null;
+    }
+
     public void ProcessKeyDown(Key key, KeyModifiers modifiers = KeyModifiers.None, bool repeat = false)
     {
+        if (key == Key.Alt) _altAlone = !repeat || _altAlone;
+        else _altAlone = false;
         PerformLayout();
         DismissTooltip();
         var e = new KeyEventArgs(key, modifiers, repeat);
@@ -781,6 +799,11 @@ public class Form : Control
     public void ProcessKeyUp(Key key, KeyModifiers modifiers = KeyModifiers.None)
     {
         DismissTooltip();
+        if (key == Key.Alt && _altAlone)
+        {
+            _altAlone = false;
+            if (FindMainMenu(this) is { } bar) { bar.ToggleMenuMode(); return; }
+        }
         var e = new KeyEventArgs(key, modifiers);
         if (KeyPreview && _popups.Count == 0 && _focused != null && _focused != this)
         {
