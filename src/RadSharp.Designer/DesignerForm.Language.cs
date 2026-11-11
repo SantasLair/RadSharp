@@ -161,6 +161,7 @@ public partial class DesignerForm
 
     void NavigateToDefinition(DefinitionLocation target)
     {
+        using var _ = JumpScope();
         switch (target.Kind)
         {
             case "Source" when target.File != null:
@@ -195,6 +196,7 @@ public partial class DesignerForm
         sbMain.SimpleText = "Finding references…";
         return host.Request((s, t) => s.FindReferencesAsync(path, caret, t), result =>
         {
+            _findRowActions = null;   // the list shows references now, not Find in Files rows
             _findResults = [.. result.Value.Where(r => !r.IsInGeneratedCode)];
             var dir = host.Project.Directory;
             lstFindResults.Items = [.. _findResults.Select(r =>
@@ -208,6 +210,7 @@ public partial class DesignerForm
     /// <summary>Double-click in Find Results: shows that reference.</summary>
     public void OpenFindResult(int index)
     {
+        if (_findRowActions != null) { if (index >= 0 && index < _findRowActions.Length) _findRowActions[index]?.Invoke(); return; }
         if (index >= 0 && index < _findResults.Count && _findResults[index] is var r) NavigateToCode(r.File, r.Line, r.Column);
     }
 
