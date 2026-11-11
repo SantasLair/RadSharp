@@ -56,7 +56,7 @@ public partial class DesignerForm
             host.LiveDiagnosticsChanged += _ => UpdateLiveProblems();
             host.StateChanged += () =>
             {
-                if (host.Error != null) Output($"Language service unavailable for {project.Name}: {host.Error}");
+                if (host.Error != null) Output($"Language service unavailable for {project.Name}: {host.Error} Editing still works; fix the project (Build shows what is wrong), then run Code > Reload Language Service.");
                 RefreshCommandState();
             };
         }
@@ -125,7 +125,7 @@ public partial class DesignerForm
         foreach (var id in new[] { "Code.Complete", "Code.SignatureHelp", "Code.QuickFix" })
             code.Items.Add(_commands.CreateMenuItem(id));
         code.AddSeparator();
-        foreach (var id in new[] { "Code.FormatDocument", "Code.FormatSelection" })
+        foreach (var id in new[] { "Code.FormatDocument", "Code.FormatSelection", "Code.ReloadLanguage" })
             code.Items.Add(_commands.CreateMenuItem(id));
     }
 

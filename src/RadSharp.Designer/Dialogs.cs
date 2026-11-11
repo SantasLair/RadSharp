@@ -102,7 +102,7 @@ public sealed class NewApplicationDialog : Form
 }
 
 /// <summary>Tools › Options: where code opens (built-in or external), the external code editor (Unity-style choice of detected IDEs) and project defaults.</summary>
-public sealed class OptionsDialog : Form
+public sealed partial class OptionsDialog : Form
 {
     readonly DesignerSettings _settings;
     readonly IdeSettings? _ide;
@@ -150,6 +150,7 @@ public sealed class OptionsDialog : Form
         }, 16, 248, 568, 24);
         DialogLayout.Put(this, new Button { Name = "btnOk", Caption = "OK", Default = true, ModalResult = ModalResult.Ok }, 404, 312, 86, 30);
         DialogLayout.Put(this, new Button { Name = "btnCancel", Caption = "Cancel", Cancel = true, ModalResult = ModalResult.Cancel }, 498, 312, 86, 30);
+        BuildPages();
         PerformLayout();
     }
 
@@ -160,5 +161,6 @@ public sealed class OptionsDialog : Form
         if (_folder.Text.Trim().Length > 0) _settings.ProjectsFolder = _folder.Text.Trim();
         _settings.PackageSource = _packages.Text.Trim();
         if (_ide != null) _ide.CodeNavigation = _navigation.ItemIndex == 1 ? CodeNavigation.External : CodeNavigation.Embedded;
+        ApplyEditorPage();
     }
 }

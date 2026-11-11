@@ -15,19 +15,13 @@ public partial class DesignerForm
 
     // ---- File menu ----
 
-    void NewApplication()
+    void NewApplication() => NewApplication(ProjectTemplates.Empty);
+
+    void NewApplication(ProjectTemplate template)
     {
         var dialog = new NewApplicationDialog(_settings, this);
         if (dialog.ShowModal() != ModalResult.Ok) return;
-        if (_project != null && !CloseProject()) return;
-        try
-        {
-            var project = RadProject.Create(dialog.ProjectFolder, dialog.ProjectName, packageSource: dialog.PackageSource);
-            _settings.ProjectsFolder = dialog.Location;
-            OpenProject(project.ProjectFile);
-            Output($"Created {project.ProjectFile}");
-        }
-        catch (IOException e) { Dialogs.MessageDlg($"Could not create the project:\n{e.Message}", MessageType.Error, owner: this); }
+        if (CreateProject(template, dialog.ProjectFolder, dialog.ProjectName, dialog.PackageSource) != null) _settings.ProjectsFolder = dialog.Location;
     }
 
     void OpenProjectDialog()
@@ -255,12 +249,5 @@ public partial class DesignerForm
 
     // ---- Theme ----
 
-    void ToggleDarkMode()
-    {
-        _settings.Theme = _settings.Theme == "dark" ? "light" : "dark";
-        Theme.Current = _settings.Theme == "dark" ? Theme.Dark : Theme.Default;
-        this.Theme = Theme.Current;
-        SaveSettings();
-        InvalidateAll();
-    }
+    void ToggleDarkMode() => SetDarkTheme(_settings.Theme != "dark");
 }

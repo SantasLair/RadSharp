@@ -66,6 +66,7 @@ public partial class DesignerForm : Form
         if (projectFile != null && File.Exists(projectFile)) OpenProject(projectFile, session);
         else if (projectFile == null && session.Project is { } last && File.Exists(last)) OpenProject(last, session);
         UpdateUi();
+        InitPolish();
         Shown += _ => CheckSdk();
     }
 
@@ -120,6 +121,7 @@ public partial class DesignerForm : Form
             return false;
         }
         _settings.AddRecent(_project.ProjectFile);
+        NoteProjectOpened(_project.ProjectFile);
         SaveSettings();
         _restoring = true;
         try
@@ -248,6 +250,7 @@ public partial class DesignerForm : Form
     void AddDocument(IDocumentView doc, bool preview, bool activate)
     {
         if (preview && _docs.Preview is { } old && old != doc && !old.IsDirty) RemoveDocument(old);
+        HookDocument(doc);
         _docs.Add(doc, preview, activate);
         UpdateUi();
         SaveSession();
@@ -368,6 +371,7 @@ public partial class DesignerForm : Form
             ? $"RADSharp packages for new projects: {source}"
             : "RADSharp packages: none found locally, so new projects use nuget.org (run dotnet pack in the RADSharp repository).";
 
+        RefreshWelcome();
         RebuildReopenMenu();
 
         if (!hasProject || _current == null)
@@ -379,6 +383,7 @@ public partial class DesignerForm : Form
         }
         RefreshCommandState();
         UpdateTitle();
+        CheckProjectFilesChanged();
         InvalidateAll();
     }
 
@@ -585,6 +590,7 @@ public partial class DesignerForm : Form
         e.CanClose = ConfirmSave(_docs.Documents);
         if (!e.CanClose) return;
         SaveSession();
+        EndRecoverySession();
         CloseLiveForm();
     }
 }

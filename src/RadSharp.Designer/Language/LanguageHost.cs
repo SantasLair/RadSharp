@@ -172,6 +172,7 @@ public sealed class LanguageHost : IDisposable
         _forms[form] = (() => form.Document.Save(), null);
         form.Document.Changed += () => FormChanged(form);
         form.Document.FormReplaced += () => FormChanged(form);
+        form.Moved += _ => FormMoved(form);
         FormChanged(form);
     }
 
@@ -189,6 +190,15 @@ public sealed class LanguageHost : IDisposable
         if (_disposed || !_forms.ContainsKey(form)) return;
         _pendingForms.Add(form);
         Debounce(ref _formPush, PushDelay, () => { FlushForms(); RequestReclassify(); });
+    }
+
+    /// <summary>A form file was moved or renamed: its workspace entry is re-keyed at once (not after the debounce).</summary>
+    void FormMoved(FormDocument form)
+    {
+        if (_disposed || !_forms.ContainsKey(form)) return;
+        _pendingForms.Add(form);
+        FlushForms();
+        RequestReclassify();
     }
 
     /// <summary>Holds form pushes back (a semantic control rename needs the workspace to keep the old name) until the scope ends.</summary>
