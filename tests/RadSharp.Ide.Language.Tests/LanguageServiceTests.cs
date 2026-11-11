@@ -381,4 +381,50 @@ public class LanguageServiceTests(ITestOutputHelper output)
         var generate = await Fix("Recalc|ulate(42)", "GenerateMethod");
         Assert.Matches(@"void Recalculate\(int \w+\)", Assert.Single(generate.Edits).NewText);
     }
+
+    // ---- Navigate to (I5) ----
+
+    [Fact]
+    public async Task Symbol_search_finds_types_members_and_control_fields_by_subsequence()
+    {
+        var (workspace, language) = await Samples.OpenAsync("SettingsDialog");
+        using var _ = workspace;
+
+        var types = (await language.SearchSymbolsAsync("SettingsForm")).Value;
+        var type = Assert.Single(types, s => s.Name == "SettingsForm" && s.Kind == "Class");
+        Assert.Equal("Source", type.Location.Kind);
+        Assert.Equal(SettingsForm, type.Location.File, ignoreCase: true);
+
+        // A method, best match first.
+        var load = (await language.SearchSymbolsAsync("Load", max: 5)).Value;
+        Assert.Equal("Load", load[0].Name);
+        Assert.Equal("Method", load[0].Kind);
+        Assert.Equal("SettingsForm", load[0].Container);
+
+        // A control field lives in generated code: it leads to the control in the form file.
+        var field = Assert.Single((await language.SearchSymbolsAsync("edtUser")).Value, s => s.Name == "edtUser");
+        Assert.Equal("Form", field.Location.Kind);
+        Assert.EndsWith(".radform.json", field.Location.File, StringComparison.OrdinalIgnoreCase);
+
+        Assert.Empty((await language.SearchSymbolsAsync("zzzNoSuchSymbol")).Value);
+        Assert.Empty((await language.SearchSymbolsAsync("")).Value);
+        Assert.True((await language.SearchSymbolsAsync("e", max: 3)).Value.Count <= 3);
+    }
+
+    [Fact]
+    public void Document_symbols_list_the_declarations_of_a_file_in_order()
+    {
+        var text = File.ReadAllText(SettingsForm);
+        var symbols = LanguageService.GetDocumentSymbols(text);
+        Assert.Equal(["SettingsForm", "SettingsForm", "Load", "Result"], symbols.Select(s => s.Name).ToArray());
+        Assert.Equal(["Class", "Constructor", "Method", "Property"], symbols.Select(s => s.Kind).ToArray());
+        var load = symbols.Single(s => s.Name == "Load");
+        Assert.Equal("SettingsForm", load.Container);
+        Assert.Equal("Load", text.Substring(load.Start, load.Length));
+
+        var more = LanguageService.GetDocumentSymbols("namespace N; enum E { A, B } struct S { int f, g; event System.Action Ev; } interface I { void M(); }");
+        Assert.Equal(["E", "A", "B", "S", "f", "g", "Ev", "I", "M"], more.Select(s => s.Name).ToArray());
+        Assert.Equal("N", more[0].Container);
+        Assert.Equal("Struct", more.Single(s => s.Name == "S").Kind);
+    }
 }
