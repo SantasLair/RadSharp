@@ -148,6 +148,42 @@ public class ScrollViewTests
     }
 
     [Fact]
+    public void Scrolling_right_after_the_content_grows_works_before_the_next_layout()
+    {
+        // Rebuild-then-scroll: the new content size must take effect at once, not only at the next layout pass.
+        var (_, v) = Setup(100, 50);
+        v.ContentHeight = 1000;
+        Assert.True(v.VerticalBarVisible);
+        v.ScrollY = 500;
+        Assert.Equal(500, v.ScrollY);
+        v.ScrollIntoView(new Rect(0, 900, 20, 20));
+        Assert.Equal(920 - v.Viewport.Height, v.ScrollY);
+    }
+
+    sealed class ScrollsOnResize : ScrollView
+    {
+        public int Wanted = -1;
+        protected override void OnResize()
+        {
+            base.OnResize();
+            if (Wanted >= 0) ScrollY = Wanted;
+        }
+    }
+
+    [Fact]
+    public void A_subclass_can_scroll_from_OnResize_after_calling_base()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 300, 200);
+        var v = new ScrollsOnResize { ContentHeight = 1000, Wanted = 300 };
+        f.Add(v);
+        v.SetBounds(10, 10, 200, 100);   // first real size: OnResize runs before the view's own layout
+        Assert.Equal(300, v.ScrollY);
+        f.PerformLayout();
+        Assert.Equal(300, v.ScrollY);
+    }
+
+    [Fact]
     public void ScrollBarDriver_can_drive_a_hand_drawn_bar()
     {
         var axis = new ScrollAxis { Max = 1000, PageSize = 100 };

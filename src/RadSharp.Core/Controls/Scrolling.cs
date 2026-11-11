@@ -486,8 +486,15 @@ public class ScrollView : Control
 
     void ContentChanged()
     {
+        UpdateBars();   // at once, so scrolling right after a content change isn't clamped to the old size
         InvalidateLayout();
         Invalidate();
+    }
+
+    protected override void OnResize()
+    {
+        UpdateBars();   // before Resized/overrides run, so they see the new viewport and scroll range
+        base.OnResize();
     }
 
     void Scrolled()
@@ -496,7 +503,10 @@ public class ScrollView : Control
         OnScrolled();
     }
 
-    protected override bool AfterArrange()
+    protected override bool AfterArrange() => UpdateBars();
+
+    /// <summary>Recomputes which bars show and the scroll ranges from the content and control size; true if a bar appeared or went.</summary>
+    bool UpdateBars()
     {
         var inner = Inner;
         bool needV = _contentHeight > inner.Height;
