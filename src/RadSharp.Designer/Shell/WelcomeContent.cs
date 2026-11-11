@@ -37,7 +37,7 @@ public sealed class WelcomeContent : Control
     public event Action<ProjectTemplate>? TemplateChosen;
 
     int RowH => Px(48);
-    int CardH => Px(52);
+    int CardH => Px(44);
     int LeftW => Math.Min(Px(560), Width * 11 / 20);
     int RightX => LeftW + Px(32);
 
@@ -52,7 +52,7 @@ public sealed class WelcomeContent : Control
     /// <summary>How many recent rows fit.</summary>
     public int VisibleRecent => Math.Max(0, Math.Min(Recent.Count, (Height - Px(34)) / RowH));
 
-    int ShortcutsTop => Px(34) + Templates.Count * CardH + Px(18);
+    int ShortcutsTop => Px(34) + Templates.Count * CardH + Px(8);
 
     void ComputeHits()
     {
@@ -182,7 +182,7 @@ public sealed class WelcomeContent : Control
         int y = ShortcutsTop;
         canvas.DrawText("Keyboard essentials", bold, t.Text, new Rect(RightX, y, Width - RightX, Px(28)), TextAlign.Left, VerticalAlign.Center);
         y += Px(30);
-        int rowH = Px(24);
+        int rowH = Px(21);
         foreach (var (title, keys) in Shortcuts)
         {
             if (y + rowH > Height) break;

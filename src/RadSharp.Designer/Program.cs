@@ -42,4 +42,16 @@ if (Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_OPEN") is { Length: > 
         }
         Check();
     });
+// Test hook: RADSHARP_DESIGNER_SNAPSHOT=<png> without RADSHARP_DESIGNER_OPEN saves the window as it first appears (the welcome
+// page when no project is given), prints the time since the process started, and exits (the cold-start budget, measured for real).
+if (Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_OPEN") is not { Length: > 0 }
+    && Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_SNAPSHOT") is { Length: > 0 } welcomePng)
+    designer.Shown += _ => SdlHost.PostToUiThread(() =>
+    {
+        using var bitmap = RadSharp.Drawing.FormRenderer.RenderToBitmap(designer);
+        var elapsed = DateTime.Now - System.Diagnostics.Process.GetCurrentProcess().StartTime;
+        File.WriteAllBytes(welcomePng, RadSharp.Drawing.FormRenderer.EncodePng(bitmap));
+        Console.WriteLine($"snapshot: first paint {elapsed.TotalMilliseconds:F0} ms after process start");
+        designer.Close();
+    });
 SdlHost.Run(designer);

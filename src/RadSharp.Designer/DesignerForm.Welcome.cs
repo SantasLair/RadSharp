@@ -10,7 +10,7 @@ public partial class DesignerForm
     /// <summary>The commands whose shortcuts the welcome page shows, in order.</summary>
     static readonly string[] EssentialCommands =
     [
-        "Go.CommandPalette", "Go.File", "File.Save", "Run.Run", "Run.Build", "Run.StartDebugging", "Debug.ToggleBreakpoint", "Debug.StepOver", "View.ToggleFormCode", "Code.GoToDefinition",
+        "Go.CommandPalette", "Run.Run", "Run.StartDebugging", "Debug.ToggleBreakpoint", "View.ToggleFormCode", "File.Save", "Go.File", "Run.Build", "Debug.StepOver", "Code.GoToDefinition",
         "Code.Rename", "Code.FormatDocument", "Search.FindInFiles",
     ];
 
