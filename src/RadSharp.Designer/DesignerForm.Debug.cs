@@ -234,6 +234,7 @@ public partial class DesignerForm
     /// <summary>Opens a file in the built-in editor at a line (the debugger always uses it, whatever the navigation setting).</summary>
     CodeDocument? ShowSourceLine(string file, int line, bool focus, int column = 1)
     {
+        using var _ = JumpScope();   // opening the file and moving the caret is one navigation history entry
         var doc = OpenCodeFile(file);
         if (doc == null) return null;
         doc.GoTo(line, column);

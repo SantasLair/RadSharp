@@ -253,4 +253,62 @@ public class DesignerTests
         tabs.Apply();
         Assert.Equal([b, a], doc.Form.GetTabOrderList());
     }
+
+    // ---- Highlighted controls (the IDE's structure/code sync) ----
+
+    static int Amber(DesignSurface s, Form host)
+    {
+        s.Invalidate();
+        using var bitmap = RadSharp.Drawing.FormRenderer.RenderToBitmap(host);
+        int n = 0;
+        for (int y = 0; y < bitmap.Height; y++)
+            for (int x = 0; x < bitmap.Width; x++)
+            {
+                var p = bitmap.GetPixel(x, y);
+                if (p.Red == 245 && p.Green == 158 && p.Blue == 11) n++;
+            }
+        return n;
+    }
+
+    [Fact]
+    public void Highlighted_controls_are_outlined_without_being_selected()
+    {
+        var (host, s, doc) = Setup();
+        s.PendingClass = ComponentRegistry.Find("Button");
+        ClickAt(host, s, 43, 38);
+        var button = Assert.IsType<Button>(doc.Primary);
+        doc.Select(null);
+        Assert.Empty(s.HighlightedControls);
+        Assert.Equal(0, Amber(s, host));
+
+        s.HighlightedControls = [button];
+        Assert.Empty(doc.Selection);   // outlined only
+        Assert.True(Amber(s, host) > 40, "the outline is painted");
+
+        s.HighlightedControls = [];
+        Assert.Equal(0, Amber(s, host));
+    }
+
+    [Fact]
+    public void ReplaceWithJson_is_one_undoable_unsaved_change_and_a_bad_text_changes_nothing()
+    {
+        var (_, _, doc) = Setup();
+        var button = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 10, 10);
+        Assert.True(doc.Rename(button, "btnOne"));
+        doc.MarkSaved();
+        Assert.False(doc.Modified);
+        var original = doc.Save();
+
+        doc.ReplaceWithJson(original.Replace("btnOne", "btnTwo"));
+        Assert.NotNull(doc.Form.FindControl("btnTwo"));
+        Assert.Null(doc.Form.FindControl("btnOne"));
+        Assert.True(doc.Modified);                                   // not saved
+        Assert.True(doc.CanUndo);
+        Assert.True(doc.Undo());                                     // one step back
+        Assert.NotNull(doc.Form.FindControl("btnOne"));
+        Assert.False(doc.Modified);
+
+        Assert.ThrowsAny<Exception>(() => doc.ReplaceWithJson("{ not a form"));
+        Assert.NotNull(doc.Form.FindControl("btnOne"));              // untouched
+    }
 }

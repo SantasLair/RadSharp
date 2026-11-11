@@ -40,6 +40,9 @@ public sealed class Command
     public Func<bool>? CanExecute { get; }
     public Func<bool>? IsChecked { get; }
 
+    /// <summary>Left out of the command palette: the command needs a parameter (a tab, a tool window) that only a menu supplies.</summary>
+    public bool HiddenFromPalette { get; set; }
+
     /// <summary>The shortcut in effect: the user's binding, or <see cref="DefaultShortcut"/>. Empty for none.</summary>
     public string Shortcut { get; internal set; } = "";
 
