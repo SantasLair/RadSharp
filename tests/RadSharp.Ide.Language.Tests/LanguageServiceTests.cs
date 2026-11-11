@@ -421,6 +421,12 @@ public class LanguageServiceTests(ITestOutputHelper output)
         var load = symbols.Single(s => s.Name == "Load");
         Assert.Equal("SettingsForm", load.Container);
         Assert.Equal("Load", text.Substring(load.Start, load.Length));
+        Assert.Contains("edtUser.Text = s.User;", text.Substring(load.FullStart, load.FullLength));   // the whole method, body included
+        Assert.True(load.Contains(Samples.After(text, "edtUser.Te|xt")));
+        Assert.False(load.Contains(Samples.After(text, "public Settings Res|ult")));
+
+        var spans = LanguageService.FindIdentifierSpans("class C { int edtUser; // edtUser\n string s = \"edtUser\"; void M() { edtUser = 1; } }", "edtUser");
+        Assert.Equal(2, spans.Count);   // the field and the use; not the comment or the string
 
         var more = LanguageService.GetDocumentSymbols("namespace N; enum E { A, B } struct S { int f, g; event System.Action Ev; } interface I { void M(); }");
         Assert.Equal(["E", "A", "B", "S", "f", "g", "Ev", "I", "M"], more.Select(s => s.Name).ToArray());

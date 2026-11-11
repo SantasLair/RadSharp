@@ -14,7 +14,11 @@ namespace RadSharp.Ide.Language;
 public sealed record WorkspaceSymbol(string Name, string Kind, string Container, DefinitionLocation Location);
 
 /// <summary>A declaration in one file (go to symbol in file, Ctrl+Shift+O). Offsets are 0-based, lines and columns 1-based.</summary>
-public sealed record DocumentSymbol(string Name, string Kind, string Container, int Start, int Length, int Line, int Column);
+/// <param name="Start">Where the name is; <paramref name="FullStart"/> and <paramref name="FullLength"/> span the whole declaration (a method with its body).</param>
+public sealed record DocumentSymbol(string Name, string Kind, string Container, int Start, int Length, int Line, int Column, int FullStart = 0, int FullLength = 0)
+{
+    public bool Contains(int offset) => offset >= FullStart && offset <= FullStart + FullLength;
+}
 
 public sealed partial class LanguageService
 {
@@ -103,11 +107,12 @@ public sealed partial class LanguageService
         var source = tree.GetText();
         var result = new List<DocumentSymbol>();
 
-        void Add(string name, string kind, string container, SyntaxToken identifier)
+        void Add(string name, string kind, string container, SyntaxToken identifier, SyntaxNode? node = null)
         {
             var span = identifier.Span;
             var pos = source.Lines.GetLinePosition(span.Start);
-            result.Add(new DocumentSymbol(name, kind, container, span.Start, span.Length, pos.Line + 1, pos.Character + 1));
+            var full = (node ?? identifier.Parent)?.Span ?? span;
+            result.Add(new DocumentSymbol(name, kind, container, span.Start, span.Length, pos.Line + 1, pos.Character + 1, full.Start, full.Length));
         }
 
         void Walk(SyntaxNode node, string container)
@@ -128,32 +133,32 @@ public sealed partial class LanguageService
                             EnumDeclarationSyntax => "Enum",
                             _ => "Class",
                         };
-                        Add(type.Identifier.Text, kind, container, type.Identifier);
+                        Add(type.Identifier.Text, kind, container, type.Identifier, type);
                         if (type is EnumDeclarationSyntax e)
                             foreach (var m in e.Members) Add(m.Identifier.Text, "EnumMember", type.Identifier.Text, m.Identifier);
                         else Walk(type, type.Identifier.Text);
                         break;
                     }
                     case DelegateDeclarationSyntax d:
-                        Add(d.Identifier.Text, "Delegate", container, d.Identifier);
+                        Add(d.Identifier.Text, "Delegate", container, d.Identifier, d);
                         break;
                     case MethodDeclarationSyntax m:
-                        Add(m.Identifier.Text, "Method", container, m.Identifier);
+                        Add(m.Identifier.Text, "Method", container, m.Identifier, m);
                         break;
                     case ConstructorDeclarationSyntax c:
-                        Add(c.Identifier.Text, "Constructor", container, c.Identifier);
+                        Add(c.Identifier.Text, "Constructor", container, c.Identifier, c);
                         break;
                     case PropertyDeclarationSyntax p:
-                        Add(p.Identifier.Text, "Property", container, p.Identifier);
+                        Add(p.Identifier.Text, "Property", container, p.Identifier, p);
                         break;
                     case EventDeclarationSyntax ev:
-                        Add(ev.Identifier.Text, "Event", container, ev.Identifier);
+                        Add(ev.Identifier.Text, "Event", container, ev.Identifier, ev);
                         break;
                     case FieldDeclarationSyntax f:
-                        foreach (var v in f.Declaration.Variables) Add(v.Identifier.Text, "Field", container, v.Identifier);
+                        foreach (var v in f.Declaration.Variables) Add(v.Identifier.Text, "Field", container, v.Identifier, f);
                         break;
                     case EventFieldDeclarationSyntax ef:
-                        foreach (var v in ef.Declaration.Variables) Add(v.Identifier.Text, "Event", container, v.Identifier);
+                        foreach (var v in ef.Declaration.Variables) Add(v.Identifier.Text, "Event", container, v.Identifier, ef);
                         break;
                 }
             }
@@ -161,5 +166,16 @@ public sealed partial class LanguageService
 
         Walk(tree.GetRoot(), "");
         return result;
+    }
+
+    /// <summary>
+    /// The identifier tokens named <paramref name="name"/> in C# source text (not comments or strings), as (start, length) pairs,
+    /// from the syntax tree alone.
+    /// </summary>
+    public static IReadOnlyList<TextRange> FindIdentifierSpans(string text, string name)
+    {
+        if (name.Length == 0) return [];
+        var root = CSharpSyntaxTree.ParseText(text).GetRoot();
+        return [.. root.DescendantTokens().Where(t => t.IsKind(SyntaxKind.IdentifierToken) && t.Text == name).Select(t => new TextRange(t.Span.Start, t.Span.Length))];
     }
 }

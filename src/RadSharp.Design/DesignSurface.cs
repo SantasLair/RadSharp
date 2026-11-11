@@ -56,6 +56,23 @@ public class DesignSurface : Control
     /// <summary>The class the next press creates (set by the component palette); cleared after creating.</summary>
     public ComponentClass? PendingClass { get; set; }
 
+    /// <summary>
+    /// Controls to point out without selecting them, painted as an amber outline (the IDE highlights the controls wired to the
+    /// handler the code editor's caret is in). Setting it repaints; the surface never changes it by itself.
+    /// </summary>
+    public IReadOnlyCollection<Control> HighlightedControls
+    {
+        get => _highlighted;
+        set
+        {
+            value ??= [];
+            if (value.Count == 0 && _highlighted.Count == 0) return;
+            _highlighted = value;
+            Invalidate();
+        }
+    }
+    IReadOnlyCollection<Control> _highlighted = [];
+
     /// <summary>Raised after a control was created from the palette.</summary>
     public event Action<Control>? Created;
 
@@ -548,6 +565,12 @@ public class DesignSurface : Control
             if (!c.IsEffectivelyVisible && c is not Component) continue;
             var r = ScreenRect(DesignRect(c));
             canvas.DrawBorder(Canvas.Inflate(r, Px(1)), c == _doc.Primary ? t.Accent : t.TextDisabled, Math.Max(1, Px(1)));
+        }
+        foreach (var c in _highlighted)
+        {
+            if (!c.IsEffectivelyVisible && c is not Component) continue;
+            var r = ScreenRect(DesignRect(c));
+            canvas.DrawBorder(Canvas.Inflate(r, Px(3)), Color.FromHex("#F59E0B"), Math.Max(2, Px(2)));
         }
         if (!Locked && _doc.Selection.Count == 1)
             foreach (var (_, hr) in HandleRects(_doc.Primary))

@@ -253,4 +253,39 @@ public class DesignerTests
         tabs.Apply();
         Assert.Equal([b, a], doc.Form.GetTabOrderList());
     }
+
+    // ---- Highlighted controls (the IDE's structure/code sync) ----
+
+    static int Amber(DesignSurface s, Form host)
+    {
+        s.Invalidate();
+        using var bitmap = RadSharp.Drawing.FormRenderer.RenderToBitmap(host);
+        int n = 0;
+        for (int y = 0; y < bitmap.Height; y++)
+            for (int x = 0; x < bitmap.Width; x++)
+            {
+                var p = bitmap.GetPixel(x, y);
+                if (p.Red == 245 && p.Green == 158 && p.Blue == 11) n++;
+            }
+        return n;
+    }
+
+    [Fact]
+    public void Highlighted_controls_are_outlined_without_being_selected()
+    {
+        var (host, s, doc) = Setup();
+        s.PendingClass = ComponentRegistry.Find("Button");
+        ClickAt(host, s, 43, 38);
+        var button = Assert.IsType<Button>(doc.Primary);
+        doc.Select(null);
+        Assert.Empty(s.HighlightedControls);
+        Assert.Equal(0, Amber(s, host));
+
+        s.HighlightedControls = [button];
+        Assert.Empty(doc.Selection);   // outlined only
+        Assert.True(Amber(s, host) > 40, "the outline is painted");
+
+        s.HighlightedControls = [];
+        Assert.Equal(0, Amber(s, host));
+    }
 }
