@@ -165,7 +165,13 @@ public class Form : Control
     // =====================================================================
 
     readonly List<Control> _tickers = [];
-    Control? _tooltipControl;
+    // The hint under the pointer (control, region within it, text), when it was first seen, and whether a
+    // click or key press dismissed it (it comes back only once the pointer moves to a different hint).
+    Control? _tipControl;
+    Rect _tipRegion;
+    string _tipText = "";
+    int _tipX, _tipY;
+    bool _tipDismissed;
     double _tooltipStartTime;
     ToolTipPopup? _tooltipPopup;
     const double TooltipDelayMs = 1000;
@@ -194,19 +200,9 @@ public class Form : Control
         _timers ??= [.. Descendants().OfType<Timer>()];
         foreach (var t in _timers.ToArray()) t.Tick(nowMs);
 
-        // Update tooltip state
-        if (_tooltipControl != null && !string.IsNullOrEmpty(_tooltipControl.Hint))
-        {
-            double elapsed = nowMs - _tooltipStartTime;
-            if (elapsed >= TooltipDelayMs && _tooltipPopup == null)
-            {
-                ShowTooltip(_tooltipControl);
-            }
-        }
-        else if (_tooltipPopup != null)
-        {
-            CloseTooltip();
-        }
+        // Show the pending tooltip once the pointer has rested on its hint long enough.
+        if (_tipText.Length > 0 && !_tipDismissed && _tooltipPopup == null && nowMs - _tooltipStartTime >= TooltipDelayMs)
+            ShowTooltip();
     }
 
     /// <summary>Computes the next deadline (in ms) when the host should wake up: timer deadlines, tooltip delay, etc. Returns null if no deadline.</summary>
@@ -224,7 +220,7 @@ public class Form : Control
         }
 
         // Check tooltip deadline
-        if (_tooltipControl != null && !string.IsNullOrEmpty(_tooltipControl.Hint) && _tooltipPopup == null)
+        if (_tipText.Length > 0 && !_tipDismissed && _tooltipPopup == null)
         {
             var tooltipDeadline = _tooltipStartTime + TooltipDelayMs;
             if (!nearest.HasValue || tooltipDeadline < nearest.Value)
@@ -234,20 +230,66 @@ public class Form : Control
         return nearest;
     }
 
-    void ShowTooltip(Control control)
+    /// <summary>
+    /// Re-reads the hint under the pointer (<see cref="Control.GetHintAt"/>). A new control, region or text closes
+    /// the tooltip and starts the delay again — or, if a tooltip was showing, shows the new one at once, as
+    /// moving between toolbar buttons does. No hint, or a pressed mouse button, removes it.
+    /// </summary>
+    void UpdateTip(int x, int y)
     {
-        if (_tooltipPopup != null) return;
+        var c = _capture == null ? _hover : null;
+        string text = "";
+        Rect region = default;
+        if (c != null) text = c.GetHintAt(x - c.AbsoluteLeft, y - c.AbsoluteTop, out region) ?? "";
+        if (text.Length == 0)
+        {
+            ClearTip();
+            return;
+        }
+        _tipX = x;
+        _tipY = y;
+        if (c == _tipControl && region == _tipRegion && text == _tipText) return;
+        bool wasShowing = _tooltipPopup != null;
+        CloseTooltip();
+        _tipControl = c;
+        _tipRegion = region;
+        _tipText = text;
+        _tipDismissed = false;
+        _tooltipStartTime = wasShowing ? Now - TooltipDelayMs : Now;
+    }
 
-        _tooltipPopup = new ToolTipPopup(control.Hint ?? "");
-        _tooltipPopup.SetBounds(control.AbsoluteLeft, control.AbsoluteTop + control.Height + 4, 200, 40);
-        OpenPopup(_tooltipPopup, control.AbsoluteLeft, control.AbsoluteTop + control.Height + 4, control);
+    void ClearTip()
+    {
+        CloseTooltip();
+        _tipControl = null;
+        _tipText = "";
+        _tipDismissed = false;
+    }
+
+    /// <summary>Closes the tooltip because of input (click, key, wheel, drag); it stays away until the hint changes.</summary>
+    void DismissTooltip()
+    {
+        CloseTooltip();
+        if (_tipText.Length > 0) _tipDismissed = true;
+    }
+
+    void ShowTooltip()
+    {
+        if (_tooltipPopup != null || _tipControl == null) return;
+        var popup = ToolTipPopup.Create(this, _tipText);
+        // Just below and to the right of the pointer; above it if there's no room underneath.
+        int x = _tipX + Px(12);
+        int y = _tipY + Px(20);
+        if (y + popup.Height > Height) y = Math.Max(0, _tipY - popup.Height - Px(6));
+        _tooltipPopup = popup;
+        OpenPopup(popup, x, y, _tipControl);
     }
 
     void CloseTooltip()
     {
-        if (_tooltipPopup == null) return;
-        ClosePopup(_tooltipPopup);
+        if (_tooltipPopup is not { } popup) return;
         _tooltipPopup = null;
+        ClosePopup(popup);
     }
 
     // =====================================================================
@@ -445,6 +487,7 @@ public class Form : Control
         if (_hover != null && _hover.IsSelfOrDescendantOf(control)) { var h = _hover; _hover = null; h.SetHovered(false); }
         if (_capture != null && _capture.IsSelfOrDescendantOf(control)) _capture = null;
         if (_focused != null && _focused.IsSelfOrDescendantOf(control)) SetFocus(null);
+        if (_tipControl != null && _tipControl.IsSelfOrDescendantOf(control)) ClearTip();
         for (int i = _popups.Count - 1; i >= 0 && i < _popups.Count; i--)
         {
             var owner = _popupOwners[i];
@@ -500,6 +543,7 @@ public class Form : Control
             var p = _popups[i];
             _popups.RemoveAt(i);
             _popupOwners.RemoveAt(i);
+            if (p == _tooltipPopup) _tooltipPopup = null;
             if (_hover != null && _hover.IsSelfOrDescendantOf(p)) { var h = _hover; _hover = null; h.SetHovered(false); }
             if (_capture != null && _capture.IsSelfOrDescendantOf(p)) _capture = null;
             if (_focused != null && _focused.IsSelfOrDescendantOf(p)) SetFocus(null);
@@ -525,13 +569,14 @@ public class Form : Control
         for (int i = _popups.Count - 1; i >= 0; i--)
         {
             var p = _popups[i];
+            if (p == _tooltipPopup) continue;   // a tooltip never takes the pointer
             if (x >= p.Left && y >= p.Top && x < p.Left + p.Width && y < p.Top + p.Height)
                 return p.HitTest(x - p.Left, y - p.Top);
         }
         return HitTest(x, y);
     }
 
-    bool InAnyPopup(Control c) => _popups.Any(c.IsSelfOrDescendantOf);
+    bool InAnyPopup(Control c) => _popups.Any(p => p != _tooltipPopup && c.IsSelfOrDescendantOf(p));
 
     static MouseEventArgs Local(Control c, int x, int y, MouseButton b, KeyModifiers m, int clicks = 1) =>
         new(x - c.AbsoluteLeft, y - c.AbsoluteTop, b, m, clicks);
@@ -547,18 +592,6 @@ public class Form : Control
         _hover = hover;
         old?.SetHovered(false);
         hover?.SetHovered(true);
-
-        // Update tooltip
-        CloseTooltip();
-        if (hover != null && !string.IsNullOrEmpty(hover.Hint))
-        {
-            _tooltipControl = hover;
-            _tooltipStartTime = Now;
-        }
-        else
-        {
-            _tooltipControl = null;
-        }
     }
 
     public void ProcessMouseMove(int x, int y, KeyModifiers modifiers = KeyModifiers.None)
@@ -566,6 +599,7 @@ public class Form : Control
         PerformLayout();
         if (_dragSource != null) { _dragAcceptedTarget = BubbleDragOver(_dragSource, x, y); return; }
         UpdateHover(x, y);
+        UpdateTip(x, y);
         var target = _capture ?? _hover;
         if (target == null || !target.IsEffectivelyEnabled) return;
         // Automatic drag: once the press moves past a small threshold, start dragging instead of
@@ -588,6 +622,7 @@ public class Form : Control
     public void BeginDrag(Control source)
     {
         if (_dragSource != null) return;
+        DismissTooltip();
         _dragSource = source;
         _dragAcceptedTarget = null;
     }
@@ -612,6 +647,8 @@ public class Form : Control
     public void ProcessMouseDown(int x, int y, MouseButton button, KeyModifiers modifiers = KeyModifiers.None, int clicks = 1)
     {
         PerformLayout();
+        // A click is never swallowed by a tooltip: it closes it (the tooltip isn't a "press outside" popup).
+        DismissTooltip();
         var hit = HitTestForm(x, y);
 
         // A press outside every popup closes them all and is consumed.
@@ -624,7 +661,6 @@ public class Form : Control
         if (_capture != null) return;  // another button is already down
         if (!hit.IsEffectivelyEnabled) return;
 
-        CloseTooltip();
         ShowFocusCues = false;
         if (hit.TabStop) SetFocus(hit);
         _capture = hit;
@@ -676,6 +712,7 @@ public class Form : Control
     public void ProcessMouseWheel(int x, int y, float deltaX, float deltaY, KeyModifiers modifiers = KeyModifiers.None)
     {
         PerformLayout();
+        DismissTooltip();
         for (Control? c = HitTestForm(x, y); c != null; c = c.Parent)
         {
             if (!c.IsEffectivelyEnabled) continue;
@@ -688,6 +725,7 @@ public class Form : Control
     public void ProcessKeyDown(Key key, KeyModifiers modifiers = KeyModifiers.None, bool repeat = false)
     {
         PerformLayout();
+        DismissTooltip();
         var e = new KeyEventArgs(key, modifiers, repeat);
         bool plainTab = key == Key.Tab && (modifiers & (KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Meta)) == 0;
 
@@ -720,6 +758,7 @@ public class Form : Control
 
     public void ProcessKeyUp(Key key, KeyModifiers modifiers = KeyModifiers.None)
     {
+        DismissTooltip();
         var e = new KeyEventArgs(key, modifiers);
         var target = _popups.Count > 0 ? _popups[^1] : _focused ?? this;
         if (target.IsEffectivelyEnabled) target.OnKeyUp(e);
@@ -728,6 +767,7 @@ public class Form : Control
     /// <summary>Typed text goes to the focused control; it is discarded while a popup is open.</summary>
     public void ProcessTextInput(string text)
     {
+        DismissTooltip();
         if (string.IsNullOrEmpty(text) || TextTarget() is not { } target) return;
         if (target.IsEffectivelyEnabled) target.OnTextInput(new TextInputEventArgs(text));
     }
@@ -735,6 +775,7 @@ public class Form : Control
     /// <summary>An IME composition update for the focused control (discarded while a popup is open).</summary>
     public void ProcessTextComposition(string text, int cursor, int selectionLength = 0)
     {
+        DismissTooltip();
         if (TextTarget() is not { } target) return;
         if (target.IsEffectivelyEnabled) target.OnTextComposition(new TextCompositionEventArgs(text, cursor, selectionLength));
     }

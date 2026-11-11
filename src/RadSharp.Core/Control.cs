@@ -51,7 +51,31 @@ public partial class Control
 
     [Published(Category = "Behavior")] public bool TabStop { get; set; }
     [Published(Category = "Behavior")] public int TabOrder { get; set; } = -1;
+    /// <summary>The tooltip text shown after the pointer rests on the control (see <see cref="GetHintAt"/>). Newlines make multi-line tooltips.</summary>
     [Published(Category = "Behavior")] public string Hint { get; set; } = "";
+
+    /// <summary>
+    /// The tooltip for the point (<paramref name="x"/>, <paramref name="y"/>) in this control's own coordinates, or
+    /// null/empty for none. <paramref name="region"/> is the part of the control (also in its coordinates) the text
+    /// applies to: moving the pointer out of it, or to a point whose text differs, hides the tooltip and shows the
+    /// new one. The default returns <see cref="Hint"/> for the whole control. Override it in a custom-drawn control
+    /// whose parts have their own hints (a grid cell, a chart bar, a toolbar of drawn icons).
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// public override string? GetHintAt(int x, int y, out Rect region)
+    /// {
+    ///     var cell = CellAt(x, y);                       // your own hit test
+    ///     region = CellRect(cell);                       // local coordinates
+    ///     return cell.IsValid ? $"{cell.Title}\n{cell.Detail}" : null;
+    /// }
+    /// </code>
+    /// </example>
+    public virtual string? GetHintAt(int x, int y, out Rect region)
+    {
+        region = new Rect(0, 0, _width, _height);
+        return Hint;
+    }
 
     Font? _font;
 
