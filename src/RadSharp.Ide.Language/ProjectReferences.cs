@@ -18,7 +18,7 @@ public enum RestoreMode
 
 /// <summary>
 /// The metadata references of a project, as the workspace sees them: the host process's assemblies (exactly
-/// what <see cref="LiveSession.Compile"/> compiles against), plus the compile assets of the project's
+/// what <see cref="LiveSession.Compile(RadProject, IReadOnlyDictionary{string, string}?, bool)"/> compiles against), plus the compile assets of the project's
 /// packages and the outputs of its project references, read from <c>obj/project.assets.json</c>. An
 /// assembly the host already provides is not added twice, so RADSharp's own types are the host's.
 /// </summary>

@@ -52,7 +52,7 @@ public sealed class WorkspaceSnapshot
 /// </summary>
 /// <remarks>
 /// <para>
-/// The project is compiled the way <see cref="LiveSession.Compile"/> compiles it (same parse options, implicit
+/// The project is compiled the way <see cref="LiveSession.Compile(RadProject, IReadOnlyDictionary{string, string}?, bool)"/> compiles it (same parse options, implicit
 /// usings, host references and generators; see <c>CompilationSetup</c>), except that the entry point file is
 /// included and the output kind follows the .csproj, so <c>Program.cs</c> can be edited too.
 /// </para>
