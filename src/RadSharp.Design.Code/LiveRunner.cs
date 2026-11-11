@@ -50,25 +50,16 @@ public sealed class LiveSession : IDisposable
     /// </summary>
     public static LiveSession Compile(RadProject project, IReadOnlyDictionary<string, string>? formOverrides = null)
     {
-        var parse = new CSharpParseOptions(LanguageVersion.Latest);
+        var parse = CompilationSetup.ParseOptions;
         var trees = new List<SyntaxTree>
         {
-            // What <ImplicitUsings>enable</ImplicitUsings> adds.
-            CSharpSyntaxTree.ParseText("""
-                global using global::System;
-                global using global::System.Collections.Generic;
-                global using global::System.IO;
-                global using global::System.Linq;
-                global using global::System.Net.Http;
-                global using global::System.Threading;
-                global using global::System.Threading.Tasks;
-                """, parse, "GlobalUsings.g.cs"),
+            CSharpSyntaxTree.ParseText(CompilationSetup.GlobalUsingsText, parse, CompilationSetup.GlobalUsingsFileName),
         };
         foreach (var file in project.SourceFiles)
         {
             var tree = CSharpSyntaxTree.ParseText(SourceText.From(File.ReadAllText(file), System.Text.Encoding.UTF8), parse, file);
             // A live run creates forms directly; the app's entry point (top-level statements) isn't needed.
-            if (tree.GetCompilationUnitRoot().Members.Any(m => m is Microsoft.CodeAnalysis.CSharp.Syntax.GlobalStatementSyntax)) continue;
+            if (CompilationSetup.IsEntryPoint(tree)) continue;
             trees.Add(tree);
         }
 
@@ -79,14 +70,14 @@ public sealed class LiveSession : IDisposable
         var compilation = CSharpCompilation.Create(
             $"{project.Name}.Live{Interlocked.Increment(ref _counter)}",
             trees,
-            References.Value,
-            new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: NullableContextOptions.Enable));
+            CompilationSetup.HostReferences,
+            CompilationSetup.LibraryOptions);
 
         GeneratorDriver driver = CSharpGeneratorDriver.Create(
-            [new FormGenerator().AsSourceGenerator(), new MetadataGenerator().AsSourceGenerator()],
-            additionalTexts: [.. forms.Select(f => (AdditionalText)new Text(f.Path, f.Text))],
+            CompilationSetup.CreateGenerators(),
+            additionalTexts: [.. forms.Select(f => (AdditionalText)new CompilationSetup.Text(f.Path, f.Text))],
             parseOptions: parse,
-            optionsProvider: new Options(project.RootNamespace));
+            optionsProvider: new CompilationSetup.Options(project.RootNamespace));
         driver.RunGeneratorsAndUpdateCompilation(compilation, out var output, out var generatorDiagnostics);
 
         var resources = forms.Select(f =>
@@ -112,14 +103,6 @@ public sealed class LiveSession : IDisposable
             d.Severity.ToString().ToLowerInvariant(), d.Id, d.GetMessage());
     }
 
-    /// <summary>The designer process's own assemblies (the BCL, RADSharp, Skia...) as references.</summary>
-    static readonly Lazy<ImmutableArray<MetadataReference>> References = new(() =>
-    [
-        .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)
-            .Where(p => p.Length > 0 && File.Exists(p))
-            .Select(p => (MetadataReference)MetadataReference.CreateFromFile(p)),
-    ]);
-
     /// <summary>Creates the form class <paramref name="className"/> from the compiled project.</summary>
     public Form CreateForm(string className)
     {
@@ -136,35 +119,6 @@ public sealed class LiveSession : IDisposable
         Assembly = null;
         _context?.Unload();
         _context = null;
-    }
-
-    sealed class Text(string path, string text) : AdditionalText
-    {
-        public override string Path => path;
-        public override SourceText GetText(CancellationToken cancellationToken = default) => SourceText.From(text);
-    }
-
-    sealed class Options(string rootNamespace) : AnalyzerConfigOptionsProvider
-    {
-        readonly Global _global = new(rootNamespace);
-        public override AnalyzerConfigOptions GlobalOptions => _global;
-        public override AnalyzerConfigOptions GetOptions(SyntaxTree tree) => Empty.Instance;
-        public override AnalyzerConfigOptions GetOptions(AdditionalText textFile) => Empty.Instance;
-
-        sealed class Global(string ns) : AnalyzerConfigOptions
-        {
-            public override bool TryGetValue(string key, out string value)
-            {
-                value = ns;
-                return key == "build_property.RootNamespace";
-            }
-        }
-
-        sealed class Empty : AnalyzerConfigOptions
-        {
-            public static readonly Empty Instance = new();
-            public override bool TryGetValue(string key, out string value) { value = ""; return false; }
-        }
     }
 }
 
