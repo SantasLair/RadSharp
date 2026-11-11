@@ -8,7 +8,7 @@ public delegate void MenuItemEvent(MenuItem sender);
 /// <summary>
 /// One menu command, separator or submenu. Saved in form files as nested objects under the menu's
 /// <c>"items"</c> (spec, Appendix A: caption, shortcut, altShortcut, onClick, enabled, checked, visible,
-/// separator, items).
+/// separator, radioItem, items).
 /// </summary>
 public sealed class MenuItem
 {
@@ -20,6 +20,8 @@ public sealed class MenuItem
     public string AltShortcut { get; set; } = "";
     public bool Enabled { get; set; } = true;
     public bool Checked { get; set; }
+    /// <summary>Draws the checked state as a filled dot instead of a check mark. The app unchecks the other items of the group.</summary>
+    public bool RadioItem { get; set; }
     public bool Visible { get; set; } = true;
     public bool Separator { get; set; }
     /// <summary>The handler name from the form file (kept for the designer and for saving).</summary>
@@ -150,6 +152,7 @@ public sealed class MenuItem
                     case "altShortcut": item.AltShortcut = Converters.String.Read(p.Value); break;
                     case "enabled": item.Enabled = Converters.Bool.Read(p.Value); break;
                     case "checked": item.Checked = Converters.Bool.Read(p.Value); break;
+                    case "radioItem": item.RadioItem = Converters.Bool.Read(p.Value); break;
                     case "visible": item.Visible = Converters.Bool.Read(p.Value); break;
                     case "separator": item.Separator = Converters.Bool.Read(p.Value); break;
                     case "onClick": item.ClickHandler = Converters.String.Read(p.Value); break;
@@ -174,6 +177,7 @@ public sealed class MenuItem
         if (Checked) { w.Key("checked"); w.WriteBool(true); }
         if (!Enabled) { w.Key("enabled"); w.WriteBool(false); }
         if (ClickHandler.Length > 0) { w.Key("onClick"); w.WriteString(ClickHandler); }
+        if (RadioItem) { w.Key("radioItem"); w.WriteBool(true); }
         if (Separator) { w.Key("separator"); w.WriteBool(true); }
         if (Shortcut.Length > 0) { w.Key("shortcut"); w.WriteString(Shortcut); }
         if (!Visible) { w.Key("visible"); w.WriteBool(false); }
@@ -646,7 +650,13 @@ public class MenuPopup : Control
             if (item.Checked)
             {
                 int s = canvas.Px(14);
-                canvas.DrawCheckMark(new Rect(row.X + canvas.Px(7), row.Y + (row.Height - s) / 2, s, s), color, Math.Max(1.5f, canvas.Px(2)));
+                var mark = new Rect(row.X + canvas.Px(7), row.Y + (row.Height - s) / 2, s, s);
+                if (item.RadioItem)
+                {
+                    int d = canvas.Px(7);
+                    canvas.FillEllipse(new Rect(mark.X + (s - d) / 2, mark.Y + (s - d) / 2, d, d), color);
+                }
+                else canvas.DrawCheckMark(mark, color, Math.Max(1.5f, canvas.Px(2)));
             }
             var textRect = new Rect(row.X + canvas.Px(28), row.Y, row.Width - canvas.Px(28) - canvas.Px(24), row.Height);
             MenuItem.DrawCaption(canvas, font, item.Caption, color, textRect, TextAlign.Left);

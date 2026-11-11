@@ -112,6 +112,52 @@ public class MenuTests
         Assert.NotSame(timer, f.HitTestForm(timer.Left + 1, timer.Top + 1));  // components are never hit
     }
 
+    // ---- Radio items ----
+
+    [Fact]
+    public void Radio_items_round_trip_through_form_files()
+    {
+        var (form, _, _) = Setup();
+        var bar = (MainMenu)form.FindControl("mnuMain")!;
+        bar.Items[0].Items[0].RadioItem = true;
+        var saved = FormWriter.Save(form);
+        Assert.Contains("\"radioItem\": true", saved);
+        var (again, warnings) = FormReader.Load(saved);
+        Assert.Empty(warnings);
+        var items = ((MainMenu)again.FindControl("mnuMain")!).Items[0].Items;
+        Assert.True(items[0].RadioItem);
+        Assert.False(items[2].RadioItem);
+        Assert.Equal(saved, FormWriter.Save(again));
+    }
+
+    [Fact]
+    public void A_checked_radio_item_paints_a_dot_where_the_check_mark_goes()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 400, 300);
+        var bar = new MainMenu();
+        var m = bar.Add("&View");
+        m.Add("Plain");
+        var radio = m.Add("Radio");
+        var off = m.Add("Off");
+        radio.RadioItem = off.RadioItem = true;
+        radio.Checked = true;
+        f.Add(bar);
+        f.PerformLayout();
+        bar.OpenMenu(0);
+        var popup = Top(f);
+        int PixelAt(int i)
+        {
+            using var bmp = RadSharp.Drawing.FormRenderer.RenderToBitmap(f);
+            var r = popup.ItemRect(i);
+            var c = bmp.GetPixel(popup.Left + r.X + 7 + 7, popup.Top + r.Y + r.Height / 2);
+            return (c.Red << 16) | (c.Green << 8) | c.Blue;
+        }
+        int unchecked1 = PixelAt(2);
+        Assert.NotEqual(unchecked1, PixelAt(1));
+        Assert.Equal(unchecked1, PixelAt(0));
+    }
+
     // ---- Access keys, menu mode, Alt / F10 ----
 
     sealed class Rig

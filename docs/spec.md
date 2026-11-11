@@ -65,7 +65,7 @@ A form file is UTF-8 JSON:
 - The root form saves `width`/`height` as its design size.
 
 **Menus** save their items as nested objects:
-`{ "caption", "shortcut", "altShortcut", "onClick", "enabled", "checked", "visible", "separator", "items": [...] }`,
+`{ "caption", "shortcut", "altShortcut", "onClick", "enabled", "checked", "radioItem", "visible", "separator", "items": [...] }`,
 with only non-default values written.
 
 **Deterministic output** (save → load → save is byte-identical, in every runtime)
