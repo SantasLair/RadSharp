@@ -120,7 +120,13 @@ public partial class DesignerForm
                     : $"Build failed: {result.Errors} error(s), {result.Warnings} warning(s) (exit code {result.ExitCode}).");
                 sbMain.SimpleText = result.Cancelled ? "Build cancelled" : result.Succeeded ? "Build succeeded" : "Build failed";
             });
+            if (result is { Succeeded: false, Cancelled: false, Errors: > 0 }) Application.Post(() => _dock.Show(FindToolWindow(ToolWindows.Problems)));   // show what to fix
             return result;
+        }
+        catch (System.ComponentModel.Win32Exception e)
+        {
+            Application.Post(() => ReportMissingDotnet(e.Message));
+            return null;
         }
         finally
         {

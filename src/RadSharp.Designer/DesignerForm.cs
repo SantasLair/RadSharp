@@ -116,9 +116,10 @@ public partial class DesignerForm : Form
         if (RadSharp.Design.Code.SolutionFile.IsSolution(projectFile)) return OpenSolution(projectFile, session);
         if (_project != null && !CloseProject()) return false;
         try { _project = new RadProject(projectFile); }
-        catch (IOException e)
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            Dialogs.MessageDlg($"Could not open the project:\n{e.Message}", MessageType.Error, owner: this);
+            NextStep("Open project", $"Could not open the project:\n{e.Message}", ("Try again", () => OpenProject(projectFile, session)),
+                ("Remove from the recent list", () => RemoveRecent(projectFile)), ("Open another project…", OpenProjectDialog));
             return false;
         }
         _settings.AddRecent(_project.ProjectFile);
@@ -193,7 +194,7 @@ public partial class DesignerForm : Form
         }
         catch (Exception e) when (e is IOException or FormFileException or UnauthorizedAccessException)
         {
-            Dialogs.MessageDlg($"Could not open {Path.GetFileName(path)}:\n{e.Message}", MessageType.Error, owner: this);
+            NextStep("Open form", $"Could not open {Path.GetFileName(path)}:" + NL + e.Message + NL + "The file may be damaged: open it as text to fix it.", ("Open as text", () => OpenCodeFile(path)), ("Try again", () => OpenFormFile(path, preview, activate)));
             return null;
         }
 
@@ -238,7 +239,7 @@ public partial class DesignerForm : Form
         try { doc = new CodeDocument(path); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
         {
-            Dialogs.MessageDlg($"Could not open {Path.GetFileName(path)}:\n{e.Message}", MessageType.Error, owner: this);
+            NextStep("Open file", $"Could not open {Path.GetFileName(path)}:" + NL + e.Message, ("Try again", () => OpenCodeFile(path, preview, activate)));
             return null;
         }
         doc.FormFile = (ProjectOf(path) ?? _project)?.FormFiles.FirstOrDefault(f => SamePath(RadProject.CodeFileFor(f), path));
@@ -325,7 +326,7 @@ public partial class DesignerForm : Form
     {
         if (!doc.Save())
         {
-            Dialogs.MessageDlg($"Could not save {doc.Title}.", MessageType.Error, owner: this);
+            NextStep("Save", $"Could not save {doc.Title}." + NL + "The file may be read-only, locked by another program, or on a disk that is full.", ("Try again", () => Save(doc)));
             return false;
         }
         UpdateTitle();

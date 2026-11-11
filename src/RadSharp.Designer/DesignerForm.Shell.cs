@@ -85,6 +85,8 @@ public partial class DesignerForm
         Output(nav == _external
             ? $"Could not start {_external.LastEditorName} for {Path.GetFileName(file)}:{line}; choose another editor in Tools › Options."
             : $"Could not open {Path.GetFileName(file)}.");
+        if (nav == _external) NextStep("Code editor", $"Could not start {_external.LastEditorName} for {Path.GetFileName(file)}:{line}.",
+            ("Open it in the built-in editor", () => _embedded.Navigate(file, line, column)), ("Choose another editor…", ShowOptions));
         return false;
     }
 

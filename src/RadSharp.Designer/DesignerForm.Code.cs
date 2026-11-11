@@ -71,7 +71,10 @@ public partial class DesignerForm
         if (_project == null) return;
         var (exe, name) = _external.Editor();
         if (!ExternalEditor.OpenProject(_settings.Editor, exe, _settings.CustomEditorCommand, _project))
+        {
             Output($"Could not start {name}; choose another editor in Tools › Options.");
+            NextStep("Open in IDE", $"Could not start {name}.", ("Choose another editor…", ShowOptions));
+        }
         else sbMain.SimpleText = $"Opened {_project.Name} in {name}";
     }
 
@@ -161,12 +164,13 @@ public partial class DesignerForm
         _problemStore.Set(ProblemSources.LiveCompile, session.Messages);
         if (!session.Success)
         {
-            Output($"{session.Messages.Count} error(s).");
+            Output($"{session.Messages.Count} error(s): see Problems (double-click one to go to it).");
+            _dock.Show(FindToolWindow(ToolWindows.Problems));
             session.Dispose();
             return null;
         }
         var main = _project.MainFormClass ?? _current?.ClassName;
-        if (main == null) { Output("The project has no main form."); session.Dispose(); return null; }
+        if (main == null) { Output("The project has no main form: open a form and choose Project › Set as Main Form."); session.Dispose(); return null; }
         try
         {
             var form = session.CreateForm(main);
