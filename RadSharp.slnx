@@ -12,6 +12,7 @@
     <Project Path="src/RadSharp.Design/RadSharp.Design.csproj" />
     <Project Path="src/RadSharp.Designer/RadSharp.Designer.csproj" />
     <Project Path="src/RadSharp.Generators/RadSharp.Generators.csproj" />
+    <Project Path="src/RadSharp.Ide.Debug/RadSharp.Ide.Debug.csproj" />
     <Project Path="src/RadSharp.Platform.Sdl/RadSharp.Platform.Sdl.csproj" />
   </Folder>
   <Folder Name="/tests/">
@@ -20,6 +21,7 @@
     <Project Path="tests/RadSharp.Design.Tests/RadSharp.Design.Tests.csproj" />
     <Project Path="tests/RadSharp.Designer.Tests/RadSharp.Designer.Tests.csproj" />
     <Project Path="tests/RadSharp.Generators.Tests/RadSharp.Generators.Tests.csproj" />
+    <Project Path="tests/RadSharp.Ide.Debug.Tests/RadSharp.Ide.Debug.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">
     <Project Path="tools/RadSharp.DocGen/RadSharp.DocGen.csproj" />

@@ -1,0 +1,9 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>RADSharp IDE debugger engine: Debug Adapter Protocol client, breakpoint store and netcoredbg acquisition. No UI dependency.</Description>
+    <IsPackable>false</IsPackable>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+
+</Project>
