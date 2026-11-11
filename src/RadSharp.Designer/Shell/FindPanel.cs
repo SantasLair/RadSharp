@@ -77,9 +77,9 @@ public sealed class FindPanel : Panel
         int right = w - pad;
         _stopButton.SetBounds(right - Px(60), y1, Px(60), h); right -= Px(60) + gap;
         _findButton.SetBounds(right - btn, y1, btn, h); right -= btn + gap;
-        _regex.SetBounds(right - Px(70), y1, Px(70), h); right -= Px(70);
-        _word.SetBounds(right - Px(96), y1, Px(96), h); right -= Px(96);
-        _case.SetBounds(right - Px(100), y1, Px(100), h); right -= Px(100) + gap;
+        _regex.SetBounds(right - Px(84), y1, Px(84), h); right -= Px(84);
+        _word.SetBounds(right - Px(112), y1, Px(112), h); right -= Px(112);
+        _case.SetBounds(right - Px(110), y1, Px(110), h); right -= Px(110) + gap;
         _find.SetBounds(pad, y1, Math.Max(Px(80), right - pad), h);
 
         // Row 2: the replacement and Replace All; row 3: the filter and the status.
