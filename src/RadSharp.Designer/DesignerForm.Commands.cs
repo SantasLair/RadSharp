@@ -109,6 +109,7 @@ public partial class DesignerForm
         Reg("Tools.KeyboardShortcuts", "Keyboard Shortcuts…", "Tools", ShowKeyboardShortcuts);
 
         RegisterBuildCommands();
+        RegisterProjectCommands();
 
         c.ShortcutsChanged += () => RefreshCommandState();
     }
@@ -186,6 +187,7 @@ public partial class DesignerForm
         Cmd(project, "Project.RunConfiguration");
         project.AddSeparator();
         Cmd(project, "Project.OpenInIde");
+        AddProjectMenuItems(project);
 
         var run = Top("Run");
         Cmd(run, "Run.Run");

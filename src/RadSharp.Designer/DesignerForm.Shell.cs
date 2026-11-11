@@ -151,7 +151,7 @@ public partial class DesignerForm
         if (_restoring || _docs == null) return;
         var session = new IdeSession
         {
-            Project = _project?.ProjectFile,
+            Project = _solutionFile ?? _project?.ProjectFile,
             Active = _docs.Active?.Path,
             Split = _docs.SplitView,
             Layout = _dock.SaveLayout(),

@@ -304,6 +304,21 @@ public class TreeView : Control
         else if (y + RowHeight > _top + h) _top = y + RowHeight - h;
     }
 
+    /// <summary>The visible node under the control-relative <paramref name="y"/> (for context menus and drops), or null.</summary>
+    public TreeNode? NodeAt(int y)
+    {
+        var rows = VisibleNodes();
+        int i = (y - Area.Y + _top) / RowHeight;
+        return y < Area.Y || i < 0 || i >= rows.Count ? null : rows[i];
+    }
+
+    /// <summary>The control-relative row of a visible node, or an empty rectangle if it is not visible.</summary>
+    public Rect NodeRect(TreeNode node)
+    {
+        int i = VisibleNodes().IndexOf(node);
+        return i < 0 ? new Rect(0, 0, 0, 0) : new Rect(Area.X, Area.Y + i * RowHeight - _top, Area.Width, RowHeight);
+    }
+
     public void Toggle(TreeNode node)
     {
         if (node.Nodes.Count == 0) return;

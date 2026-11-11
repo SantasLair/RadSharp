@@ -298,10 +298,9 @@
             "fontBold": true
           },
           {
-            "class": "ListBox",
-            "name": "lstForms",
-            "align": "client",
-            "onDblClick": "lstForms_DblClick"
+            "class": "TreeView",
+            "name": "tvProject",
+            "align": "client"
           }
         ]
       },
@@ -444,7 +443,7 @@
       {
         "class": "OpenDialog",
         "name": "dlgOpenProject",
-        "filter": "C# projects|*.csproj",
+        "filter": "C# projects and solutions|*.csproj;*.sln;*.slnx",
         "title": "Open project",
         "left": 400,
         "top": 300

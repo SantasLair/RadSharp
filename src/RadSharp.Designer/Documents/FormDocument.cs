@@ -20,8 +20,17 @@ public sealed class FormDocument : IDocumentView, IEditTarget
     }
 
     public string Kind => "form";
-    public string Path { get; }
+    public string Path { get; private set; }
     string? IDocumentView.Path => Path;
+
+    /// <summary>The form file was renamed or moved (by the project tree): the open document follows it.</summary>
+    public void MovedTo(string newPath)
+    {
+        Path = newPath;
+        Document.FileName = newPath;
+        DiskTimestamp = DocumentFiles.Stamp(newPath);
+        StateChanged?.Invoke();
+    }
     public DesignDocument Document { get; }
     public DesignSurface Surface { get; }
     public string ClassName => RadProject.FormClassName(Path);
