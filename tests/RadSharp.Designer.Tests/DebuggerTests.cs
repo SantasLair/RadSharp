@@ -68,6 +68,7 @@ public class DebuggerTests
         Assert.Equal("20", c.Scopes.Single().Variables.Single(v => v.Name == "a").Value);
         Assert.True(c.CanStep && c.CanContinue && c.CanStop);
         Assert.False(c.CanPause || c.CanStart);
+        ui.PumpUntil(() => c.Breakpoints.Get(bp.Id)!.TimesHit == 1, "the hit count");   // counted asynchronously after the stop
         Assert.Equal(1, c.Breakpoints.Get(bp.Id)!.TimesHit);
         Assert.StartsWith("Paused (breakpoint) at Calc.Add", host.StatusText);
 

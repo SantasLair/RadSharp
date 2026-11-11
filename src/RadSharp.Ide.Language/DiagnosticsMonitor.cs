@@ -42,7 +42,11 @@ public sealed class DiagnosticsMonitor : IDisposable
             if (_latest is { } latest && latest.Version >= minVersion) return Task.FromResult(latest);
             var waiter = new TaskCompletionSource<Versioned<IReadOnlyList<DiagnosticInfo>>>(TaskCreationOptions.RunContinuationsAsynchronously);
             _waiters.Add((minVersion, waiter));
-            cancel.Register(() => waiter.TrySetCanceled(cancel));
+            if (cancel.CanBeCanceled)
+            {
+                var registration = cancel.Register(() => waiter.TrySetCanceled(cancel));
+                _ = waiter.Task.ContinueWith(_ => registration.Dispose(), CancellationToken.None, TaskContinuationOptions.ExecuteSynchronously, TaskScheduler.Default);
+            }
             return waiter.Task;
         }
     }

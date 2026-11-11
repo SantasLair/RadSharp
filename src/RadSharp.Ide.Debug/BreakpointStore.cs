@@ -228,7 +228,9 @@ public sealed class BreakpointStore
     public void ApplyAdapterEvent(DapBreakpoint adapter)
     {
         if (adapter.Id is not { } id) return;
-        Update(_items.FirstOrDefault(b => b.AdapterId == id)?.Id ?? Guid.Empty, b => b with
+        Guid target;
+        lock (_gate) target = _items.FirstOrDefault(b => b.AdapterId == id)?.Id ?? Guid.Empty;
+        Update(target, b => b with
         {
             Verified = adapter.Verified,
             Message = adapter.Message,

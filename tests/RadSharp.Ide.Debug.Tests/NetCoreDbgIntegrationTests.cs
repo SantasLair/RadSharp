@@ -104,6 +104,7 @@ public class NetCoreDbgIntegrationTests
             locals = await Locals(session, frame.Id, cts.Token);
             Assert.Equal("42", locals["b"]);
             Assert.Equal("42", (await session.EvaluateAsync("a + b - 20", frame.Id, ct: cts.Token)).Result);
+            await Wait.Until(() => store.Get(bp.Id)!.TimesHit == 1);   // counted asynchronously after the stop
             Assert.Equal(1, store.Get(bp.Id)!.TimesHit);
 
             // 4. continue to exit

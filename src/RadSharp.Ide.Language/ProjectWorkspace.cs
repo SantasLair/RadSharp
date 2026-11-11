@@ -412,11 +412,18 @@ public sealed class ProjectWorkspace : IDisposable
     /// </summary>
     void ForgetReusedSemanticModels()
     {
-        var service = ReuseService.Value is { } getService ? getService.Invoke(_workspace.Services, null) : null;
-        var field = service?.GetType().GetField("_semanticModelMap", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        if (field == null || field.GetValue(service) is not { } map) return;
-        var clear = map.GetType().GetMethod("Clear", Type.EmptyTypes);
-        if (clear?.Invoke(map, null) is { } empty) field.SetValue(service, empty);
+        try
+        {
+            var service = ReuseService.Value is { } getService ? getService.Invoke(_workspace.Services, null) : null;
+            var field = service?.GetType().GetField("_semanticModelMap", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+            if (field == null || field.GetValue(service) is not { } map) return;
+            var clear = map.GetType().GetMethod("Clear", Type.EmptyTypes);
+            if (clear?.Invoke(map, null) is { } empty) field.SetValue(service, empty);
+        }
+        catch (Exception)   // any reflection failure (including a faulted ReuseService Lazy) means "nothing cleared"
+        {
+            // Roslyn changed under us: nothing is cleared (a stale model may survive one form edit), and the caller goes on.
+        }
     }
 
     static readonly Lazy<System.Reflection.MethodInfo?> ReuseService = new(() =>
@@ -559,6 +566,7 @@ public sealed class ProjectWorkspace : IDisposable
                 try { _owner.ReloadFromDisk(path); }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException) { lock (_pending) _pending.Add(path); _timer.Change(250, Timeout.Infinite); }
                 catch (ObjectDisposedException) { return; }
+                catch (InvalidOperationException) { return; }   // the workspace refused the change: it is being disposed
             }
         }
 

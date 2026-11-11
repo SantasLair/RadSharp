@@ -36,14 +36,35 @@ public sealed record BuildResult(int ExitCode, bool Cancelled, IReadOnlyList<Bui
 /// <summary>Build (Ctrl+Shift+B): <c>dotnet build</c> in Debug, streaming output and collecting diagnostics.</summary>
 public static class ProjectBuild
 {
+    /// <summary>Splits a command-line fragment into arguments (double quotes group; a backslash before a quote is a literal quote).</summary>
+    public static IReadOnlyList<string> SplitArguments(string? commandLine)
+    {
+        var result = new List<string>();
+        if (string.IsNullOrWhiteSpace(commandLine)) return result;
+        var current = new System.Text.StringBuilder();
+        bool quoted = false, any = false;
+        for (int i = 0; i < commandLine.Length; i++)
+        {
+            char c = commandLine[i];
+            if (c == '\\' &&i + 1 < commandLine.Length && commandLine[i + 1] == '"') { current.Append('"'); i++; any = true; }
+            else if (c == '"') { quoted = !quoted; any = true; }
+            else if (char.IsWhiteSpace(c) && !quoted)
+            {
+                if (any) { result.Add(current.ToString()); current.Clear(); any = false; }
+            }
+            else { current.Append(c); any = true; }
+        }
+        if (any) result.Add(current.ToString());
+        return result;
+    }
+
     /// <summary>Builds the project. <paramref name="onLine"/> receives every output line (from a worker thread);
     /// diagnostics are also returned as <see cref="BuildMessage"/>s (each distinct one once). Cancelling kills the
     /// build's process tree and returns a result with <see cref="BuildResult.Cancelled"/>.</summary>
     public static async Task<BuildResult> BuildAsync(RadProject project, Action<string> onLine, string configuration = "Debug",
         string? extraArguments = null, IDictionary<string, string>? environment = null, CancellationToken cancel = default)
     {
-        var psi = new ProcessStartInfo("dotnet",
-            $"build \"{project.ProjectFile}\" -c {configuration} -nologo -p:GenerateFullPaths=true -consoleloggerparameters:NoSummary {extraArguments}".TrimEnd())
+        var psi = new ProcessStartInfo("dotnet")
         {
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -51,6 +72,9 @@ public static class ProjectBuild
             CreateNoWindow = true,
             WorkingDirectory = project.Directory,
         };
+        foreach (var a in new[] { "build", project.ProjectFile, "-c", configuration, "-nologo", "-p:GenerateFullPaths=true", "-consoleloggerparameters:NoSummary" })
+            psi.ArgumentList.Add(a);
+        foreach (var a in SplitArguments(extraArguments)) psi.ArgumentList.Add(a);
         psi.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
         psi.Environment["DOTNET_NOLOGO"] = "1";
         if (environment != null) foreach (var (k, v) in environment) psi.Environment[k] = v;

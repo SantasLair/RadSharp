@@ -15,8 +15,13 @@ public sealed partial class LanguageService
     /// </summary>
     static readonly Lazy<IReadOnlyList<(string Category, CodeFixProvider Provider)>> Providers = new(() =>
     {
-        var assembly = Assembly.Load("Microsoft.CodeAnalysis.CSharp.Features");
         var list = new List<(string, CodeFixProvider)>();
+        Assembly assembly;
+        try { assembly = Assembly.Load("Microsoft.CodeAnalysis.CSharp.Features"); }
+        catch (Exception e) when (e is FileNotFoundException or FileLoadException or BadImageFormatException or ArgumentException)
+        {
+            return list;   // no providers: a fix request answers with nothing (and the Lazy isn't left faulted)
+        }
         foreach (var (category, type) in new[]
         {
             ("AddUsing", "Microsoft.CodeAnalysis.CSharp.AddImport.CSharpAddImportCodeFixProvider"),

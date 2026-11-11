@@ -37,7 +37,9 @@ public sealed class DotnetPackageRunner : IPackageRunner
         process.ErrorDataReceived += (_, e) => { if (e.Data != null) onLine(e.Data); };
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
-        await process.WaitForExitAsync(cancel);
+        using var kill = cancel.Register(() => AppProcess.KillTree(process));
+        try { await process.WaitForExitAsync(cancel); }
+        catch (OperationCanceledException) { AppProcess.KillTree(process); throw; }
         return process.ExitCode;
     }
 }
@@ -156,6 +158,8 @@ public sealed class NuGetService
     /// <summary><c>dotnet add "proj" package id [--version v] [--prerelease]</c>. Without a version it adds (or updates to) the latest.</summary>
     public static IReadOnlyList<string> AddArguments(string projectFile, string id, string? version = null, bool prerelease = false, string? source = null)
     {
+        ValidatePackageId(id);
+        if (!string.IsNullOrWhiteSpace(version)) ValidateVersion(version.Trim());
         var args = new List<string> { "add", projectFile, "package", id };
         if (!string.IsNullOrWhiteSpace(version)) { args.Add("--version"); args.Add(version.Trim()); }
         else if (prerelease) args.Add("--prerelease");
@@ -163,7 +167,30 @@ public sealed class NuGetService
         return args;
     }
 
-    public static IReadOnlyList<string> RemoveArguments(string projectFile, string id) => ["remove", projectFile, "package", id];
+    public static IReadOnlyList<string> RemoveArguments(string projectFile, string id)
+    {
+        ValidatePackageId(id);
+        return ["remove", projectFile, "package", id];
+    }
+
+    static readonly System.Text.RegularExpressions.Regex PackageIdPattern = new(@"^[A-Za-z0-9_][A-Za-z0-9._-]*$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    static readonly System.Text.RegularExpressions.Regex VersionPattern = new(
+        @"^[0-9]+(\.[0-9]+){0,3}(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?(\+[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$|^[\[(][0-9A-Za-z.,*+\- ]*[\])]$|^[0-9]+(\.[0-9*]+)*(-\*)?$",
+        System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+
+    /// <summary>Throws <see cref="ArgumentException"/> unless <paramref name="id"/> is a plausible package id (never an option).</summary>
+    public static void ValidatePackageId(string id)
+    {
+        if (string.IsNullOrEmpty(id) || id.StartsWith('-') || !PackageIdPattern.IsMatch(id))
+            throw new ArgumentException($"'{id}' is not a valid package id (letters, digits, '.', '_' and '-' only, not starting with '-').", nameof(id));
+    }
+
+    /// <summary>Throws <see cref="ArgumentException"/> unless <paramref name="version"/> is NuGet version syntax (a version, prerelease, or a range).</summary>
+    public static void ValidateVersion(string version)
+    {
+        if (string.IsNullOrEmpty(version) || version.StartsWith('-') || !VersionPattern.IsMatch(version))
+            throw new ArgumentException($"'{version}' is not a valid NuGet version.", nameof(version));
+    }
 
     // ---- Running ----
 

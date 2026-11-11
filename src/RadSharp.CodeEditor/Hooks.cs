@@ -140,6 +140,13 @@ public interface ICompletionSource
     /// <see cref="GetCommitEdit"/>. The edits are applied as one undo step.
     /// </summary>
     CompletionCommit? GetCommit(TextSnapshot snapshot, CompletionList list, CompletionItem item) => null;
+
+    /// <summary>
+    /// Called (UI thread) whenever the selected item of the open list changes (the list opened or was filtered, or an arrow key
+    /// moved the selection). A source can start resolving the item's commit details here, so <see cref="GetCommit"/> finds them
+    /// ready instead of waiting. Must return quickly.
+    /// </summary>
+    void ItemSelected(CompletionList list, CompletionItem item) { }
 }
 
 /// <summary>

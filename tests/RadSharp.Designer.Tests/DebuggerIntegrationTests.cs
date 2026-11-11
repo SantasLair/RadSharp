@@ -100,6 +100,7 @@ public sealed class DebuggerIntegrationTests : IDisposable
             Assert.Equal(10, editor.Snapshot.GetLineFromOffset(glyph.Start));
             Assert.Equal("40", d.LocalsView.ValueOf("total"));
             Assert.True(d.Breakpoints.All[0].Verified);
+            _ui.PumpUntil(() => d.Breakpoints.All[0].TimesHit == 1, "the hit count");   // counted asynchronously after the stop
             Assert.Equal(1, d.Breakpoints.All[0].TimesHit);
             Assert.Contains(d.CallStackView.Frames, f => f.Name.Contains("Button1_Click"));
             Assert.EndsWith("[Paused]", d.Caption);

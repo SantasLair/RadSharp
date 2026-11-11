@@ -243,6 +243,7 @@ public partial class DesignerForm : Form
             return null;
         }
         doc.FormFile = (ProjectOf(path) ?? _project)?.FormFiles.FirstOrDefault(f => SamePath(RadProject.CodeFileFor(f), path));
+        if (doc.LoadNotice is { } notice) { Output(notice); sbMain.SimpleText = notice; }
         doc.StateChanged += UpdateTitle;
         AttachLanguage(doc);
         HookNavigation(doc);
@@ -596,5 +597,6 @@ public partial class DesignerForm : Form
         SaveSession();
         EndRecoverySession();
         CloseLiveForm();
+        Shutdown();   // the app, the debug session and the language hosts must not outlive the IDE (DesignerForm.Shutdown.cs)
     }
 }

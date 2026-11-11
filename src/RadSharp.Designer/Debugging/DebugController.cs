@@ -177,16 +177,16 @@ public sealed class DebugController : IAsyncDisposable
         SetState(DebugState.Starting);
         Task<BuildResult?> building;
         try { building = _host.BuildAsync(); }
-        catch (Exception e) { return Abort("The build could not run: " + e.Message); }
+        catch (Exception e) { return Abort(cts, "The build could not run: " + e.Message); }
         BuildResult? build;
         try { build = await building.ConfigureAwait(false); }
-        catch (Exception e) { return await OnUi(() => Abort("The build could not run: " + e.Message)).ConfigureAwait(false); }
+        catch (Exception e) { return await OnUi(() => Abort(cts, "The build could not run: " + e.Message)).ConfigureAwait(false); }
         // From here on this may run off the UI thread: state and host calls go through OnUi.
         bool proceed = await OnUi(() =>
         {
-            if (cts.IsCancellationRequested || _startCts != cts) return Abort(null);
+            if (cts.IsCancellationRequested || _startCts != cts) return Abort(cts, null);
             if (build is not { Succeeded: true, OutputFile: not null })
-                return Abort(build is { Cancelled: true } || build == null ? null : "The debugger was not started: the build failed.");
+                return Abort(cts, build is { Cancelled: true } || build == null ? null : "The debugger was not started: the build failed.");
             _host.Status("Starting the debugger…");
             return true;
         }).ConfigureAwait(false);
@@ -207,17 +207,18 @@ public sealed class DebugController : IAsyncDisposable
             }));
             adapter = await AdapterResolver(progress, cts.Token).ConfigureAwait(false);
         }
-        catch (OperationCanceledException) { return await OnUi(() => Abort(null)).ConfigureAwait(false); }
+        catch (OperationCanceledException) { return await OnUi(() => Abort(cts, null)).ConfigureAwait(false); }
         catch (Exception e)
         {
             return await OnUi(() =>
             {
-                Abort(null);
-                _host.OfferRunWithoutDebugging("The debugger (netcoredbg) is not available: " + e.Message);
+                bool current = _startCts == cts;   // a stale start says nothing: Stop already ended it
+                Abort(cts, null);
+                if (current) _host.OfferRunWithoutDebugging("The debugger (netcoredbg) is not available: " + e.Message);
                 return false;
             }).ConfigureAwait(false);
         }
-        if (cts.IsCancellationRequested) return await OnUi(() => Abort(null)).ConfigureAwait(false);
+        if (cts.IsCancellationRequested) return await OnUi(() => Abort(cts, null)).ConfigureAwait(false);
         var options = await OnUi(() => _host.LaunchOptionsFor(output)).ConfigureAwait(false);
         return await OnUi(() => LaunchCoreAsync(adapter, options, cts)).Unwrap().ConfigureAwait(false);
     }
@@ -233,11 +234,12 @@ public sealed class DebugController : IAsyncDisposable
 
     async Task<bool> LaunchCoreAsync(string adapterPath, DebugLaunchOptions options, CancellationTokenSource cts)
     {
+        if (cts.IsCancellationRequested || _startCts != cts) return Abort(cts, null);   // stopped (or superseded) while the build or download ran
         DebugSession session;
         try { session = SessionFactory(adapterPath, Breakpoints); }
         catch (Exception e)
         {
-            Abort(null);
+            Abort(cts, null);
             _host.OfferRunWithoutDebugging($"The debugger ({Path.GetFileName(adapterPath)}) could not start: {e.Message}");
             return false;
         }
@@ -280,8 +282,14 @@ public sealed class DebugController : IAsyncDisposable
         }).ConfigureAwait(false);
     }
 
-    bool Abort(string? message)
+    /// <summary>
+    /// Ends the start <paramref name="cts"/> belongs to: back to Design with an optional message. Does nothing when that
+    /// start is no longer the current one (Stop, then F5 again, started a newer one: the first start's late completion
+    /// must not reset it).
+    /// </summary>
+    bool Abort(CancellationTokenSource? cts, string? message)
     {
+        if (_startCts != cts) return false;
         _startCts = null;
         if (message != null) _host.Output(message);
         if (_state == DebugState.Starting && _session == null) SetState(DebugState.Design);
@@ -324,9 +332,10 @@ public sealed class DebugController : IAsyncDisposable
         if (_state == DebugState.Design) return _ending;
         if (_session is not { } session)
         {
-            _startCts?.Cancel();
+            var starting = _startCts;
+            starting?.Cancel();
             _host.CancelBuild();
-            Abort(null);
+            Abort(starting, null);
             return _ending;
         }
         _host.Status("Stopping the debugger…");

@@ -73,7 +73,11 @@ public partial class DesignerForm
         var forward = new ToolButton { Name = "btnForward", Caption = "Forward ▶", Width = 80 };
         bar.Insert(at, back);
         bar.Insert(at + 1, forward);
-        bar.Insert(at + 2, new ToolSeparator { Name = "sepNavigation" });
+        var navSeparator = new ToolSeparator { Name = "sepNavigation" };
+        bar.Insert(at + 2, navSeparator);
+        navSeparator.SetBounds(0, 0, navSeparator.Px(9), navSeparator.Px(24));
+        back.Width = back.Px(64);   // widths are device pixels: scale them like the buttons the radform defines
+        forward.Width = forward.Px(80);
         c.Bind(back, "Go.Back");
         c.Bind(forward, "Go.Forward");
 

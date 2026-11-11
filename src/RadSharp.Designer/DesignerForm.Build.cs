@@ -128,6 +128,11 @@ public partial class DesignerForm
             Application.Post(() => ReportMissingDotnet(e.Message));
             return null;
         }
+        catch (Exception e) when (e is InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            Application.Post(() => { Output("The build could not run: " + e.Message); sbMain.SimpleText = "The build could not run"; });
+            return null;
+        }
         finally
         {
             _building = false;
@@ -210,6 +215,7 @@ public partial class DesignerForm
             {
                 Output(app.Stopped ? "The app was stopped." : t.IsCompletedSuccessfully ? $"The app exited with code {t.Result}." : "The app ended unexpectedly.");
                 if (_app == app) _app = null;
+                app.Dispose();   // it has exited: releases the process handle
                 RefreshCommandState();
             }), TaskScheduler.Default);
             Application.Post(RefreshCommandState);
