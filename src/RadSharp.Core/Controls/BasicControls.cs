@@ -39,6 +39,14 @@ public class Label : Control
     /// <summary>Text colour; null uses the theme's.</summary>
     [Published(Category = "Appearance")] public Color? FontColor { get; set; }
 
+    bool _wordWrap, _ellipsis;
+
+    /// <summary>Wraps the caption onto several lines at the label's width (and at explicit newlines).</summary>
+    [Published(Category = "Appearance")] public bool WordWrap { get => _wordWrap; set { _wordWrap = value; Invalidate(); } }
+
+    /// <summary>A single-line caption wider than the label ends in "…" instead of being cut off. Ignored with <see cref="WordWrap"/>.</summary>
+    [Published(Category = "Appearance")] public bool Ellipsis { get => _ellipsis; set { _ellipsis = value; Invalidate(); } }
+
     protected override void Paint(Canvas canvas)
     {
         var color = !IsEffectivelyEnabled ? canvas.Theme.TextDisabled : FontColor ?? canvas.Theme.Text;
@@ -47,7 +55,9 @@ public class Label : Control
             Size = FontSize > 0 ? FontSize : EffectiveFont.Size,
             Bold = FontBold || EffectiveFont.Bold,
         };
-        canvas.DrawText(Caption, font, color, new Rect(0, 0, Width, Height), Alignment, Layout);
+        var rect = new Rect(0, 0, Width, Height);
+        if (WordWrap) canvas.DrawWrappedText(Caption, font, color, rect, Alignment, Layout);
+        else canvas.DrawText(Caption, font, color, rect, Alignment, Layout, Ellipsis);
     }
 
 }
