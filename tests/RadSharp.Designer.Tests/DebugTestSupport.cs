@@ -80,7 +80,8 @@ sealed class RecordingDebugHost : IDebugHost
 
     public void Output(string line) => Lines.Add(line);
     public void Status(string text) => StatusText = text;
-    public Task<BuildResult?> BuildAsync() { Builds++; return Task.FromResult(Build); }
+    public readonly Queue<Task<BuildResult?>> BuildQueue = new();   // scripted builds, used before Build
+    public Task<BuildResult?> BuildAsync() { Builds++; return BuildQueue.Count > 0 ? BuildQueue.Dequeue() : Task.FromResult(Build); }
     public void CancelBuild() => BuildCancels++;
     public DebugLaunchOptions LaunchOptionsFor(string outputFile) => Options with { Args = [outputFile] };
     public void OfferRunWithoutDebugging(string reason) => Offers.Add(reason);
