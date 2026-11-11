@@ -106,6 +106,12 @@ public abstract class EditBase : Control
 
     [Published(Category = "Appearance")] public BorderStyle BorderStyle { get; set; } = BorderStyle.Single;
 
+    /// <summary>Background colour; null uses the theme's input background.</summary>
+    [Published(Category = "Appearance")] public Color? Color { get; set; }
+
+    /// <summary>Text colour; null uses the theme's text colour.</summary>
+    [Published(Category = "Appearance")] public Color? FontColor { get; set; }
+
     /// <summary>Raised when <see cref="Text"/> changes (typing, pasting, undo, or from code).</summary>
     [Published] public event NotifyEvent? Change;
 
@@ -159,7 +165,23 @@ public abstract class EditBase : Control
 
     // ---- Displayed text ----
 
-    protected RenderFont TextFont => new(CurrentTheme.FontFace, (float)(CurrentTheme.FontSize * UiScale));
+    /// <summary>The text font: the control's <see cref="Control.EffectiveFont"/> (the theme's face when nothing overrides it) at the form's scale.</summary>
+    protected RenderFont TextFont
+    {
+        get
+        {
+            var f = EffectiveFont;
+            var theme = CurrentTheme;
+            if (f == theme.DefaultFont) return new(theme.FontFace, (float)(theme.FontSize * UiScale));
+            return new(FontFace.Resolve(f), (float)(f.Size * UiScale));
+        }
+    }
+
+    /// <summary>How far a line is shifted right inside the text area (a right-aligned edit); 0 for left-aligned text.</summary>
+    protected virtual int LineOffsetX(Line line, int areaWidth) => 0;
+
+    /// <summary>The horizontal alignment used for the placeholder text.</summary>
+    protected virtual TextAlign TextAlignment => TextAlign.Left;
     protected int LineHeight => (int)Math.Ceiling(TextFont.LineHeight);
 
     string DisplayText
@@ -249,7 +271,7 @@ public abstract class EditBase : Control
             var area = TextArea;
             int d = CaretDisplay;
             var line = Lines[LineIndexOf(d)];
-            int x = area.X + (int)MathF.Round(line.Layout.CaretX(d - line.Start)) - ScrollX;
+            int x = area.X + LineOffsetX(line, area.Width) + (int)MathF.Round(line.Layout.CaretX(d - line.Start)) - ScrollX;
             int y = area.Y + FirstLineOffset(area.Height, LineHeight) + line.Top - ScrollY;
             return new Rect(x, y, Math.Max(1, Px(1)), LineHeight);
         }
@@ -263,7 +285,7 @@ public abstract class EditBase : Control
         int cy = y - area.Y - FirstLineOffset(area.Height, LineHeight) + ScrollY;
         int li = Math.Clamp(cy < 0 ? 0 : cy / Math.Max(1, LineHeight), 0, lines.Count - 1);
         var line = lines[li];
-        return line.Start + line.Layout.HitTest(x - area.X + ScrollX);
+        return line.Start + line.Layout.HitTest(x - area.X - LineOffsetX(line, area.Width) + ScrollX);
     }
 
     /// <summary>The text index nearest a point in this control's coordinates.</summary>
@@ -575,7 +597,7 @@ public abstract class EditBase : Control
         var r = new Rect(0, 0, Width, Height);
         bool enabled = IsEffectivelyEnabled;
         float radius = canvas.Px(3);
-        canvas.FillRoundRect(r, radius, enabled && !ReadOnly ? t.InputBackground : t.FormBackground);
+        canvas.FillRoundRect(r, radius, enabled && !ReadOnly ? Color ?? t.InputBackground : t.FormBackground);
         if (BorderStyle == BorderStyle.Single)
             canvas.DrawRoundBorder(r, radius, Focused ? t.Accent : IsHovered && enabled ? t.ButtonBorder : t.InputBorder, Border);
 
@@ -583,22 +605,24 @@ public abstract class EditBase : Control
         var font = TextFont;
         int lh = LineHeight;
         int top0 = area.Y + FirstLineOffset(area.Height, lh) - ScrollY;
-        int x0 = area.X - ScrollX;
 
         canvas.Save();
         canvas.ClipRect(new Rect(area.X - Px(1), Border, area.Width + Px(2), Height - 2 * Border));
 
         var text = DisplayText;
         if (text.Length == 0 && Placeholder.Length > 0)
-            canvas.DrawText(Placeholder, font, t.TextDisabled, x0, top0 + font.Ascent);
+            canvas.DrawText(Placeholder, font, t.TextDisabled,
+                area.X - ScrollX + (TextAlignment == TextAlign.Left ? 0 : (int)(Math.Max(0, area.Width - font.MeasureWidth(Placeholder)) / (TextAlignment == TextAlign.Center ? 2 : 1))),
+                top0 + font.Ascent);
 
         bool showSelection = !IsComposing && Editor.HasSelection && (Focused || !HideSelection);
         int selA = ToDisplay(Editor.SelectionStart), selB = ToDisplay(Editor.SelectionStart + Editor.SelectionLength);
-        var textColor = enabled ? t.Text : t.TextDisabled;
+        var textColor = enabled ? FontColor ?? t.Text : t.TextDisabled;
 
         foreach (var line in Lines)
         {
             int y = top0 + line.Top;
+            int x0 = area.X - ScrollX + LineOffsetX(line, area.Width);
             if (y + lh < 0 || y > Height) continue;
             if (showSelection)
             {
@@ -643,6 +667,19 @@ public class Edit : EditBase
 
     /// <summary>If set (e.g. "•"), every character is shown as this one: a password box.</summary>
     [Published(Category = "Behavior")] public string PasswordChar { get; set; } = "";
+
+    /// <summary>Where the text sits when it is narrower than the box (a money field is right-aligned).</summary>
+    [Published(Category = "Appearance")] public TextAlign Alignment { get => _alignment; set { _alignment = value; Invalidate(); } }
+    TextAlign _alignment;
+
+    protected override TextAlign TextAlignment => _alignment;
+
+    protected override int LineOffsetX(Line line, int areaWidth)
+    {
+        if (_alignment == TextAlign.Left) return 0;
+        int room = Math.Max(0, areaWidth - Px(1) - (int)MathF.Ceiling(line.Layout.Width));
+        return _alignment == TextAlign.Center ? room / 2 : room;
+    }
 
     /// <summary>Select all text when the box is entered with Tab.</summary>
     [Published(Category = "Behavior")] public bool AutoSelect { get; set; } = true;
