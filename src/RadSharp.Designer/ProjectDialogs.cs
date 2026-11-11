@@ -237,7 +237,7 @@ public sealed class NuGetDialog : Form
         Say(what + "…");
         int exit;
         try { exit = await action(); }
-        catch (Exception e) when (e is IOException or System.ComponentModel.Win32Exception or InvalidOperationException)
+        catch (Exception e) when (e is IOException or System.ComponentModel.Win32Exception or InvalidOperationException or ArgumentException)
         {
             _log(what + " failed: " + e.Message);
             Say(what + " failed: " + e.Message);

@@ -122,6 +122,14 @@ public partial class DesignerForm
             });
             return result;
         }
+        catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException or IOException or UnauthorizedAccessException)
+        {
+            var hint = e is System.ComponentModel.Win32Exception
+                ? "dotnet could not be started: install the .NET SDK and make sure 'dotnet' is on the PATH, then restart the IDE. (" + e.Message + ")"
+                : "The build could not run: " + e.Message;
+            Application.Post(() => { Output(hint); sbMain.SimpleText = "The build could not run"; });
+            return null;
+        }
         finally
         {
             _building = false;
@@ -204,6 +212,7 @@ public partial class DesignerForm
             {
                 Output(app.Stopped ? "The app was stopped." : t.IsCompletedSuccessfully ? $"The app exited with code {t.Result}." : "The app ended unexpectedly.");
                 if (_app == app) _app = null;
+                app.Dispose();   // it has exited: releases the process handle
                 RefreshCommandState();
             }), TaskScheduler.Default);
             Application.Post(RefreshCommandState);
