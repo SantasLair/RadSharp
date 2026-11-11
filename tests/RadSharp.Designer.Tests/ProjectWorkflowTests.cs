@@ -7,6 +7,7 @@ namespace RadSharp.Tests;
 /// The designer's Delphi-style project workflow, driven on the real designer form with a fake host:
 /// welcome page → open/create a project → forms in tabs → handlers → Run (F9) → close project.
 /// </summary>
+[Collection("Designer")]   // shares PlatformHost.Current with the other designer tests that set it
 public class ProjectWorkflowTests
 {
     sealed class FakeHost : IPlatformServices
@@ -246,9 +247,8 @@ public class ProjectWorkflowTests
         var project = RadProject.Create(TempDir(), "Files");
         File.WriteAllText(Path.Combine(project.Directory, "Helper.cs"), "namespace Files;\npublic static class Helper { }\n");
         var (d, _) = Start(project.ProjectFile);   // Start() already points the editor at a harmless command
-        var pgInspector = (PageControl)d.FindControl("pgInspector")!;
-        var tsProject = (TabSheet)d.FindControl("tsProject")!;
-        pgInspector.ActivePageIndex = pgInspector.Pages.ToList().IndexOf(tsProject);
+        d.Dock.Show(DesignerForm.ToolWindows.Project);   // the Project tool window (it was a tab of the inspector)
+        d.PerformLayout();
 
         var lstForms = (ListBox)d.FindControl("lstForms")!;
         Assert.Contains(lstForms.Items, i => i.StartsWith("MainForm"));
@@ -259,6 +259,14 @@ public class ProjectWorkflowTests
         var r = lstForms.ItemRect(i);
         d.Simulate.DoubleClick(lstForms.AbsoluteLeft + r.X + 10, lstForms.AbsoluteTop + r.Y + r.Height / 2);
 
+        // A plain source file opens in the built-in code editor (the external IDE is a setting).
+        var code = Assert.IsType<CodeDocument>(d.ActiveDocument);
+        Assert.Equal(Path.Combine(project.Directory, "Helper.cs"), code.Path);
+        Assert.False(d.Documents.IsPreview(code));
+
+        d.IdeSettings.CodeNavigation = CodeNavigation.External;
+        d.CloseDocument(code);
+        d.Simulate.DoubleClick(lstForms.AbsoluteLeft + r.X + 10, lstForms.AbsoluteTop + r.Y + r.Height / 2);
         var status = (StatusBar)d.FindControl("sbMain")!;
         Assert.Equal("Opened Helper.cs:1 in Custom", status.SimpleText);
     }

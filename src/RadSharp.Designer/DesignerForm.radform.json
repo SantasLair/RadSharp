@@ -12,276 +12,7 @@
     "children": [
       {
         "class": "MainMenu",
-        "name": "mnuMain",
-        "items": [
-          {
-            "caption": "File",
-            "items": [
-              {
-                "caption": "New Application…",
-                "onClick": "mnuNewApplication_Click",
-                "shortcut": "Mod+Shift+N"
-              },
-              {
-                "caption": "New Form",
-                "onClick": "mnuNewForm_Click",
-                "shortcut": "Mod+N",
-                "name": "mniNewForm"
-              },
-              {
-                "caption": "-",
-                "separator": true
-              },
-              {
-                "caption": "Open Project…",
-                "onClick": "mnuOpenProject_Click",
-                "shortcut": "Mod+O"
-              },
-              {
-                "caption": "Reopen",
-                "name": "mniReopen",
-                "items": [
-                  {
-                    "caption": "(none)",
-                    "enabled": false
-                  }
-                ]
-              },
-              {
-                "caption": "-",
-                "separator": true
-              },
-              {
-                "caption": "Save",
-                "onClick": "mnuSave_Click",
-                "shortcut": "Mod+S",
-                "name": "mniSave"
-              },
-              {
-                "caption": "Save All",
-                "onClick": "mnuSaveAll_Click",
-                "shortcut": "Mod+Shift+S",
-                "name": "mniSaveAll"
-              },
-              {
-                "caption": "Close Form",
-                "onClick": "mnuCloseForm_Click",
-                "shortcut": "Ctrl+F4",
-                "name": "mniCloseForm"
-              },
-              {
-                "caption": "Close Project",
-                "onClick": "mnuCloseProject_Click",
-                "name": "mniCloseProject"
-              },
-              {
-                "caption": "-",
-                "separator": true
-              },
-              {
-                "caption": "Exit",
-                "onClick": "mnuExit_Click"
-              }
-            ]
-          },
-          {
-            "caption": "Edit",
-            "items": [
-              {
-                "caption": "Undo",
-                "onClick": "mnuUndo_Click",
-                "shortcut": "Mod+Z"
-              },
-              {
-                "caption": "Redo",
-                "onClick": "mnuRedo_Click",
-                "shortcut": "Mod+Shift+Z",
-                "altShortcut": "Ctrl+Y"
-              },
-              {
-                "caption": "-",
-                "separator": true
-              },
-              {
-                "caption": "Cut",
-                "onClick": "mnuCut_Click",
-                "shortcut": "Mod+X"
-              },
-              {
-                "caption": "Copy",
-                "onClick": "mnuCopy_Click",
-                "shortcut": "Mod+C"
-              },
-              {
-                "caption": "Paste",
-                "onClick": "mnuPaste_Click",
-                "shortcut": "Mod+V"
-              },
-              {
-                "caption": "Delete",
-                "onClick": "mnuDelete_Click",
-                "shortcut": "Delete"
-              },
-              {
-                "caption": "-",
-                "separator": true
-              },
-              {
-                "caption": "Select All",
-                "onClick": "mnuSelectAll_Click",
-                "shortcut": "Mod+A"
-              },
-              {
-                "caption": "-",
-                "separator": true
-              },
-              {
-                "caption": "Lock Controls",
-                "onClick": "mnuLockControls_Click",
-                "name": "mniLockControls"
-              }
-            ]
-          },
-          {
-            "caption": "View",
-            "items": [
-              {
-                "caption": "Toggle Form/Code",
-                "onClick": "mnuToggleCode_Click",
-                "shortcut": "F12"
-              },
-              {
-                "caption": "Show Grid",
-                "onClick": "mnuShowGrid_Click",
-                "name": "mniShowGrid",
-                "checked": true
-              },
-              {
-                "caption": "-",
-                "separator": true
-              },
-              {
-                "caption": "Toggle Dark Mode",
-                "onClick": "mnuToggleDarkMode_Click"
-              }
-            ]
-          },
-          {
-            "caption": "Project",
-            "items": [
-              {
-                "caption": "Add New Form",
-                "onClick": "mnuNewForm_Click"
-              },
-              {
-                "caption": "Remove Form from Project…",
-                "onClick": "mnuRemoveForm_Click"
-              },
-              {
-                "caption": "Set as Main Form",
-                "onClick": "mnuSetMainForm_Click"
-              },
-              {
-                "caption": "-",
-                "separator": true
-              },
-              {
-                "caption": "Open in IDE",
-                "onClick": "mnuOpenInIde_Click",
-                "shortcut": "Mod+Shift+E"
-              }
-            ]
-          },
-          {
-            "caption": "Run",
-            "items": [
-              {
-                "caption": "Run",
-                "onClick": "mnuRun_Click",
-                "shortcut": "F9"
-              },
-              {
-                "caption": "Build",
-                "onClick": "mnuBuild_Click",
-                "shortcut": "Ctrl+F9"
-              }
-            ]
-          },
-          {
-            "caption": "Component",
-            "items": [
-              {
-                "caption": "Menu Editor…",
-                "onClick": "mnuMenuEditor_Click",
-                "shortcut": "Mod+M"
-              },
-              {
-                "caption": "Tab Order…",
-                "onClick": "mnuTabOrder_Click"
-              },
-              {
-                "caption": "-",
-                "separator": true
-              },
-              {
-                "caption": "Bring to Front",
-                "onClick": "mnuBringToFront_Click"
-              },
-              {
-                "caption": "Send to Back",
-                "onClick": "mnuSendToBack_Click"
-              }
-            ]
-          },
-          {
-            "caption": "Format",
-            "items": [
-              {
-                "caption": "Align",
-                "items": [
-                  { "caption": "Lefts", "onClick": "mnuAlignLefts_Click" },
-                  { "caption": "Centers", "onClick": "mnuAlignCenters_Click" },
-                  { "caption": "Rights", "onClick": "mnuAlignRights_Click" },
-                  { "caption": "-", "separator": true },
-                  { "caption": "Tops", "onClick": "mnuAlignTops_Click" },
-                  { "caption": "Middles", "onClick": "mnuAlignMiddles_Click" },
-                  { "caption": "Bottoms", "onClick": "mnuAlignBottoms_Click" }
-                ]
-              },
-              {
-                "caption": "Make Same Size",
-                "items": [
-                  { "caption": "Width", "onClick": "mnuSameWidth_Click" },
-                  { "caption": "Height", "onClick": "mnuSameHeight_Click" },
-                  { "caption": "Both", "onClick": "mnuSameBoth_Click" }
-                ]
-              },
-              {
-                "caption": "Space Evenly",
-                "items": [
-                  { "caption": "Horizontally", "onClick": "mnuSpaceHorizontally_Click" },
-                  { "caption": "Vertically", "onClick": "mnuSpaceVertically_Click" }
-                ]
-              },
-              {
-                "caption": "Center in Form",
-                "items": [
-                  { "caption": "Horizontally", "onClick": "mnuCenterHorizontally_Click" },
-                  { "caption": "Vertically", "onClick": "mnuCenterVertically_Click" }
-                ]
-              }
-            ]
-          },
-          {
-            "caption": "Tools",
-            "items": [
-              {
-                "caption": "Options…",
-                "onClick": "mnuOptions_Click"
-              }
-            ]
-          }
-        ]
+        "name": "mnuMain"
       },
       {
         "class": "ToolBar",
@@ -291,14 +22,12 @@
             "class": "ToolButton",
             "name": "btnOpenProject",
             "caption": "Open Project",
-            "onClick": "mnuOpenProject_Click",
             "width": 100
           },
           {
             "class": "ToolButton",
             "name": "btnSaveAll",
             "caption": "Save All",
-            "onClick": "mnuSaveAll_Click",
             "width": 72
           },
           {
@@ -309,21 +38,18 @@
             "class": "ToolButton",
             "name": "btnNewForm",
             "caption": "New Form",
-            "onClick": "mnuNewForm_Click",
             "width": 80
           },
           {
             "class": "ToolButton",
             "name": "btnUndo",
             "caption": "Undo",
-            "onClick": "mnuUndo_Click",
             "width": 52
           },
           {
             "class": "ToolButton",
             "name": "btnRedo",
             "caption": "Redo",
-            "onClick": "mnuRedo_Click",
             "width": 52
           },
           {
@@ -334,14 +60,12 @@
             "class": "ToolButton",
             "name": "btnToggleCode",
             "caption": "Code (F12)",
-            "onClick": "mnuToggleCode_Click",
             "width": 88
           },
           {
             "class": "ToolButton",
             "name": "btnOpenInIde",
             "caption": "Open in IDE",
-            "onClick": "mnuOpenInIde_Click",
             "width": 96
           },
           {
@@ -352,14 +76,12 @@
             "class": "ToolButton",
             "name": "btnRun",
             "caption": "▶ Run",
-            "onClick": "mnuRun_Click",
             "width": 64
           },
           {
             "class": "ToolButton",
             "name": "btnBuild",
             "caption": "Build",
-            "onClick": "mnuBuild_Click",
             "width": 56
           }
         ]
@@ -370,67 +92,8 @@
       },
       {
         "class": "Panel",
-        "name": "pnlOutput",
-        "align": "bottom",
-        "height": 130,
-        "borderStyle": "none",
-        "children": [
-          {
-            "class": "Label",
-            "name": "lblOutput",
-            "caption": "Output",
-            "align": "top",
-            "height": 22,
-            "margin": {
-              "l": 8,
-              "t": 0,
-              "r": 0,
-              "b": 0
-            },
-            "layout": "center"
-          },
-          {
-            "class": "ListBox",
-            "name": "lstOutput",
-            "align": "client",
-            "itemHeight": 20,
-            "margin": {
-              "l": 4,
-              "t": 0,
-              "r": 4,
-              "b": 4
-            },
-            "onDblClick": "lstOutput_DblClick"
-          }
-        ]
-      },
-      {
-        "class": "Splitter",
-        "name": "splOutput",
-        "align": "bottom",
-        "minSize": 60,
-        "height": 4
-      },
-      {
-        "class": "Panel",
         "name": "pnlPalette",
-        "align": "left",
-        "width": 170,
         "children": [
-          {
-            "class": "Label",
-            "name": "lblPalette",
-            "caption": "Components",
-            "align": "top",
-            "height": 28,
-            "layout": "center",
-            "margin": {
-              "l": 8,
-              "t": 0,
-              "r": 0,
-              "b": 0
-            }
-          },
           {
             "class": "Edit",
             "name": "edtPaletteFilter",
@@ -439,7 +102,7 @@
             "height": 26,
             "margin": {
               "l": 4,
-              "t": 0,
+              "t": 4,
               "r": 4,
               "b": 4
             },
@@ -457,19 +120,12 @@
             },
             "onChange": "tvPalette_Change"
           }
-        ]
-      },
-      {
-        "class": "Splitter",
-        "name": "splPalette",
-        "align": "left",
-        "minSize": 120
+        ],
+        "borderStyle": "none"
       },
       {
         "class": "Panel",
         "name": "pnlInspector",
-        "align": "right",
-        "width": 340,
         "children": [
           {
             "class": "Panel",
@@ -531,7 +187,10 @@
                       {
                         "class": "ComboBox",
                         "name": "cboPropsArrange",
-                        "items": ["Alphabetical", "Categorized"],
+                        "items": [
+                          "Alphabetical",
+                          "Categorized"
+                        ],
                         "itemIndex": 1,
                         "left": 2,
                         "top": 2,
@@ -543,7 +202,11 @@
                         "class": "Edit",
                         "name": "edtPropsFilter",
                         "placeholder": "Filter",
-                        "anchors": ["left", "top", "right"],
+                        "anchors": [
+                          "left",
+                          "top",
+                          "right"
+                        ],
                         "left": 114,
                         "top": 2,
                         "width": 200,
@@ -575,7 +238,11 @@
                         "class": "Edit",
                         "name": "edtEventsFilter",
                         "placeholder": "Filter",
-                        "anchors": ["left", "top", "right"],
+                        "anchors": [
+                          "left",
+                          "top",
+                          "right"
+                        ],
                         "left": 2,
                         "top": 2,
                         "width": 312,
@@ -591,57 +258,110 @@
                     "mode": "events"
                   }
                 ]
-              },
-              {
-                "class": "TabSheet",
-                "name": "tsStructure",
-                "caption": "Structure",
-                "children": [
-                  {
-                    "class": "TreeView",
-                    "name": "tvStructure",
-                    "align": "client",
-                    "onChange": "tvStructure_Change"
-                  }
-                ]
-              },
-              {
-                "class": "TabSheet",
-                "name": "tsProject",
-                "caption": "Project",
-                "children": [
-                  {
-                    "class": "Label",
-                    "name": "lblProject",
-                    "caption": "",
-                    "align": "top",
-                    "height": 26,
-                    "margin": {
-                      "l": 6,
-                      "t": 0,
-                      "r": 0,
-                      "b": 0
-                    },
-                    "layout": "center",
-                    "fontBold": true
-                  },
-                  {
-                    "class": "ListBox",
-                    "name": "lstForms",
-                    "align": "client",
-                    "onDblClick": "lstForms_DblClick"
-                  }
-                ]
               }
             ]
+          }
+        ],
+        "borderStyle": "none"
+      },
+      {
+        "class": "Panel",
+        "name": "pnlStructure",
+        "borderStyle": "none",
+        "children": [
+          {
+            "class": "TreeView",
+            "name": "tvStructure",
+            "align": "client",
+            "onChange": "tvStructure_Change"
           }
         ]
       },
       {
-        "class": "Splitter",
-        "name": "splInspector",
-        "align": "right",
-        "minSize": 220
+        "class": "Panel",
+        "name": "pnlProject",
+        "borderStyle": "none",
+        "children": [
+          {
+            "class": "Label",
+            "name": "lblProject",
+            "caption": "",
+            "align": "top",
+            "height": 26,
+            "margin": {
+              "l": 6,
+              "t": 0,
+              "r": 0,
+              "b": 0
+            },
+            "layout": "center",
+            "fontBold": true
+          },
+          {
+            "class": "ListBox",
+            "name": "lstForms",
+            "align": "client",
+            "onDblClick": "lstForms_DblClick"
+          }
+        ]
+      },
+      {
+        "class": "Panel",
+        "name": "pnlOutput",
+        "borderStyle": "none",
+        "children": [
+          {
+            "class": "ListBox",
+            "name": "lstOutput",
+            "align": "client",
+            "itemHeight": 20,
+            "margin": {
+              "l": 4,
+              "t": 0,
+              "r": 4,
+              "b": 4
+            },
+            "onDblClick": "lstOutput_DblClick"
+          }
+        ]
+      },
+      {
+        "class": "Panel",
+        "name": "pnlProblems",
+        "borderStyle": "none",
+        "children": [
+          {
+            "class": "ListBox",
+            "name": "lstProblems",
+            "align": "client",
+            "itemHeight": 20,
+            "margin": {
+              "l": 4,
+              "t": 4,
+              "r": 4,
+              "b": 4
+            }
+          }
+        ]
+      },
+      {
+        "class": "Panel",
+        "name": "pnlFindResults",
+        "borderStyle": "none",
+        "children": [
+          {
+            "class": "ListBox",
+            "name": "lstFindResults",
+            "align": "client",
+            "itemHeight": 20,
+            "margin": {
+              "l": 4,
+              "t": 4,
+              "r": 4,
+              "b": 4
+            }
+          }
+        ]
       },
       {
         "class": "Panel",
@@ -678,8 +398,7 @@
             "left": 48,
             "top": 132,
             "width": 170,
-            "height": 34,
-            "onClick": "mnuNewApplication_Click"
+            "height": 34
           },
           {
             "class": "Button",
@@ -688,8 +407,7 @@
             "left": 230,
             "top": 132,
             "width": 150,
-            "height": 34,
-            "onClick": "mnuOpenProject_Click"
+            "height": 34
           },
           {
             "class": "Label",
@@ -722,13 +440,6 @@
             "height": 22
           }
         ]
-      },
-      {
-        "class": "PageControl",
-        "name": "pgForms",
-        "align": "client",
-        "visible": false,
-        "onChange": "pgForms_Change"
       },
       {
         "class": "OpenDialog",
