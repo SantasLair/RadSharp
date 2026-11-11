@@ -41,7 +41,7 @@ public class Form : Control
     public int DesignWidth { get; set; }
     public int DesignHeight { get; set; }
 
-    /// <summary>The UI scale factor lengths were multiplied by when the form was loaded.</summary>
+    /// <summary>The UI scale factor lengths were multiplied by when the form was loaded (or <see cref="ApplyScale"/> was called).</summary>
     public double Scale { get; set; } = 1;
 
     public Theme Theme { get; set; }
@@ -113,6 +113,35 @@ public class Form : Control
         get => _resizable;
         set => _resizable = value;
     }
+
+    /// <summary>
+    /// Scales every length in this form's tree (bounds, margins, padding, min/max sizes, a splitter's minimum
+    /// size) by <paramref name="scale"/> once and records it as <see cref="Scale"/>, exactly as loading a form
+    /// file does. Use it for forms built in code: lay the controls out at 100 %, add them all, then call this
+    /// before the form is shown. <paramref name="scale"/> 0 uses <see cref="DefaultScale"/>. Controls added
+    /// afterwards aren't scaled; give them <see cref="Control.Px"/> lengths or call <see cref="Control.ScaleLengths"/>
+    /// on them first. Throws if the form was already scaled.
+    /// </summary>
+    public void ApplyScale(double scale = 0)
+    {
+        if (scale == 0) scale = DefaultScale;
+        if (scale <= 0) throw new ArgumentOutOfRangeException(nameof(scale), "Scale must be positive.");
+        if (_scaleApplied) throw new InvalidOperationException("The form's scale was already applied.");
+        ApplyScaleCore(scale);
+        PerformLayout();
+    }
+
+    /// <summary>The scaling step shared with the form-file reader (which may reload into the same form).</summary>
+    internal void ApplyScaleCore(double scale)
+    {
+        _scaleApplied = true;
+        DesignWidth = Width;
+        DesignHeight = Height;
+        if (scale != 1) ScaleLengths(scale);
+        Scale = scale;
+    }
+
+    bool _scaleApplied;
 
     /// <summary>Feeds synthetic input through the same code paths as real input (for tests).</summary>
     public InputSimulator Simulate { get; }

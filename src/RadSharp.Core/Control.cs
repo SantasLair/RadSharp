@@ -254,10 +254,11 @@ public partial class Control
     // ---- Scaling ----
 
     /// <summary>
-    /// Multiplies every stored length by <paramref name="scale"/> and rounds (spec, Appendix B,
-    /// "Scaling"). Runs on a freshly loaded tree, before its first layout.
+    /// Multiplies every stored length in this subtree by <paramref name="scale"/> and rounds (spec, Appendix B,
+    /// "Scaling"). Runs once on a freshly built tree, before its first layout; for a whole code-built form
+    /// use <see cref="Form.ApplyScale"/>, which also records the scale. Calling it twice scales twice.
     /// </summary>
-    internal void ScaleLengths(double scale)
+    public void ScaleLengths(double scale)
     {
         static int S(int v, double k) => LayoutMath.Round(v * k);
         static Thickness T(Thickness t, double k) => new(S(t.L, k), S(t.T, k), S(t.R, k), S(t.B, k));
@@ -352,8 +353,8 @@ public partial class Control
     /// <summary>The owning form's UI scale factor.</summary>
     protected double UiScale => OwningForm?.Scale ?? 1;
 
-    /// <summary>Scales a length given at 100 % to whole pixels at the form's scale.</summary>
-    protected int Px(int length) => LayoutMath.Round(length * UiScale);
+    /// <summary>Scales a length given at 100 % to whole pixels at the owning form's scale (1 when not on a form).</summary>
+    public int Px(int length) => LayoutMath.Round(length * UiScale);
 
     /// <summary>True if this control and all its ancestors are visible.</summary>
     public bool IsEffectivelyVisible

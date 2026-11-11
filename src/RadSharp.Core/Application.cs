@@ -35,15 +35,11 @@ public static class Application
 
     private static void ShowDefaultErrorDialog(Exception ex)
     {
-        double scale = Form.DefaultScale;
-        int S(int v) => LayoutMath.Round(v * scale);
-        int width = S(520), height = S(340), margin = S(12), buttonW = S(84), buttonH = S(28), gap = S(8);
+        // Laid out at 100 %; ApplyScale scales the whole tree like a loaded form file.
+        const int width = 520, height = 340, margin = 12, buttonW = 84, buttonH = 28, gap = 8;
 
         var form = new Form { Caption = "Unhandled error" };
         form.SetBounds(0, 0, width, height);
-        form.Scale = scale;
-        form.DesignWidth = width;
-        form.DesignHeight = height;
 
         var message = new Label
         {
@@ -51,7 +47,7 @@ public static class Application
             Caption = ex.Message.ReplaceLineEndings(" "),
             Anchors = Anchors.Left | Anchors.Top | Anchors.Right,
         };
-        message.SetBounds(margin, margin, width - 2 * margin, S(24));
+        message.SetBounds(margin, margin, width - 2 * margin, 24);
 
         var details = new Memo
         {
@@ -61,7 +57,7 @@ public static class Application
             WordWrap = false,
             Anchors = Anchors.All,
         };
-        int detailsTop = margin + S(32);
+        int detailsTop = margin + 32;
         details.SetBounds(margin, detailsTop, width - 2 * margin, height - detailsTop - buttonH - 2 * margin);
 
         var quit = new Button
@@ -87,7 +83,7 @@ public static class Application
         form.Add(details);
         form.Add(proceed);
         form.Add(quit);
-        form.PerformLayout();
+        form.ApplyScale();
 
         var result = form.ShowModal();
         if (result == ModalResult.Abort)
