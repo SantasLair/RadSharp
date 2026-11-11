@@ -327,7 +327,14 @@ public partial class Control
     /// <summary>Lays out this subtree: arranges dirty containers top-down and refreshes absolute positions.</summary>
     public void PerformLayout()
     {
-        if (Parent == null) { AbsoluteLeft = _left; AbsoluteTop = _top; }
+        // A root's absolute position is where it is drawn in form coordinates: a popup sits at its Left/Top, but a
+        // form is the coordinate space itself (its Left/Top are the window's screen position, not an offset).
+        if (Parent == null)
+        {
+            bool isForm = this is Form;
+            AbsoluteLeft = isForm ? 0 : _left;
+            AbsoluteTop = isForm ? 0 : _top;
+        }
         for (int pass = 0; _needsArrange && pass < 3; pass++)
         {
             _needsArrange = false;
