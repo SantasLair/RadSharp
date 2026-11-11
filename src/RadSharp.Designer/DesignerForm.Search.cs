@@ -263,17 +263,10 @@ public partial class DesignerForm
                 int n = FindInFiles.Count(regex, text);
                 if (n == 0) return 0;
                 var updated = FindInFiles.ReplaceInText(regex, text, replacement, literal);
-                try
-                {
-                    form.Document.Snapshot();
-                    form.Document.Load(updated);
-                    form.Document.FileName = form.Path;
-                    form.Document.NotifyChanged();
-                }
+                try { form.Document.ReplaceWithJson(updated); }   // one undo step, left unsaved
                 catch (FormFileException e)
                 {
                     Output($"{Path.GetFileName(file)}: the replacement would make the form file invalid ({e.Message}); left as it was.");
-                    form.Document.Undo();
                     return 0;
                 }
                 return n;

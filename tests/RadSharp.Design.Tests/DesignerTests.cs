@@ -288,4 +288,27 @@ public class DesignerTests
         s.HighlightedControls = [];
         Assert.Equal(0, Amber(s, host));
     }
+
+    [Fact]
+    public void ReplaceWithJson_is_one_undoable_unsaved_change_and_a_bad_text_changes_nothing()
+    {
+        var (_, _, doc) = Setup();
+        var button = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 10, 10);
+        Assert.True(doc.Rename(button, "btnOne"));
+        doc.MarkSaved();
+        Assert.False(doc.Modified);
+        var original = doc.Save();
+
+        doc.ReplaceWithJson(original.Replace("btnOne", "btnTwo"));
+        Assert.NotNull(doc.Form.FindControl("btnTwo"));
+        Assert.Null(doc.Form.FindControl("btnOne"));
+        Assert.True(doc.Modified);                                   // not saved
+        Assert.True(doc.CanUndo);
+        Assert.True(doc.Undo());                                     // one step back
+        Assert.NotNull(doc.Form.FindControl("btnOne"));
+        Assert.False(doc.Modified);
+
+        Assert.ThrowsAny<Exception>(() => doc.ReplaceWithJson("{ not a form"));
+        Assert.NotNull(doc.Form.FindControl("btnOne"));              // untouched
+    }
 }

@@ -132,6 +132,7 @@ public partial class DesignerForm : Form
             }
         }
         finally { _restoring = false; }
+        CaptureLocation();   // where the project opened is the first place in the history
         StartLanguage();
         UpdateUi();
         Output($"Opened project {_project.ProjectFile}");

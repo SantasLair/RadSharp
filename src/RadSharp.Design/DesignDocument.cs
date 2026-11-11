@@ -64,6 +64,20 @@ public sealed class DesignDocument
     /// <summary>Marks the current state as saved (after writing <see cref="Save"/> to disk).</summary>
     public void MarkSaved() => _savedText = Save();
 
+    /// <summary>
+    /// Replaces the whole form with the one in <paramref name="json"/> as a single undoable change, leaving the document modified: the text of
+    /// the form file was edited as text (Replace in Files). Unlike <see cref="Load"/> it keeps the undo history and the saved baseline.
+    /// Throws <see cref="FormFileException"/> if the text isn't a valid form; the document is then untouched.
+    /// </summary>
+    public IReadOnlyList<string> ReplaceWithJson(string json)
+    {
+        var (form, warnings) = FormReader.Load(json);
+        Snapshot();
+        Replace(form);
+        Changed?.Invoke();
+        return warnings;
+    }
+
     void Replace(Form form)
     {
         Form = form;
