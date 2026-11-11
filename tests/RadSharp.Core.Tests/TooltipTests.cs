@@ -212,4 +212,27 @@ public class TooltipTests
         f.ProcessTick(1000);
         Assert.Null(f.NextWakeMs(1000));
     }
+
+    [Fact]
+    public void A_popup_opened_from_code_while_a_tooltip_shows_is_not_closed_with_the_tooltip()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 300, 200);
+        var b = new Button { Hint = "Saves the file" };
+        b.SetBounds(20, 20, 80, 28);
+        f.Add(b);
+        f.PerformLayout();
+        f.ProcessTick(0);
+        f.Simulate.MoveTo(40, 30);
+        f.ProcessTick(1000);
+        Assert.NotNull(Tip(f));
+
+        // e.g. a timer or a posted callback opens a popup while the tooltip is up
+        var panel = new Panel();
+        panel.SetBounds(0, 0, 60, 40);
+        f.OpenPopup(panel, 150, 100);
+        f.Simulate.MoveTo(250, 20);                     // off the hint: the tooltip goes
+        f.ProcessTick(3000);
+        Assert.True(f.IsPopupOpen(panel));
+    }
 }

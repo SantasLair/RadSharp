@@ -527,6 +527,9 @@ public class Form : Control
     public void OpenPopup(Control popup, int x, int y, Control? owner = null)
     {
         if (popup.Parent != null) throw new InvalidOperationException("A popup must not have a parent.");
+        // The tooltip stays the topmost popup: closing it closes every popup above it, so a popup opened from
+        // code (a timer, a posted callback) while it shows would otherwise vanish with it.
+        if (popup != _tooltipPopup) DismissTooltip();
         if (_popups.Contains(popup)) ClosePopup(popup);
         x = Math.Max(0, Math.Min(x, Width - popup.Width));
         y = Math.Max(0, Math.Min(y, Height - popup.Height));
