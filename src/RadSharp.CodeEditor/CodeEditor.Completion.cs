@@ -120,6 +120,15 @@ public partial class CodeEditor
         s.Selected = 0;
         s.Top = 0;
         Invalidate();
+        NotifyCompletionSelected();
+    }
+
+    void NotifyCompletionSelected()
+    {
+        var s = _completion;
+        if (s == null || s.Filtered.Count == 0 || _completionSource == null) return;
+        try { _completionSource.ItemSelected(new CompletionList(s.Start, Math.Max(0, CaretOffset - s.Start), s.List.Items), s.Filtered[s.Selected]); }
+        catch (Exception) { /* a source's prefetch must not break typing */ }
     }
 
     /// <summary>Items matching what was typed: prefix matches first (exact case first), then subsequence matches.</summary>
@@ -188,6 +197,7 @@ public partial class CodeEditor
         if (s.Selected < s.Top) s.Top = s.Selected;
         if (s.Selected >= s.Top + CompletionRows) s.Top = s.Selected - CompletionRows + 1;
         Invalidate();
+        NotifyCompletionSelected();
     }
 
     /// <summary>Inserts the selected completion item (Enter or Tab).</summary>

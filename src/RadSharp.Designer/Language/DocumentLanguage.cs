@@ -327,15 +327,31 @@ public sealed class DocumentLanguage : ITokenSource, IDecorationSource, IComplet
         }, cancellationToken);
     }
 
+    // The commit details of the selected item are resolved in the background as soon as it is selected (ItemSelected), so
+    // committing finds them ready. If they aren't (Enter right after the list opened), the commit waits a moment at most.
+    readonly System.Runtime.CompilerServices.ConditionalWeakTable<CompletionEntry, Task<CompletionDetail>> _details = new();
+
+    /// <summary>How long a commit waits for details that aren't resolved yet before it inserts the plain text.</summary>
+    public static TimeSpan CommitWait { get; set; } = TimeSpan.FromMilliseconds(150);
+
+    Task<CompletionDetail>? DetailFor(CompletionItem item)
+    {
+        if (item.Tag is not CompletionTag tag || Service is not { } service) return null;
+        return _details.GetValue(tag.Entry, _ => Task.Run(() => service.ResolveCompletionAsync(tag.Result, tag.Entry)));
+    }
+
+    /// <summary>The list's selection moved to <paramref name="item"/>: starts resolving what committing it needs.</summary>
+    public void ItemSelected(CompletionList list, CompletionItem item) => DetailFor(item);
+
     /// <summary>Commits through Roslyn: the item's edits (and any <c>using</c> it adds) and the caret it asks for.</summary>
     public CompletionCommit? GetCommit(TextSnapshot snapshot, CompletionList list, CompletionItem item)
     {
-        if (item.Tag is not CompletionTag tag || Service is not { } service) return null;
+        if (item.Tag is not CompletionTag tag || DetailFor(item) is not { } task) return null;
         CompletionDetail detail;
         try
         {
-            var task = service.ResolveCompletionAsync(tag.Result, tag.Entry);
-            if (!task.Wait(TimeSpan.FromSeconds(2))) return null;
+            // Ready: use it. Not ready: a short wait, then the plain insert text (the UI thread never stalls for seconds).
+            if (!task.IsCompleted && !task.Wait(CommitWait)) return null;
             detail = task.Result;
         }
         catch (Exception e) when (LanguageHost.IsExpected(e)) { return null; }

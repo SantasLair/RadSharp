@@ -54,7 +54,10 @@ public sealed class LanguageHost : IDisposable
     readonly CancellationTokenSource _lifetime = new();
     CancellationTokenSource? _formPush;
     int _formsSuspended;
-    bool _disposed;
+    volatile bool _disposed;
+    readonly object _gate = new();
+    ProjectWorkspace? _opening;   // opened in the background, not yet handed to the UI thread
+    readonly Dictionary<FormDocument, (Action Changed, Action Replaced)> _formHandlers = [];
 
     public LanguageHost(RadProject project, ProjectWorkspaceOptions? options = null)
     {
@@ -66,7 +69,20 @@ public sealed class LanguageHost : IDisposable
             try
             {
                 var workspace = await ProjectWorkspace.OpenAsync(project, opts, token).ConfigureAwait(false);
-                Ui(() => OnOpened(workspace));
+                // Hand the workspace over under the lock: either Dispose() sees it (and disposes it) or the UI post takes it.
+                // Never rely on the UI post alone: Ui() drops it once the host is disposed, which would leak the workspace.
+                lock (_gate)
+                {
+                    if (!_disposed) _opening = workspace;
+                    else workspace = null!;
+                }
+                if (workspace == null) return;
+                Ui(() =>
+                {
+                    ProjectWorkspace? taken;
+                    lock (_gate) { taken = _opening; _opening = null; }
+                    if (taken != null) OnOpened(taken);
+                });
             }
             catch (Exception e) when (IsExpected(e))
             {
@@ -173,8 +189,10 @@ public sealed class LanguageHost : IDisposable
     {
         if (_disposed || _forms.ContainsKey(form)) return;
         _forms[form] = (() => form.Document.Save(), null);
-        form.Document.Changed += () => FormChanged(form);
-        form.Document.FormReplaced += () => FormChanged(form);
+        Action changed = () => FormChanged(form);
+        _formHandlers[form] = (changed, changed);
+        form.Document.Changed += changed;
+        form.Document.FormReplaced += changed;
         FormChanged(form);
     }
 
@@ -183,6 +201,11 @@ public sealed class LanguageHost : IDisposable
     {
         if (!_forms.Remove(form, out var entry)) return;
         _pendingForms.Remove(form);
+        if (_formHandlers.Remove(form, out var handlers))
+        {
+            form.Document.Changed -= handlers.Changed;
+            form.Document.FormReplaced -= handlers.Replaced;
+        }
         if (Workspace != null && entry.PushedPath != null) Workspace.CloseForm(entry.PushedPath);
         RequestReclassify();
     }
@@ -300,12 +323,25 @@ public sealed class LanguageHost : IDisposable
 
     public void Dispose()
     {
-        if (_disposed) return;
-        _disposed = true;
+        ProjectWorkspace? opening;
+        lock (_gate)
+        {
+            if (_disposed) return;
+            _disposed = true;
+            opening = _opening;
+            _opening = null;
+        }
+        opening?.Dispose();
         _lifetime.Cancel();
         _formPush?.Cancel();
         foreach (var doc in _documents) doc.Dispose();
         _documents.Clear();
+        foreach (var (form, h) in _formHandlers)
+        {
+            form.Document.Changed -= h.Changed;
+            form.Document.FormReplaced -= h.Replaced;
+        }
+        _formHandlers.Clear();
         _forms.Clear();
         Diagnostics?.Dispose();
         Workspace?.Dispose();
