@@ -141,6 +141,12 @@ public class Form : Control
     /// </summary>
     [Published(Category = "Window")] public bool DarkTitleBar { get; set; }
 
+    /// <summary>Caption colour for the OS title bar (Windows 11), instead of the form colour. Read when the window is created.</summary>
+    public Color? TitleBarColor { get; set; }
+
+    /// <summary>Caption text colour for the OS title bar, instead of the theme text colour. Read when the window is created.</summary>
+    public Color? TitleBarTextColor { get; set; }
+
     /// <summary>
     /// When true, the form sees key presses before the focused control (Delphi's <c>KeyPreview</c>): handle them in
     /// the form's <c>KeyDown</c>/<c>KeyUp</c> events (or by overriding <c>OnKeyDown</c>/<c>OnKeyUp</c>) and set

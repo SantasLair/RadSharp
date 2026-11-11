@@ -383,7 +383,7 @@ internal sealed unsafe class FormWindow : IDisposable
         if (form.DarkTitleBar && OperatingSystem.IsWindows())
         {
             nint hwnd = (nint)SDL_GetPointerProperty(SDL_GetWindowProperties(_window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, 0);
-            Win32Chrome.ApplyDarkTitleBar(hwnd, form.Color ?? form.Theme.FormBackground, form.Theme.Text);
+            Win32Chrome.ApplyDarkTitleBar(hwnd, form.TitleBarColor ?? form.Color ?? form.Theme.FormBackground, form.TitleBarTextColor ?? form.Theme.Text);
         }
         ApplyWindowState();
 
