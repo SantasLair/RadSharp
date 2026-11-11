@@ -57,6 +57,7 @@ public partial class DesignerForm : Form
         _embedded = new EmbeddedEditorNavigator(file => OpenCodeFile(file));
         BuildShell();
         InitBuildSupport();
+        InitDebugger();
         RegisterCommands();
         _commands.LoadKeymap(_paths.Keymap);
         BuildMenus();
@@ -134,6 +135,7 @@ public partial class DesignerForm : Form
         finally { _restoring = false; }
         CaptureLocation();   // where the project opened is the first place in the history
         StartLanguage();
+        RestoreBreakpoints();
         UpdateUi();
         Output($"Opened project {_project.ProjectFile}");
         SaveSession();
@@ -388,6 +390,7 @@ public partial class DesignerForm : Form
         Caption = _docs.Active is not { } doc
             ? $"RADSharp — {_project.Name}"
             : $"RADSharp — {_project.Name} — {DocumentArea.TabCaption(doc)}";
+        Caption += DebugTitleSuffix;
     }
 
     // ---- Inspector, name, structure ----

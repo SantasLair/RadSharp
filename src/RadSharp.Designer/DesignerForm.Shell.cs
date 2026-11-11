@@ -156,6 +156,7 @@ public partial class DesignerForm
             Active = _docs.Active?.Path,
             Split = _docs.SplitView,
             Layout = _dock.SaveLayout(),
+            Breakpoints = BreakpointsForSession,
         };
         foreach (var d in _docs.Documents)
             if (d.Path != null) session.Documents.Add(new IdeSession.Document(d.Kind, d.Path, _docs.IsPreview(d), d.SaveState()));

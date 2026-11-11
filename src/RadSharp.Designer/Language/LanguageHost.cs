@@ -86,6 +86,9 @@ public sealed class LanguageHost : IDisposable
     /// <summary>Completes (on the pool) once the workspace opened and the open documents were pushed: true, or false if it couldn't open.</summary>
     public Task<bool> Ready => _ready.Task;
 
+    /// <summary>While this returns true, hovering shows no quick info (the debugger shows values instead while paused).</summary>
+    public Func<bool>? QuickInfoSuppressed { get; set; }
+
     /// <summary>Why the workspace couldn't open, if it couldn't.</summary>
     public string? Error { get; private set; }
 

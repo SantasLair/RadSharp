@@ -18,4 +18,9 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- The in-memory DAP adapter of the debugger engine's tests, for the debugger UI's unit tests. -->
+    <Compile Include="..\RadSharp.Ide.Debug.Tests\TestSupport.cs" Link="Debugging\DapTestSupport.cs" />
+  </ItemGroup>
+
 </Project>
