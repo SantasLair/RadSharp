@@ -15,7 +15,7 @@ public partial class DesignerForm
 
     // ---- File menu ----
 
-    void mnuNewApplication_Click(object sender)
+    void NewApplication()
     {
         var dialog = new NewApplicationDialog(_settings, this);
         if (dialog.ShowModal() != ModalResult.Ok) return;
@@ -30,14 +30,14 @@ public partial class DesignerForm
         catch (IOException e) { Dialogs.MessageDlg($"Could not create the project:\n{e.Message}", MessageType.Error, owner: this); }
     }
 
-    void mnuOpenProject_Click(object sender)
+    void OpenProjectDialog()
     {
         if (!dlgOpenProject.Execute()) return;
         OpenProject(dlgOpenProject.FileName);
     }
 
     /// <summary>Project › Add New Form: <c>FormN.radform.json</c> + <c>FormN.cs</c>, opened in a new tab.</summary>
-    public OpenForm? NewForm()
+    public FormDocument? NewForm()
     {
         if (_project == null) return null;
         int n = 2;
@@ -48,95 +48,49 @@ public partial class DesignerForm
         return form;
     }
 
-    void mnuNewForm_Click(object sender) => NewForm();
-
-    void mnuSave_Click(object sender)
-    {
-        if (_active != null) Save(_active);
-    }
-
-    void mnuSaveAll_Click(object sender) => SaveAll();
-
-    void mnuCloseForm_Click(object sender)
-    {
-        if (_active != null) CloseForm(_active);
-    }
-
-    void mnuCloseProject_Click(object sender) => CloseProject();
-    void mnuExit_Click(object sender) => Close();
-
     // ---- Project menu ----
 
-    void mnuRemoveForm_Click(object sender)
+    void RemoveForm()
     {
-        if (_project == null || _active is not { } form) return;
+        if (_project == null || _current is not { } form) return;
         var cls = form.ClassName;
         if (Dialogs.MessageDlg($"Remove {cls} from the project?\nThis deletes {cls}.radform.json and {cls}.cs.",
                 MessageType.Warning, MessageButtons.YesNo, this) != ModalResult.Yes) return;
-        RemoveTab(form);
+        if (FindDocument(form.CodeFile) is { } code) RemoveDocument(code);
+        RemoveDocument(form);
         _project.RemoveForm(form.Path);
         if (_project.MainFormClass == cls) Output($"{cls} was the main form: choose another with Project › Set as Main Form.");
         UpdateUi();
     }
 
-    void mnuSetMainForm_Click(object sender)
+    void SetMainForm()
     {
-        if (_project == null || _active == null) return;
-        if (_project.SetMainForm(_active.ClassName)) Output($"{_active.ClassName} is now the main form (Program.cs).");
+        if (_project == null || _current == null) return;
+        if (_project.SetMainForm(_current.ClassName)) Output($"{_current.ClassName} is now the main form (Program.cs).");
         else Output("Program.cs has no SdlHost.Run(new …()) line to change.");
         UpdateUi();
     }
 
-    void mnuOpenInIde_Click(object sender)
+    /// <summary>Project › Open in IDE: the whole project in the external editor (VS Code, Visual Studio, Rider).</summary>
+    void OpenInIde()
     {
         if (_project == null) return;
-        var (exe, name) = EditorExecutable();
+        var (exe, name) = _external.Editor();
         if (!ExternalEditor.OpenProject(_settings.Editor, exe, _settings.CustomEditorCommand, _project))
             Output($"Could not start {name}; choose another editor in Tools › Options.");
         else sbMain.SimpleText = $"Opened {_project.Name} in {name}";
-    }
-
-    /// <summary>F12: Delphi's form/code toggle; here it opens the form's code-behind in the IDE.</summary>
-    void mnuToggleCode_Click(object sender)
-    {
-        if (_active == null) return;
-        var code = RadProject.CodeFileFor(_active.Path);
-        if (File.Exists(code)) OpenInEditor(code, 1);
-    }
-
-    (string? Exe, string Name) EditorExecutable()
-    {
-        var found = ExternalEditor.Detect().FirstOrDefault(e => e.Kind == _settings.Editor);
-        return (found?.Executable, found?.Name ?? _settings.Editor.ToString());
-    }
-
-    void OpenInEditor(string file, int line)
-    {
-        var (exe, name) = EditorExecutable();
-        if (ExternalEditor.Open(_settings.Editor, exe, _settings.CustomEditorCommand, _project, file, line))
-            sbMain.SimpleText = $"Opened {Path.GetFileName(file)}:{line} in {name}";
-        else
-            Output($"Could not start {name} for {Path.GetFileName(file)}:{line}; choose another editor in Tools › Options.");
-    }
-
-    void mnuOptions_Click(object sender)
-    {
-        var dialog = new OptionsDialog(_settings, this);
-        if (dialog.ShowModal() != ModalResult.Ok) return;
-        dialog.Apply();
-        SaveSettings();
-        UpdateUi();
     }
 
     // ---- Handlers in the code-behind ----
 
     /// <summary>
     /// Double-click on a control or an event: gives the event a handler (the conventional name if it has
-    /// none), makes sure the method exists in the code-behind, saves the form, and opens the IDE there.
+    /// none), makes sure the method exists in the code-behind, saves the form, and shows the handler through
+    /// <see cref="CodeNavigator"/> (the built-in code editor by default; the external IDE if so configured).
     /// </summary>
     public void EditHandler(Control target, EventMeta ev)
     {
-        if (_active is not { } form) return;
+        if (_current is not { } form) return;
         var doc = form.Document;
         if (!target.EventHandlers.TryGetValue(ev.Name, out var handler))
         {
@@ -145,12 +99,12 @@ public partial class DesignerForm
             target.EventHandlers[ev.Name] = handler;
             doc.NotifyChanged();
         }
-        var code = RadProject.CodeFileFor(form.Path);
+        var code = form.CodeFile;
         if (!File.Exists(code)) { sbMain.SimpleText = $"{Path.GetFileName(code)} is missing"; return; }
-        var (source, line) = CodeIntegration.EnsureHandler(File.ReadAllText(code), form.ClassName, handler, ev.Parameters);
-        File.WriteAllText(code, source);
+        var (source, line) = CodeIntegration.EnsureHandler(ReadSource(code), form.ClassName, handler, ev.Parameters);
+        WriteSource(code, source);
         Save(form);
-        OpenInEditor(code, line);
+        NavigateToCode(code, line, IndentColumn(source, line));
     }
 
     /// <summary>
@@ -162,7 +116,7 @@ public partial class DesignerForm
     /// </summary>
     void RenameInCode(string oldName, string newName)
     {
-        if (_active is not { } form || _project is not { } project) return;
+        if (_current is not { } form || _project is not { } project) return;
         var target = form.Document.Form.FindControl(newName);
         var renames = new List<(string Old, string New)> { (oldName, newName) };
         if (target != null)
@@ -175,24 +129,34 @@ public partial class DesignerForm
                 }
         foreach (var file in project.SourceFiles)
         {
-            var source = File.ReadAllText(file);
+            var source = ReadSource(file);
             var updated = source;
             foreach (var (o, n) in renames) updated = CodeIntegration.RenameIdentifier(updated, o, n);
-            if (updated != source) File.WriteAllText(file, updated);
+            if (updated != source) WriteSource(file, updated);
         }
         form.Document.NotifyChanged();
         Save(form);
+    }
+
+    /// <summary>The 1-based column just after a line's indentation (where the caret goes in a handler body).</summary>
+    static int IndentColumn(string source, int line)
+    {
+        var lines = source.Split('\n');
+        if (line < 1 || line > lines.Length) return 1;
+        var text = lines[line - 1].TrimEnd('\r');
+        return text.Length - text.TrimStart(' ', '\t').Length + 1;
     }
 
     // ---- Run (F9) ----
 
     /// <summary>
     /// Run (F9), as in Delphi: compiles the application — with every open form's unsaved state — and
-    /// starts it from its main form. Returns the running form, or null.
+    /// starts it from its main form. Everything is saved first, as Build does. Returns the running form, or null.
     /// </summary>
     public Form? Run()
     {
         if (_project == null) return null;
+        SaveAll();
         CloseLiveForm();
         ClearOutput();
         Output($"Compiling {_project.Name}…");
@@ -205,7 +169,7 @@ public partial class DesignerForm
             session.Dispose();
             return null;
         }
-        var main = _project.MainFormClass ?? _active?.ClassName;
+        var main = _project.MainFormClass ?? _current?.ClassName;
         if (main == null) { Output("The project has no main form."); session.Dispose(); return null; }
         try
         {
@@ -225,8 +189,6 @@ public partial class DesignerForm
         }
     }
 
-    void mnuRun_Click(object sender) => Run();
-
     void CloseLiveForm()
     {
         var form = _liveForm;
@@ -238,7 +200,7 @@ public partial class DesignerForm
 
     // ---- Build ----
 
-    async void mnuBuild_Click(object sender)
+    async void Build()
     {
         if (_project == null || _building) return;
         SaveAll();
@@ -280,7 +242,7 @@ public partial class DesignerForm
     {
         int i = lstOutput.ItemIndex;
         if (i >= 0 && i < _outputMessages.Count && _outputMessages[i] is { } m && m.File.Length > 0)
-            OpenInEditor(m.File, m.Line);
+            NavigateToCode(m.File, m.Line, Math.Max(1, m.Column));
     }
 
     // ---- SDK check ----
@@ -309,7 +271,7 @@ public partial class DesignerForm
 
     // ---- Theme ----
 
-    void mnuToggleDarkMode_Click(object sender)
+    void ToggleDarkMode()
     {
         _settings.Theme = _settings.Theme == "dark" ? "light" : "dark";
         Theme.Current = _settings.Theme == "dark" ? Theme.Dark : Theme.Default;

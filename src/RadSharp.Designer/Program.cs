@@ -6,7 +6,9 @@ SdlHost.Initialize();
 // Test hook: RADSHARP_DESIGNER_NEW=<folder> creates a new application there (as File > New Application does) and opens it.
 if (Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_NEW") is { Length: > 0 } newFolder)
     args = [RadSharp.Design.Code.RadProject.Create(newFolder, Path.GetFileName(newFolder), packageSource: RadSharp.Design.Code.RadSharpPackages.FindLocalSource()).ProjectFile];
-var designer = new DesignerForm(args.FirstOrDefault(a => a.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)));
+// Test hook: RADSHARP_DESIGNER_SETTINGS=<file> keeps settings, keymap and session in another folder than the user's.
+var settings = Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_SETTINGS") is { Length: > 0 } s ? s : null;
+var designer = new DesignerForm(args.FirstOrDefault(a => a.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase)), settings);
 if (Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_SELECT") is { Length: > 0 } select
     && designer.Document?.Form.FindControl(select) is { } control)
     designer.Document.Select(control);

@@ -101,18 +101,22 @@ public sealed class NewApplicationDialog : Form
     }
 }
 
-/// <summary>Tools › Options: the code editor (Unity-style choice of detected IDEs) and project defaults.</summary>
+/// <summary>Tools › Options: where code opens (built-in or external), the external code editor (Unity-style choice of detected IDEs) and project defaults.</summary>
 public sealed class OptionsDialog : Form
 {
     readonly DesignerSettings _settings;
-    readonly ComboBox _editor;
+    readonly IdeSettings? _ide;
+    readonly ComboBox _editor, _navigation;
     readonly Edit _custom, _folder, _packages;
     readonly List<EditorKind> _kinds = [];
 
-    public OptionsDialog(DesignerSettings settings, Form? owner)
+    public OptionsDialog(DesignerSettings settings, Form? owner) : this(settings, null, owner) { }
+
+    public OptionsDialog(DesignerSettings settings, IdeSettings? ide, Form? owner)
     {
         _settings = settings;
-        DialogLayout.Setup(this, "Options", 600, 320, owner);
+        _ide = ide;
+        DialogLayout.Setup(this, "Options", 600, 360, owner);
         var detected = ExternalEditor.Detect();
         var names = new List<string>();
         foreach (var e in detected) { _kinds.Add(e.Kind); names.Add(e.Name); }
@@ -124,6 +128,10 @@ public sealed class OptionsDialog : Form
         DialogLayout.Put(this, new Label { Caption = "Code editor", FontBold = true }, 16, 16, 300, 24);
         _editor = DialogLayout.Put(this, new ComboBox { Name = "cboEditor", Items = [.. names] }, 16, 44, 300, 26);
         _editor.ItemIndex = Math.Max(0, _kinds.IndexOf(settings.Editor));
+        DialogLayout.Put(this, new Label { Caption = "Open code in" }, 330, 16, 250, 24);
+        _navigation = DialogLayout.Put(this, new ComboBox { Name = "cboNavigation", Items = ["The built-in editor", "The code editor above"] }, 330, 44, 254, 26);
+        _navigation.ItemIndex = ide?.CodeNavigation == CodeNavigation.External ? 1 : 0;
+        _navigation.Enabled = ide != null;
         DialogLayout.Put(this, new Label { Caption = "Custom command ({file} {line} {folder} {solution})" }, 16, 80, 560, 24);
         _custom = DialogLayout.Put(this, new Edit { Name = "edtCustom", Text = settings.CustomEditorCommand, Placeholder = "\"C:\\\\Tools\\\\editor.exe\" \"{file}\" -n{line}" }, 16, 106, 568, 26);
         DialogLayout.Put(this, new Label { Caption = "New projects go in" }, 16, 146, 180, 24);
@@ -135,8 +143,13 @@ public sealed class OptionsDialog : Form
             Caption = "VS Code and Rider open handlers at their line; Visual Studio opens the file.",
             FontColor = Drawing.Color.FromHex("#6B7280"),
         }, 16, 222, 568, 24);
-        DialogLayout.Put(this, new Button { Name = "btnOk", Caption = "OK", Default = true, ModalResult = ModalResult.Ok }, 404, 272, 86, 30);
-        DialogLayout.Put(this, new Button { Name = "btnCancel", Caption = "Cancel", Cancel = true, ModalResult = ModalResult.Cancel }, 498, 272, 86, 30);
+        DialogLayout.Put(this, new Label
+        {
+            Caption = "Project › Open in IDE always uses the code editor above.",
+            FontColor = Drawing.Color.FromHex("#6B7280"),
+        }, 16, 248, 568, 24);
+        DialogLayout.Put(this, new Button { Name = "btnOk", Caption = "OK", Default = true, ModalResult = ModalResult.Ok }, 404, 312, 86, 30);
+        DialogLayout.Put(this, new Button { Name = "btnCancel", Caption = "Cancel", Cancel = true, ModalResult = ModalResult.Cancel }, 498, 312, 86, 30);
         PerformLayout();
     }
 
@@ -146,5 +159,6 @@ public sealed class OptionsDialog : Form
         _settings.CustomEditorCommand = _custom.Text.Trim();
         if (_folder.Text.Trim().Length > 0) _settings.ProjectsFolder = _folder.Text.Trim();
         _settings.PackageSource = _packages.Text.Trim();
+        if (_ide != null) _ide.CodeNavigation = _navigation.ItemIndex == 1 ? CodeNavigation.External : CodeNavigation.Embedded;
     }
 }

@@ -22,12 +22,12 @@ public partial class DesignerForm
         doc.NotifyChanged();
     }
 
-    void mnuAlignLefts_Click(object sender) => AlignEdges(c => c.Left, (c, v) => c.SetBounds(v, c.Top, c.Width, c.Height));
-    void mnuAlignRights_Click(object sender) => AlignEdges(c => c.Left + c.Width, (c, v) => c.SetBounds(v - c.Width, c.Top, c.Width, c.Height));
-    void mnuAlignTops_Click(object sender) => AlignEdges(c => c.Top, (c, v) => c.SetBounds(c.Left, v, c.Width, c.Height));
-    void mnuAlignBottoms_Click(object sender) => AlignEdges(c => c.Top + c.Height, (c, v) => c.SetBounds(c.Left, v - c.Height, c.Width, c.Height));
-    void mnuAlignCenters_Click(object sender) => AlignEdges(c => c.Left + c.Width / 2, (c, v) => c.SetBounds(v - c.Width / 2, c.Top, c.Width, c.Height));
-    void mnuAlignMiddles_Click(object sender) => AlignEdges(c => c.Top + c.Height / 2, (c, v) => c.SetBounds(c.Left, v - c.Height / 2, c.Width, c.Height));
+    void AlignLefts() => AlignEdges(c => c.Left, (c, v) => c.SetBounds(v, c.Top, c.Width, c.Height));
+    void AlignRights() => AlignEdges(c => c.Left + c.Width, (c, v) => c.SetBounds(v - c.Width, c.Top, c.Width, c.Height));
+    void AlignTops() => AlignEdges(c => c.Top, (c, v) => c.SetBounds(c.Left, v, c.Width, c.Height));
+    void AlignBottoms() => AlignEdges(c => c.Top + c.Height, (c, v) => c.SetBounds(c.Left, v - c.Height, c.Width, c.Height));
+    void AlignCenters() => AlignEdges(c => c.Left + c.Width / 2, (c, v) => c.SetBounds(v - c.Width / 2, c.Top, c.Width, c.Height));
+    void AlignMiddles() => AlignEdges(c => c.Top + c.Height / 2, (c, v) => c.SetBounds(c.Left, v - c.Height / 2, c.Width, c.Height));
 
     /// <summary>Sizes every free-standing selected control to the primary selection's width and/or height.</summary>
     void MakeSameSize(bool width, bool height)
@@ -40,9 +40,9 @@ public partial class DesignerForm
         doc.NotifyChanged();
     }
 
-    void mnuSameWidth_Click(object sender) => MakeSameSize(width: true, height: false);
-    void mnuSameHeight_Click(object sender) => MakeSameSize(width: false, height: true);
-    void mnuSameBoth_Click(object sender) => MakeSameSize(width: true, height: true);
+    void SameWidth() => MakeSameSize(width: true, height: false);
+    void SameHeight() => MakeSameSize(width: false, height: true);
+    void SameBoth() => MakeSameSize(width: true, height: true);
 
     /// <summary>Redistributes the middle controls so the gaps between all of them are equal; the two end
     /// controls (by position) stay put.</summary>
@@ -68,8 +68,8 @@ public partial class DesignerForm
         doc.NotifyChanged();
     }
 
-    void mnuSpaceHorizontally_Click(object sender) => SpaceEvenly(horizontal: true);
-    void mnuSpaceVertically_Click(object sender) => SpaceEvenly(horizontal: false);
+    void SpaceHorizontally() => SpaceEvenly(horizontal: true);
+    void SpaceVertically() => SpaceEvenly(horizontal: false);
 
     /// <summary>Centers every free-standing selected control within its own parent (Delphi/VS "Center in Form",
     /// generalised to any container since a selection isn't always direct children of the form).</summary>
@@ -88,6 +88,6 @@ public partial class DesignerForm
         doc.NotifyChanged();
     }
 
-    void mnuCenterHorizontally_Click(object sender) => CenterInParent(horizontal: true, vertical: false);
-    void mnuCenterVertically_Click(object sender) => CenterInParent(horizontal: false, vertical: true);
+    void CenterHorizontally() => CenterInParent(horizontal: true, vertical: false);
+    void CenterVertically() => CenterInParent(horizontal: false, vertical: true);
 }
