@@ -68,9 +68,17 @@ public sealed class CodeDocument : IDocumentView, IEditTarget
     }
 
     public string Kind => "code";
-    public string Path { get; }
+    public string Path { get; private set; }
     string? IDocumentView.Path => Path;
     public string Title => System.IO.Path.GetFileName(Path);
+
+    /// <summary>The file was renamed or moved (by the project tree): the open document follows it.</summary>
+    public void MovedTo(string newPath)
+    {
+        Path = System.IO.Path.GetFullPath(newPath);
+        DiskTimestamp = DocumentFiles.Stamp(Path);
+        StateChanged?.Invoke();
+    }
     public bool IsDirty => _dirty;
     public Control View => _editor.Control;
     public ICodeEditorView Editor => _editor;

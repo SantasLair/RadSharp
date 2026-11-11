@@ -51,7 +51,7 @@ public partial class DesignerForm : Form
         }
         gridEvents.EventDoubleClick += (_, ev) => { if (Document is { } d) EditHandler(d.Primary, ev); };
         gridProps.Arrangement = PropertyGridArrangement.Categorized;   // matches cboPropsArrange's default selection
-        lstForms.Click += _ => OpenProjectItem(preview: true);
+        InitProjectTree();
 
         _external = new ExternalEditorNavigator(_settings, () => _project);
         _embedded = new EmbeddedEditorNavigator(file => OpenCodeFile(file));
@@ -110,6 +110,7 @@ public partial class DesignerForm : Form
 
     bool OpenProject(string projectFile, IdeSession? session)
     {
+        if (RadSharp.Design.Code.SolutionFile.IsSolution(projectFile)) return OpenSolution(projectFile, session);
         if (_project != null && !CloseProject()) return false;
         try { _project = new RadProject(projectFile); }
         catch (IOException e)
@@ -122,7 +123,7 @@ public partial class DesignerForm : Form
         _restoring = true;
         try
         {
-            bool restored = session != null && SamePath(session.Project, _project.ProjectFile) && RestoreDocuments(session);
+            bool restored = session != null && SamePath(session.Project, _solutionFile ?? _project.ProjectFile) && RestoreDocuments(session);
             if (!restored)
             {
                 var main = _project.MainFormClass is { } cls ? _project.FormFileFor(cls) : null;
@@ -143,6 +144,7 @@ public partial class DesignerForm : Form
         CloseLiveForm();
         foreach (var d in _docs.Documents.ToList()) RemoveDocument(d);
         _project = null;
+        ResetSolution();
         _docs.SplitView = false;
         UpdateUi();
         SaveSession();
@@ -227,7 +229,7 @@ public partial class DesignerForm : Form
             Dialogs.MessageDlg($"Could not open {Path.GetFileName(path)}:\n{e.Message}", MessageType.Error, owner: this);
             return null;
         }
-        doc.FormFile = _project?.FormFiles.FirstOrDefault(f => SamePath(RadProject.CodeFileFor(f), path));
+        doc.FormFile = (ProjectOf(path) ?? _project)?.FormFiles.FirstOrDefault(f => SamePath(RadProject.CodeFileFor(f), path));
         doc.StateChanged += UpdateTitle;
         AddDocument(doc, preview, activate);
         return doc;
@@ -243,6 +245,7 @@ public partial class DesignerForm : Form
 
     void OnActiveDocumentChanged(IDocumentView? doc)
     {
+        ActivateOwningProject(doc);
         if (doc is FormDocument form)
         {
             _current = form;
@@ -309,6 +312,7 @@ public partial class DesignerForm : Form
             return false;
         }
         UpdateTitle();
+        RefreshGit();
         return true;
     }
 
@@ -344,7 +348,7 @@ public partial class DesignerForm : Form
         pnlInspector.Enabled = hasProject && _current != null;
 
         lblProject.Caption = _project?.Name ?? "";
-        lstForms.Items = _project == null ? [] : [.. _project.SourceFiles.Select(ProjectFileLabel)];
+        RebuildProjectTree();
 
         lstRecent.Items = [.. _settings.RecentProjects.Select(p => $"{Path.GetFileNameWithoutExtension(p)}   —   {Path.GetDirectoryName(p)}")];
         var source = _settings.EffectivePackageSource;
@@ -510,35 +514,6 @@ public partial class DesignerForm : Form
         tvPalette.Invalidate();
         if (_current != null) _current.Surface.PendingClass = null;
     }
-
-    /// <summary>A form's code-behind shows as its class name (like Delphi's Project Manager); any other
-    /// source file (a plain model or helper class) shows by its path relative to the project.</summary>
-    string ProjectFileLabel(string file)
-    {
-        if (_project!.FormFiles.FirstOrDefault(f => RadProject.CodeFileFor(f) == file) is { } formFile)
-        {
-            var cls = RadProject.FormClassName(formFile);
-            return cls + (cls == _project.MainFormClass ? "   (main form)" : "");
-        }
-        return Path.GetRelativePath(_project.Directory, file);
-    }
-
-    /// <summary>The Project window's selected file: a single click previews it, a double-click opens it. A form's
-    /// row opens the designer; any other file opens in the code editor (or the external IDE, if so configured).</summary>
-    void OpenProjectItem(bool preview)
-    {
-        if (_project == null || lstForms.ItemIndex < 0 || lstForms.ItemIndex >= _project.SourceFiles.Count) return;
-        var file = _project.SourceFiles[lstForms.ItemIndex];
-        if (_project.FormFiles.FirstOrDefault(f => RadProject.CodeFileFor(f) == file) is { } formFile)
-            OpenFormFile(formFile, preview);
-        else if (_ide.CodeNavigation == CodeNavigation.External)
-        {
-            if (!preview) NavigateToCode(file, 1, 1);
-        }
-        else OpenCodeFile(file, preview);
-    }
-
-    void lstForms_DblClick(Control sender) => OpenProjectItem(preview: false);
 
     void lstRecent_DblClick(Control sender)
     {
