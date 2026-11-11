@@ -252,11 +252,11 @@ public class IdeShellTests
         Assert.True(d.OpenProject(project.ProjectFile));   // reopen, so the Project window lists the new files
         d.Dock.Show(DesignerForm.ToolWindows.Project);
         d.PerformLayout();
-        var list = (ListBox)d.FindControl("lstForms")!;
+        var tree = (TreeView)d.FindControl("tvProject")!;
         void ClickRow(string label, bool twice = false)
         {
-            int i = Array.IndexOf(list.Items, label);
-            var (x, y) = Center(list, list.ItemRect(i));
+            var node = tree.VisibleNodes().First(n => n.Text == label);
+            var (x, y) = Center(tree, tree.NodeRect(node));
             if (twice) d.Simulate.DoubleClick(x, y); else d.Simulate.Click(x, y);
         }
 

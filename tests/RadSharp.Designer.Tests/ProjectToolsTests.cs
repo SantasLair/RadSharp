@@ -206,6 +206,27 @@ public class ProjectToolsTests
         Assert.Equal(["add", project.ProjectFile, "package", "X"], runner.Calls[0]);
     }
 
+    [Fact]
+    public async Task Real_dotnet_add_and_remove_package_offline_from_the_local_cache()
+    {
+        var cache = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), ".nuget", "packages", "newtonsoft.json");
+        if (!Directory.Exists(cache)) return;
+        var version = Directory.GetDirectories(cache).Select(Path.GetFileName).FirstOrDefault(v => v != null && !v.Contains('-'));
+        if (version == null) return;   // nothing cached: the offline run is skipped, the fake-runner tests cover the logic
+        var dir = TempDir();
+        File.WriteAllText(Path.Combine(dir, "Real.csproj"), "<Project Sdk=\"Microsoft.NET.Sdk\">\n  <PropertyGroup>\n    <TargetFramework>net10.0</TargetFramework>\n  </PropertyGroup>\n</Project>\n");
+        var project = new RadProject(Path.Combine(dir, "Real.csproj"));
+        var nuget = new NuGetService();
+        var lines = new List<string>();
+        int exit;
+        try { exit = await nuget.AddAsync(project, "Newtonsoft.Json", version, lines.Add, source: Path.GetDirectoryName(cache)); }
+        catch (System.ComponentModel.Win32Exception) { return; }   // no dotnet on the PATH
+        Assert.True(exit == 0, string.Join("\n", lines));
+        Assert.Contains(NuGetService.InstalledPackages(project.ProjectFile), p => p.Id == "Newtonsoft.Json" && p.Version == version);
+        Assert.Equal(0, await nuget.RemoveAsync(project, "Newtonsoft.Json", lines.Add));
+        Assert.Empty(NuGetService.InstalledPackages(project.ProjectFile));
+    }
+
     // ---- Project properties ----
 
     const string SampleProject = "<Project Sdk=\"Microsoft.NET.Sdk\">\r\n\r\n  <!-- keep me -->\r\n  <PropertyGroup>\r\n    <OutputType>WinExe</OutputType>\r\n    <TargetFramework>net10.0</TargetFramework>\r\n    <RootNamespace>App</RootNamespace>\r\n    <PublishAot>true</PublishAot>\r\n    <MyCustom Foo=\"bar\">x</MyCustom>\r\n  </PropertyGroup>\r\n\r\n  <PropertyGroup Condition=\"'$(Configuration)'=='Release'\">\r\n    <Optimize>true</Optimize>\r\n  </PropertyGroup>\r\n\r\n  <ItemGroup>\r\n    <PackageReference Include=\"X\" Version=\"1.0\" />\r\n  </ItemGroup>\r\n\r\n</Project>\r\n";

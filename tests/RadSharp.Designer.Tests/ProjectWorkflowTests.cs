@@ -250,14 +250,15 @@ public class ProjectWorkflowTests
         d.Dock.Show(DesignerForm.ToolWindows.Project);   // the Project tool window (it was a tab of the inspector)
         d.PerformLayout();
 
-        var lstForms = (ListBox)d.FindControl("lstForms")!;
-        Assert.Contains(lstForms.Items, i => i.StartsWith("MainForm"));
-        Assert.Contains("Helper.cs", lstForms.Items);
-        Assert.Contains("Program.cs", lstForms.Items);
+        var tree = (TreeView)d.FindControl("tvProject")!;
+        var labels = tree.VisibleNodes().Select(n => n.Text).ToList();
+        Assert.Contains(labels, l => l.StartsWith("MainForm"));
+        Assert.Contains("Helper.cs", labels);
+        Assert.Contains("Program.cs", labels);
 
-        int i = Array.IndexOf(lstForms.Items, "Helper.cs");
-        var r = lstForms.ItemRect(i);
-        d.Simulate.DoubleClick(lstForms.AbsoluteLeft + r.X + 10, lstForms.AbsoluteTop + r.Y + r.Height / 2);
+        var helper = tree.VisibleNodes().First(n => n.Text == "Helper.cs");
+        var r = tree.NodeRect(helper);
+        d.Simulate.DoubleClick(tree.AbsoluteLeft + r.X + 10 + 40, tree.AbsoluteTop + r.Y + r.Height / 2);
 
         // A plain source file opens in the built-in code editor (the external IDE is a setting).
         var code = Assert.IsType<CodeDocument>(d.ActiveDocument);
@@ -266,7 +267,7 @@ public class ProjectWorkflowTests
 
         d.IdeSettings.CodeNavigation = CodeNavigation.External;
         d.CloseDocument(code);
-        d.Simulate.DoubleClick(lstForms.AbsoluteLeft + r.X + 10, lstForms.AbsoluteTop + r.Y + r.Height / 2);
+        d.Simulate.DoubleClick(tree.AbsoluteLeft + r.X + 10 + 40, tree.AbsoluteTop + r.Y + r.Height / 2);
         var status = (StatusBar)d.FindControl("sbMain")!;
         Assert.Equal("Opened Helper.cs:1 in Custom", status.SimpleText);
     }
