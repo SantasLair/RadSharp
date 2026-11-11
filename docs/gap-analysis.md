@@ -17,6 +17,14 @@
 > (grep for the relevant types/members), not just against `gap-plan.md`'s own milestone notes, since those can
 > drift too — see each corrected row below for what to look for.
 
+> **Updated 2026-11-10 (branch `bcf-port-gaps`):** porting a real app (a custom-painted grid, flat dark buttons,
+> hints on regions of a drawn control, a maximised main window) closed these, each with tests: window state, minimum
+> size, start position and non-resizable windows (gap 7, partly); `Form.ApplyScale` for code-built forms; text
+> ellipsis, word wrap and `Label.WordWrap`; `Control.GetHintAt` region tooltips plus a fix for clicks being swallowed
+> while a tooltip was open (gap 12); `Button.Flat/Color/FontColor/HoverColor`; a public `ScrollBarDriver` and a
+> `ScrollView` base for custom-drawn scrolling content; `Control.Tag`, `Application.OpenUrl`, `Form.KeyPreview`.
+> See the rows below and section 4 item 4 for what is still open.
+
 ## 1. What is already solid
 
 The foundation is better than its age suggests, and most of the gaps below are *missing breadth*, not a weak core.
@@ -47,8 +55,8 @@ without a workaround; **P1** = painful but workable; **P2** = polish.
 | 4 | **List controls are too thin to hold data.** `ListView`: no scroll bars (wheel only), no horizontal scroll (columns wider than the view are unreachable), no icons, checkboxes, multi-select, sorting, or virtual mode. `TreeView`: no scroll bars, images, checkboxes, multi-select; nodes only from code (not in the form file — though a leaf can now carry a drawn icon via `TreeNode.Icon`, added this session for the designer's palette, not for data). `ListBox`: `string[]` items only (no `Tag`/objects), no multi-select. `ComboBox` publishes only Items/ItemIndex/DropDownCount (no editable style or autocomplete as far as I could see). | `ViewControls.cs`, `ListControls.cs` | `TListView` (icons, checks, `OwnerData`), `TCheckListBox`, `TTreeView` state images |
 | 5 | ~~**The `Canvas` can't draw lines, paths, gradients or arcs.**~~ **Fixed** (M12). `DrawLine`, `DrawPolyline`, `DrawArc`, `FillPolygon`, `Fill(GraphicsPath, …)`, and gradient overloads of `FillRect`/`FillRoundRect`/`FillEllipse`/`Fill` all exist now. | `Drawing/Canvas.cs` | `TCanvas` (LineTo, Polygon, Arc, Draw…) |
 | 6 | ~~**No per-control font.**~~ **Fixed** (M12). Every control has `EffectiveFont` (own `Font`, else the parent's, else the theme's — Delphi's *ParentFont* model), propagated into every control's `Paint()`. | `Control.cs`: `EffectiveFont`, `_font` | `Font` on every control |
-| 7 | **Windows are under-specified.** No `WindowState` (maximize/minimize/fullscreen), border style (dialog, tool, none), start position (centre, remembered), window icon, min/max size passed to the OS, always-on-top, or a screen/monitor API. | grep for `WindowState`/`Icon`/`Position` in Core and Sdl: no hits | `Position`, `WindowState`, `BorderStyle`, `BorderIcons`, `Icon`, `Screen` |
-| 8 | **Scale is fixed at form load.** `Form.DefaultScale` is read once at `Initialize`; dragging a window to a monitor with a different DPI (or, on the web, zooming the page) doesn't re-layout at the new scale. (Inferred: pixel density is tracked per window for pixels ↔ points, but lengths are scaled once at load.) | `Application.Initialize`, `Form.Scale` | per-monitor-v2 DPI, `ScaleBy` |
+| 7 | **Windows are under-specified.** ~~`WindowState`, start position, min size, non-resizable~~ **Closed 2026-11-10:** `Form.WindowState` (Normal/Maximized/Minimized, written back when the user changes it, `WindowStateChanged`), `Form.StartPosition` (Default/CenterScreen/CenterOwner/Manual), `Form.Resizable`, and the window minimum size from `Control.MinWidth`/`MinHeight`, all applied through SDL3 and re-applied while the window is open. **Still open:** fullscreen, other border styles (tool, none), window icon, maximum size, always-on-top, remembered position, a screen/monitor API. Not hand-verified on macOS/Linux. | `Form.cs` (`WindowState`, `StartPosition`, `Resizable`), `SdlHost.cs` (`FormWindow`) | `Position`, `WindowState`, `BorderStyle`, `BorderIcons`, `Icon`, `Screen` |
+| 8 | **Scale is fixed at form load.** `Form.DefaultScale` is read once at `Initialize`; dragging a window to a monitor with a different DPI (or, on the web, zooming the page) doesn't re-layout at the new scale. (Inferred: pixel density is tracked per window for pixels ↔ points, but lengths are scaled once at load.) Code-built forms can now get the same load-time scaling with `Form.ApplyScale()` (2026-11-10); re-scaling on a monitor change is still open. | `Application.Initialize`, `Form.Scale` | per-monitor-v2 DPI, `ScaleBy` |
 | 9 | **Reusable UI.** No frames / user controls (a form file whose root is a `Panel` embeddable in other forms), no visual form inheritance. Every real app needs shared composite pieces. | roadmap "After 1.0" | `TFrame`, visual inheritance |
 | 10 | **Cross-platform claim partially verified.** ~~Linux x64 half~~ **Verified (2026-09-28), via local WSL2 Ubuntu 24.04, .NET 10.0.101 SDK.** Full solution builds clean (including `RadSharp.Platform.Sdl`'s `libSDL3.so` native link), and all 210 tests across all 5 test projects pass — including every golden-image test in `RadSharp.Core.Tests`, run against the same Windows-generated goldens with no pixel diffs. macOS remains unverified (no CI matrix run, no local Apple Silicon box) and is deprioritized for now. | roadmap M0, M2 status; `README.md`; local WSL2 run 2026-09-28 | n/a |
 
@@ -57,7 +65,7 @@ without a workaround; **P1** = painful but workable; **P2** = polish.
 | # | Gap | Notes |
 |---|---|---|
 | 11 | **Data binding.** Listed for after 1.0. Without it every app copies model ↔ controls by hand. Smallest useful version: a generator-emitted, AOT-safe binding of a property path to a control property with change notification. | Delphi: DataSource / LiveBindings |
-| 12 | ~~**Tooltips.**~~ **Fixed** (M11). `Form` tracks a hovered control's `Hint` and shows it after a delay (`_tooltipControl`, `ShowTooltip`). | trivial to fix; users expect it |
+| 12 | ~~**Tooltips.**~~ **Fixed** (M11), **extended 2026-11-10.** `Form` shows a hovered control's `Hint` after a delay. Now also `Control.GetHintAt(x, y, out Rect region)` for hints on regions of a custom-drawn control (re-shown when the region changes, sized to multi-line text, placed by the pointer), and a bug fix: the tooltip lived in the popup layer, so a click while it was open was swallowed as a "press outside popup". | trivial to fix; users expect it |
 | 13 | **Keyboard mnemonics.** No `&File` / Alt+letter in captions or menus. Menus have shortcuts but not accelerator letters. Still true. | accessibility and speed for keyboard users |
 | 14 | **Text-field basics.** ~~No built-in context menu~~ — **fixed** (M11): Edit/Memo now build a default Cut/Copy/Paste/Select All `ContextMenu`, overridable by an explicit one. No masked edit; no bidirectional text (Arabic/Hebrew unusable); IME unverified by hand on macOS/Linux — all still open. | bidi is a hard blocker for those markets |
 | 15 | **Accessibility.** Custom-drawn controls are invisible to screen readers. AccessKit is planned after 1.0. Some customers cannot buy software without it. | |
@@ -116,7 +124,8 @@ without a workaround; **P1** = painful but workable; **P2** = polish.
 3. ~~**Canvas completeness (S)**~~ — **done**: lines, polylines, paths, arcs, gradients, offscreen bitmaps
    (`Bitmap`); per-control `Font` (`EffectiveFont`).
 4. **Window model (M):** `WindowState`, border style, position, icon, min/max size, and per-monitor scale change.
-   Still open.
+   **Partly done (2026-11-10):** window state, minimum size, start position and the resizable flag. Still open:
+   border styles beyond resizable/fixed, icon, maximum size, fullscreen, and per-monitor scale change (gap 8).
 5. **Lists and grid (L):** scroll bars and horizontal scroll in ListView/TreeView, icons, checkboxes, multi-select,
    sort; then a StringGrid/DrawGrid with virtual mode. Still open.
 6. **Frames / user controls (M):** allow a non-Form root in `*.radform.json`. Still open.

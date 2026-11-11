@@ -30,6 +30,7 @@ Defaults are the class defaults at 100 % scale; only values that differ are writ
 - [SaveDialog](#savedialog) (non-visual)
 - [ScrollBar](#scrollbar)
 - [ScrollBox](#scrollbox)
+- [ScrollView](#scrollview)
 - [SpinEdit](#spinedit)
 - [Splitter](#splitter)
 - [StatusBar](#statusbar)
@@ -48,7 +49,11 @@ Defaults are the class defaults at 100 % scale; only values that differ are writ
 |---|---|---|---|
 | `cancel` | bool | `false` | Behavior |
 | `caption` | string | "" | Appearance |
+| `color` | color | "" | Appearance |
 | `default` | bool | `false` | Behavior |
+| `flat` | bool | `false` | Appearance |
+| `fontColor` | color | "" | Appearance |
+| `hoverColor` | color | "" | Appearance |
 | `imageIndex` | int | `-1` | Appearance |
 | `images` | string | "" | Appearance |
 | `modalResult` | enum: none, ok, cancel, abort, retry, ignore, yes, no, close | `none` | Behavior |
@@ -133,6 +138,10 @@ Inherits from [FileDialog](#filedialog).
 |---|---|---|---|
 | `caption` | string | "" | Appearance |
 | `color` | color | "" | Appearance |
+| `keyPreview` | bool | `false` | Behavior |
+| `resizable` | bool | `true` | Window |
+| `startPosition` | enum: default, centerScreen, centerOwner, manual | `default` | Window |
+| `windowState` | enum: normal, maximized, minimized | `normal` | Window |
 
 | Event | Handler parameters |
 |---|---|
@@ -170,10 +179,12 @@ Inherits from [Component](#component).
 |---|---|---|---|
 | `alignment` | enum: left, center, right | `left` | Appearance |
 | `caption` | string | "" | Appearance |
+| `ellipsis` | bool | `false` | Appearance |
 | `fontBold` | bool | `false` | Appearance |
 | `fontColor` | color | "" | Appearance |
 | `fontSize` | int | `0` | Appearance |
 | `layout` | enum: top, center, bottom | `top` | Appearance |
+| `wordWrap` | bool | `false` | Appearance |
 
 ## ListBox
 
@@ -352,6 +363,14 @@ Inherits from [FileDialog](#filedialog).
 | `borderStyle` | enum: none, single | `single` | Appearance |
 | `color` | color | "" | Appearance |
 
+## ScrollView
+
+
+| Property | Type | Default | Category |
+|---|---|---|---|
+| `borderStyle` | enum: none, single | `single` | Appearance |
+| `color` | color | "" | Appearance |
+
 ## SpinEdit
 
 Inherits from [Edit](#edit).
@@ -426,8 +445,12 @@ Inherits from [Button](#button).
 | `allowToggle` | bool | `false` | Behavior |
 | `cancel` | bool | `false` | Behavior |
 | `caption` | string | "" | Appearance |
+| `color` | color | "" | Appearance |
 | `default` | bool | `false` | Behavior |
 | `down` | bool | `false` | Behavior |
+| `flat` | bool | `false` | Appearance |
+| `fontColor` | color | "" | Appearance |
+| `hoverColor` | color | "" | Appearance |
 | `imageIndex` | int | `-1` | Appearance |
 | `images` | string | "" | Appearance |
 | `modalResult` | enum: none, ok, cancel, abort, retry, ignore, yes, no, close | `none` | Behavior |
