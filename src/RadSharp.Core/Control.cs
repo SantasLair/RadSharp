@@ -51,6 +51,9 @@ public partial class Control
 
     [Published(Category = "Behavior")] public bool TabStop { get; set; }
     [Published(Category = "Behavior")] public int TabOrder { get; set; } = -1;
+    /// <summary>Anything the application wants to remember about this control (Delphi's <c>Tag</c>); never read or saved by the framework.</summary>
+    public object? Tag { get; set; }
+
     /// <summary>The tooltip text shown after the pointer rests on the control (see <see cref="GetHintAt"/>). Newlines make multi-line tooltips.</summary>
     [Published(Category = "Behavior")] public string Hint { get; set; } = "";
 

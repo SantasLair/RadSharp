@@ -20,6 +20,19 @@ public static class Application
     /// <summary>Alias for <see cref="Queue"/> (Delphi's <c>TThread.Queue</c>/<c>Synchronize</c> naming).</summary>
     public static void Post(Action action) => Queue(action);
 
+    /// <summary>
+    /// Opens <paramref name="url"/> in the user's default browser (or mail client). Only absolute <c>http</c>,
+    /// <c>https</c> and <c>mailto</c> URLs are accepted, since a URL can otherwise launch arbitrary local files.
+    /// Returns false if the URL isn't one of those or the host couldn't open it.
+    /// </summary>
+    /// <example><c>Application.OpenUrl("https://example.com/help");</c></example>
+    public static bool OpenUrl(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || uri.Scheme is not ("http" or "https" or "mailto")) return false;
+        return PlatformHost.Require().OpenUrl(uri.AbsoluteUri);
+    }
+
     /// <summary>Reports an unhandled exception, firing the ThreadException event with a default error dialog if no subscriber handles it.</summary>
     internal static void ReportException(Exception ex)
     {

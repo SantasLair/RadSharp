@@ -149,6 +149,8 @@ public static unsafe class SdlHost
         window.Dispose();
     }
 
+    internal static bool OpenUrl(string url) => SDL_OpenURL(url);
+
     // ---- Live resizing ----
 
     static bool _inWatch, _liveResize;
@@ -344,6 +346,7 @@ internal sealed class SdlPlatform : IPlatformServices
         SdlHost.ShowFileDialog(kind, owner, options, done);
     public void PostToUiThread(Action action) => SdlHost.PostToUiThread(action);
     public void ShowModal(Form form, Action onClosed) => SdlHost.ShowModalNonBlocking(form, onClosed);
+    public bool OpenUrl(string url) => SdlHost.OpenUrl(url);
 }
 
 /// <summary>One SDL window showing one form.</summary>

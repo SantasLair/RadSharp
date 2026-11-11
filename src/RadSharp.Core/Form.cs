@@ -115,6 +115,14 @@ public class Form : Control
     }
 
     /// <summary>
+    /// When true, the form sees key presses before the focused control (Delphi's <c>KeyPreview</c>): handle them in
+    /// the form's <c>KeyDown</c>/<c>KeyUp</c> events (or by overriding <c>OnKeyDown</c>/<c>OnKeyUp</c>) and set
+    /// <c>Handled</c> to stop them reaching the control. Not applied while a popup is open, or when the form itself
+    /// has the focus (it gets the key anyway).
+    /// </summary>
+    [Published(Category = "Behavior")] public bool KeyPreview { get; set; }
+
+    /// <summary>
     /// Scales every length in this form's tree (bounds, margins, padding, min/max sizes, a splitter's minimum
     /// size) by <paramref name="scale"/> once and records it as <see cref="Scale"/>, exactly as loading a form
     /// file does. Use it for forms built in code: lay the controls out at 100 %, add them all, then call this
@@ -727,6 +735,11 @@ public class Form : Control
         PerformLayout();
         DismissTooltip();
         var e = new KeyEventArgs(key, modifiers, repeat);
+        if (KeyPreview && _popups.Count == 0 && _focused != null && _focused != this)
+        {
+            OnKeyDown(e);
+            if (e.Handled) return;
+        }
         bool plainTab = key == Key.Tab && (modifiers & (KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Meta)) == 0;
 
         // Tab closes all popups, then moves focus (unless the focused control wants tabs).
@@ -760,6 +773,11 @@ public class Form : Control
     {
         DismissTooltip();
         var e = new KeyEventArgs(key, modifiers);
+        if (KeyPreview && _popups.Count == 0 && _focused != null && _focused != this)
+        {
+            OnKeyUp(e);
+            if (e.Handled) return;
+        }
         var target = _popups.Count > 0 ? _popups[^1] : _focused ?? this;
         if (target.IsEffectivelyEnabled) target.OnKeyUp(e);
     }
