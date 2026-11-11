@@ -47,6 +47,7 @@ public sealed class DebugSession : IAsyncDisposable
     private DebugSessionState _state = DebugSessionState.NotStarted;
     private bool _initializeDone;
     private int? _stoppedThreadId;
+    private int _stopGeneration;
 
     public DebugSession(DapTransport transport, BreakpointStore? breakpoints = null)
         : this(transport, null, breakpoints) { }
@@ -185,20 +186,42 @@ public sealed class DebugSession : IAsyncDisposable
 
     // ---- execution control ----
 
-    public async Task ContinueAsync(int threadId, CancellationToken ct = default)
-    {
-        await _transport.RequestAsync("continue", Json(new ContinueArguments { ThreadId = threadId }, DapJson.Default.ContinueArguments), ct).ConfigureAwait(false);
-        SetState(DebugSessionState.Running, onlyFrom: DebugSessionState.Stopped);
-    }
+    public Task ContinueAsync(int threadId, CancellationToken ct = default) =>
+        Resume("continue", Json(new ContinueArguments { ThreadId = threadId }, DapJson.Default.ContinueArguments), threadId, ct);
 
     public Task NextAsync(int threadId, CancellationToken ct = default) => Step("next", threadId, ct);
     public Task StepInAsync(int threadId, CancellationToken ct = default) => Step("stepIn", threadId, ct);
     public Task StepOutAsync(int threadId, CancellationToken ct = default) => Step("stepOut", threadId, ct);
 
-    private async Task Step(string command, int threadId, CancellationToken ct)
+    private Task Step(string command, int threadId, CancellationToken ct) =>
+        Resume(command, Json(new ThreadArguments { ThreadId = threadId }, DapJson.Default.ThreadArguments), threadId, ct);
+
+    /// <summary>
+    /// Sends a resuming request. The state goes to Running <i>before</i> the request: a fast breakpoint can stop the
+    /// debuggee again before the response is read, and a Running set after that stop would hide it. If the request
+    /// fails and nothing stopped it again meanwhile, the session is Stopped as before.
+    /// </summary>
+    private async Task Resume(string command, JsonElement args, int threadId, CancellationToken ct)
     {
-        await _transport.RequestAsync(command, Json(new ThreadArguments { ThreadId = threadId }, DapJson.Default.ThreadArguments), ct).ConfigureAwait(false);
+        int generation;
+        lock (_gate) generation = _stopGeneration;
         SetState(DebugSessionState.Running, onlyFrom: DebugSessionState.Stopped);
+        try { await _transport.RequestAsync(command, args, ct).ConfigureAwait(false); }
+        catch
+        {
+            bool restored = false;
+            lock (_gate)
+            {
+                if (_stopGeneration == generation && _state == DebugSessionState.Running)
+                {
+                    _state = DebugSessionState.Stopped;
+                    _stoppedThreadId = threadId;
+                    restored = true;
+                }
+            }
+            if (restored) StateChanged?.Invoke(this, DebugSessionState.Stopped);
+            throw;
+        }
     }
 
     public Task PauseAsync(int threadId, CancellationToken ct = default) =>
@@ -264,7 +287,9 @@ public sealed class DebugSession : IAsyncDisposable
         {
             try
             {
-                if (!_process.WaitForExit(2000)) _process.Kill(entireProcessTree: true);
+                using var grace = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+                try { await _process.WaitForExitAsync(grace.Token).ConfigureAwait(false); }
+                catch (OperationCanceledException) { _process.Kill(entireProcessTree: true); }
             }
             catch (Exception) { }
             _process.Dispose();
@@ -307,9 +332,9 @@ public sealed class DebugSession : IAsyncDisposable
                 case "stopped":
                 {
                     var e = Read(body, DapJson.Default.StoppedEventArgs);
-                    lock (_gate) _stoppedThreadId = e.ThreadId;
+                    lock (_gate) { _stoppedThreadId = e.ThreadId; _stopGeneration++; }
                     if (e.HitBreakpointIds is { Count: > 0 }) Breakpoints.RecordHits(e.HitBreakpointIds);
-                    else if (e.Reason == "breakpoint" && e.ThreadId is { } tid) CountHitFromTopFrame(tid);
+                    else if (e.Reason == "breakpoint" && e.ThreadId is { } tid) _ = CountHitFromTopFrameAsync(tid);   // never blocks the dispatch thread
                     SetState(DebugSessionState.Stopped);
                     lock (_gate) _stoppedThreadId = e.ThreadId;
                     Stopped?.Invoke(this, e);
@@ -345,19 +370,29 @@ public sealed class DebugSession : IAsyncDisposable
                     break;
             }
         }
-        catch (JsonException) { /* a malformed event body is ignored */ }
+        catch (JsonException e) { Diagnostic($"A malformed '{name}' event from the debug adapter was ignored: {e.Message}"); }
+        catch (Exception e) when (e is not OutOfMemoryException) { Diagnostic($"Handling the '{name}' event failed: {e.GetType().Name}: {e.Message}"); }
+    }
+
+    /// <summary>Reports an internal problem through the Output event (the IDE shows it in Output) instead of losing it.</summary>
+    private void Diagnostic(string text)
+    {
+        try { Output?.Invoke(this, new OutputEventArgs { Category = "console", Output = "[debugger] " + text + "\n" }); }
+        catch (Exception) { /* a faulty Output handler must not break the dispatcher */ }
     }
 
     /// <summary>
     /// netcoredbg does not report hitBreakpointIds, so find the breakpoint from the top frame's file and line.
-    /// Runs on the event thread (which is allowed to issue requests); best effort, bounded to two seconds.
+    /// Asynchronous (the event-dispatch thread must stay free, it also delivers the response): the hit count may
+    /// update a moment after <see cref="Stopped"/>. Best effort, bounded to two seconds.
     /// </summary>
-    private void CountHitFromTopFrame(int threadId)
+    private async Task CountHitFromTopFrameAsync(int threadId)
     {
         try
         {
             using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
-            var frame = GetStackTraceAsync(threadId, 0, 1, cts.Token).GetAwaiter().GetResult().StackFrames.FirstOrDefault();
+            var trace = await GetStackTraceAsync(threadId, 0, 1, cts.Token).ConfigureAwait(false);
+            var frame = trace.StackFrames.FirstOrDefault();
             if (frame?.Source?.Path is not { } path) return;
             var bp = Breakpoints.GetForFile(path).FirstOrDefault(b => b.Enabled && (b.ActualLine ?? b.Line) == frame.Line);
             if (bp?.AdapterId is { } id) Breakpoints.RecordHits([id]);
