@@ -1,6 +1,6 @@
 using RadSharp.Drawing;
 
-namespace RadSharp.Designer;
+namespace RadSharp.Design;
 
 /// <summary>
 /// A coarse grouping for the component palette (Delphi's Standard/Additional/Dialogs/System tool-palette
@@ -10,7 +10,7 @@ namespace RadSharp.Designer;
 /// lookup instead; an unlisted class (a new control nobody has categorized yet) falls into "Additional"
 /// rather than being hidden or crashing.
 /// </summary>
-static class PaletteCategories
+public static class PaletteCategories
 {
     const string Standard = "Standard", Additional = "Additional", Dialogs = "Dialogs", SystemCategory = "System";
 

@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="../src/RadSharp.DesignHost.Protocol/RadSharp.DesignHost.Protocol.csproj" />
+  </Folder>
+  <Folder Name="/vs/">
+    <Project Path="RadSharp.VisualStudio.Client/RadSharp.VisualStudio.Client.csproj" />
+    <Project Path="RadSharp.DesignHost.Harness/RadSharp.DesignHost.Harness.csproj" />
+    <Project Path="RadSharp.VisualStudio/RadSharp.VisualStudio.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="RadSharp.VisualStudio.Client.Tests/RadSharp.VisualStudio.Client.Tests.csproj" />
+    <Project Path="RadSharp.VisualStudio.Tests/RadSharp.VisualStudio.Tests.csproj" />
+  </Folder>
+</Solution>

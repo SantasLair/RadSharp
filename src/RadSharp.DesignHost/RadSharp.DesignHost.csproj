@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The headless design host for the Visual Studio designer (docs/vs-designer-plan.md): runs DesignDocument,
+    DesignSurface, PropertyGrid and the palette without a window system and talks to the client over a pipe.
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>RadSharp.DesignHost</RootNamespace>
+    <AssemblyName>RadSharpDesignHost</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RadSharp.DesignHost.Protocol\RadSharp.DesignHost.Protocol.csproj" />
+    <ProjectReference Include="..\RadSharp.Design\RadSharp.Design.csproj" />
+    <ProjectReference Include="..\RadSharp.Design.Code\RadSharp.Design.Code.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="RadSharp.DesignHost.Tests" />
+  </ItemGroup>
+
+</Project>

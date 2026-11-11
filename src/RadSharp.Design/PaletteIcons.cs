@@ -1,6 +1,6 @@
 using RadSharp.Drawing;
 
-namespace RadSharp.Designer;
+namespace RadSharp.Design;
 
 /// <summary>
 /// The component palette's "toolbox icons": a small rounded swatch with a control's initials, tinted by its
@@ -9,7 +9,7 @@ namespace RadSharp.Designer;
 /// this doesn't attempt, but a colour-coded initial is already what tells two toolbox entries apart at a
 /// glance, the same idea <c>DesignSurface.PaintComponentIcon</c> uses for non-visual components on the form.
 /// </summary>
-static class PaletteIcons
+public static class PaletteIcons
 {
     /// <summary>An icon painter for <paramref name="cls"/>, to set on the palette tree's leaf <c>TreeNode.Icon</c>.</summary>
     public static Action<Canvas, Rect> For(ComponentClass cls)

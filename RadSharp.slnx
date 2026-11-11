@@ -10,7 +10,9 @@
     <Project Path="src/RadSharp.Core/RadSharp.Core.csproj" />
     <Project Path="src/RadSharp.Design.Code/RadSharp.Design.Code.csproj" />
     <Project Path="src/RadSharp.Design/RadSharp.Design.csproj" />
+    <Project Path="src/RadSharp.DesignHost.Protocol/RadSharp.DesignHost.Protocol.csproj" />
     <Project Path="src/RadSharp.Designer/RadSharp.Designer.csproj" />
+    <Project Path="src/RadSharp.DesignHost/RadSharp.DesignHost.csproj" />
     <Project Path="src/RadSharp.Generators/RadSharp.Generators.csproj" />
     <Project Path="src/RadSharp.Platform.Sdl/RadSharp.Platform.Sdl.csproj" />
   </Folder>
@@ -18,6 +20,7 @@
     <Project Path="tests/RadSharp.Core.Tests/RadSharp.Core.Tests.csproj" />
     <Project Path="tests/RadSharp.Design.Code.Tests/RadSharp.Design.Code.Tests.csproj" />
     <Project Path="tests/RadSharp.Design.Tests/RadSharp.Design.Tests.csproj" />
+    <Project Path="tests/RadSharp.DesignHost.Tests/RadSharp.DesignHost.Tests.csproj" />
     <Project Path="tests/RadSharp.Designer.Tests/RadSharp.Designer.Tests.csproj" />
     <Project Path="tests/RadSharp.Generators.Tests/RadSharp.Generators.Tests.csproj" />
   </Folder>

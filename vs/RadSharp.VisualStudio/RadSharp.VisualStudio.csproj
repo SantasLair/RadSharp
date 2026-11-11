@@ -1,0 +1,113 @@
+<Project>
+
+  <!-- The VSIX: editor factory for *.radform.json, document pane with persistence, Edit-command routing, navigation to
+       code and the shipped design host. Explicit SDK imports so the VSSDK targets come last (see "Building the VSIX" in
+       docs/vs-designer-plan.md). Build with VS's MSBuild:
+         "C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe" -restore
+       `dotnet build` (and `dotnet test` on vs/RadSharp.VisualStudio.slnx) only compiles it: no pkgdef, .vsix or host
+       publish under .NET Core MSBuild. TargetFramework, Nullable and warnings-as-errors come from vs/Directory.Build.props;
+       the SDK from vs/global.json. -->
+  <Import Project="Sdk.props" Sdk="Microsoft.NET.Sdk" />
+
+  <PropertyGroup>
+    <UseWPF>true</UseWPF>
+    <RootNamespace>RadSharp.VisualStudio</RootNamespace>
+    <AssemblyName>RadSharp.VisualStudio</AssemblyName>
+
+    <GeneratePkgDefFile>true</GeneratePkgDefFile>
+    <CreateVsixContainer>true</CreateVsixContainer>
+    <IncludeAssemblyInVSIXContainer>true</IncludeAssemblyInVSIXContainer>
+    <IncludeDebugSymbolsInVSIXContainer>false</IncludeDebugSymbolsInVSIXContainer>
+    <IncludeDebugSymbolsInLocalVSIXDeployment>false</IncludeDebugSymbolsInLocalVSIXDeployment>
+    <CopyBuildOutputToOutputDirectory>true</CopyBuildOutputToOutputDirectory>
+    <CopyOutputSymbolsToOutputDirectory>true</CopyOutputSymbolsToOutputDirectory>
+    <!-- Never deploy into the developer's own VS hive as a build side effect; install into the Exp instance with
+         VSIXInstaller /rootSuffix:Exp instead (docs/vs-designer-plan.md, "Manual test checklist"). -->
+    <DeployExtension>false</DeployExtension>
+    <UseCodebase>true</UseCodebase>
+
+    <!-- Set to true to build the VSIX without publishing src/RadSharp.DesignHost into host\. -->
+    <SkipDesignHostPublish Condition="'$(SkipDesignHostPublish)' == ''">false</SkipDesignHostPublish>
+  </PropertyGroup>
+
+  <!-- dotnet build / dotnet test: compile only. The VSSDK packaging targets and the nested `dotnet publish` (which would
+       inherit this SDK's MSBuild environment) need VS's MSBuild. -->
+  <PropertyGroup Condition="'$(MSBuildRuntimeType)' == 'Core'">
+    <GeneratePkgDefFile>false</GeneratePkgDefFile>
+    <CreateVsixContainer>false</CreateVsixContainer>
+    <SkipDesignHostPublish>true</SkipDesignHostPublish>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.VisualStudio.SDK" Version="17.14.40265" ExcludeAssets="runtime" />
+    <PackageReference Include="Microsoft.VSSDK.BuildTools" Version="17.14.2094" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shipped in the VSIX next to this assembly (with RadSharp.DesignHost.Protocol, its dependency). -->
+    <ProjectReference Include="..\RadSharp.VisualStudio.Client\RadSharp.VisualStudio.Client.csproj" />
+    <!-- WindowPane.PreProcessMessage takes a System.Windows.Forms.Message. -->
+    <Reference Include="System.Windows.Forms" />
+    <!-- OleMenuCommandService derives from System.ComponentModel.Design.MenuCommandService. -->
+    <Reference Include="System.Design" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="source.extension.vsixmanifest" SubType="Designer" />
+    <None Remove="RadSharpPackage.vsct" />
+    <VSCTCompile Include="RadSharpPackage.vsct" ResourceName="Menus.ctmenu" Condition="'$(MSBuildRuntimeType)' != 'Core'" />
+    <!-- Package resources (editor display name #110 used by ProvideEditorFactory). -->
+    <EmbeddedResource Update="VSPackage.resx">
+      <MergeWithCTO>true</MergeWithCTO>
+      <ManifestResourceName>VSPackage</ManifestResourceName>
+    </EmbeddedResource>
+  </ItemGroup>
+
+  <Import Project="Sdk.targets" Sdk="Microsoft.NET.Sdk" />
+  <Import Project="$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets" Condition="'$(VSToolsPath)' != '' And Exists('$(VSToolsPath)\VSSDK\Microsoft.VsSDK.targets')" />
+
+  <!-- Design host: RadSharpDesignHost.exe is net10, so it cannot be a ProjectReference of this net48 project. Publish it
+       framework-dependent with `dotnet publish` and ship the output under host\ in the VSIX (DesignHostLocator looks
+       there). Guarded: if the project is missing or the publish fails, the VSIX still builds, without host\, and a
+       warning says so. -->
+  <PropertyGroup>
+    <DesignHostProject>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)..\..\src\RadSharp.DesignHost\RadSharp.DesignHost.csproj'))</DesignHostProject>
+    <DesignHostPublishDir>$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)$(BaseIntermediateOutputPath)designhost\'))</DesignHostPublishDir>
+  </PropertyGroup>
+
+  <Target Name="PublishDesignHost" BeforeTargets="GetVsixSourceItems" Condition="'$(SkipDesignHostPublish)' != 'true'">
+    <Warning Condition="!Exists('$(DesignHostProject)')"
+             Text="RADSharp design host project not found at $(DesignHostProject); the VSIX is built without host\RadSharpDesignHost.exe." />
+
+    <!-- Always start empty, so a failed or skipped publish never ships a stale host. -->
+    <RemoveDir Directories="$(DesignHostPublishDir)" />
+
+    <!-- Runs in the host's folder, so the repository root's global.json picks the .NET 10 SDK (vs/global.json pins an
+         SDK that VS 2022's MSBuild can load, which can't build net10). -->
+    <Exec Condition="Exists('$(DesignHostProject)')"
+          Command="dotnet publish &quot;$(DesignHostProject)&quot; -c Release -f net10.0 --self-contained false -o &quot;$(DesignHostPublishDir.TrimEnd('\'))&quot; -nologo -v:minimal"
+          WorkingDirectory="$([System.IO.Path]::GetDirectoryName('$(DesignHostProject)'))"
+          IgnoreExitCode="true"
+          IgnoreStandardErrorWarningFormat="true"
+          StandardOutputImportance="low">
+      <Output TaskParameter="ExitCode" PropertyName="_DesignHostPublishExitCode" />
+    </Exec>
+
+    <Warning Condition="Exists('$(DesignHostProject)') And '$(_DesignHostPublishExitCode)' != '0'"
+             Text="dotnet publish of the RADSharp design host failed (exit code $(_DesignHostPublishExitCode)); the VSIX is built without host\. Run: dotnet publish &quot;$(DesignHostProject)&quot; -c Release to see the errors." />
+    <Warning Condition="Exists('$(DesignHostProject)') And '$(_DesignHostPublishExitCode)' == '0' And !Exists('$(DesignHostPublishDir)RadSharpDesignHost.exe')"
+             Text="The RADSharp design host was published but $(DesignHostPublishDir)RadSharpDesignHost.exe is missing; the VSIX is built without host\." />
+
+    <ItemGroup Condition="Exists('$(DesignHostPublishDir)RadSharpDesignHost.exe')">
+      <!-- devenv is 64-bit (x64 or arm64): native libraries for other RIDs are dead weight. -->
+      <_DesignHostFile Include="$(DesignHostPublishDir)**\*"
+                       Exclude="$(DesignHostPublishDir)**\*.pdb;$(DesignHostPublishDir)runtimes\linux*\**;$(DesignHostPublishDir)runtimes\osx*\**;$(DesignHostPublishDir)runtimes\maccatalyst*\**;$(DesignHostPublishDir)runtimes\ios*\**;$(DesignHostPublishDir)runtimes\tvos*\**;$(DesignHostPublishDir)runtimes\android*\**;$(DesignHostPublishDir)runtimes\browser*\**;$(DesignHostPublishDir)runtimes\unix\**;$(DesignHostPublishDir)runtimes\win-x86\**;$(DesignHostPublishDir)runtimes\win-arm\**" />
+      <VSIXSourceItem Include="@(_DesignHostFile)">
+        <VSIXSubPath>host\%(_DesignHostFile.RecursiveDir)</VSIXSubPath>
+      </VSIXSourceItem>
+    </ItemGroup>
+    <Message Importance="high" Condition="Exists('$(DesignHostPublishDir)RadSharpDesignHost.exe')"
+             Text="RADSharp design host: @(_DesignHostFile->Count()) files added to the VSIX under host\" />
+  </Target>
+
+</Project>

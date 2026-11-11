@@ -40,9 +40,7 @@ public partial class DesignerForm : Form
         Theme.Current = _settings.Theme == "dark" ? Theme.Dark : Theme.Default;
         this.Theme = Theme.Current;
 
-        _palette = [.. ComponentRegistry.All
-            .Where(c => c.CanCreate && c.Type != typeof(Control) && !typeof(Form).IsAssignableFrom(c.Type) && c.Type != typeof(DesignSurface))
-            .OrderBy(c => c.Name, StringComparer.Ordinal)];
+        _palette = ComponentPalette.Classes();
         RebuildPalette();
         tvPalette.DragMode = DragMode.Automatic;   // drag a palette entry onto a form to place it, not just click
 
@@ -390,24 +388,7 @@ public partial class DesignerForm : Form
     /// no longer be in the filtered list.</summary>
     void RebuildPalette()
     {
-        tvPalette.Nodes.Clear();
-        string filter = edtPaletteFilter.Text.Trim();
-        var groups = _palette
-            .Where(c => filter.Length == 0 || c.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
-            .GroupBy(c => PaletteCategories.Of(c.Name))
-            .OrderBy(g => g.Key, StringComparer.Ordinal);
-        foreach (var g in groups)
-        {
-            var category = new TreeNode(g.Key) { Expanded = true };
-            foreach (var cls in g.OrderBy(c => c.Name, StringComparer.Ordinal))
-            {
-                var node = category.Add(cls.Name);
-                node.Tag = cls;
-                node.Icon = PaletteIcons.For(cls);
-            }
-            tvPalette.Nodes.Add(category);
-        }
-        tvPalette.Invalidate();
+        ComponentPalette.Fill(tvPalette, _palette, edtPaletteFilter.Text);
         if (_active != null) _active.Surface.PendingClass = null;
     }
 
