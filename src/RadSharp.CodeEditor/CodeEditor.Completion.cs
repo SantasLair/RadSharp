@@ -201,6 +201,10 @@ public partial class CodeEditor
         var list = new CompletionList(s.Start, caret - s.Start, s.List.Items);
         CloseCompletion();
         if (ReadOnly) return;
+        CompletionCommit? commit = null;
+        try { commit = _completionSource?.GetCommit(snap, list, item); }
+        catch (Exception) { commit = null; }
+        if (commit is { Edits.Count: > 0 }) { ApplyCommit(commit); return; }
         TextEdit? custom = null;
         try { custom = _completionSource?.GetCommitEdit(snap, list, item); }
         catch (Exception) { custom = null; }
@@ -223,6 +227,30 @@ public partial class CodeEditor
         }
         ApplyOwn(edits, UndoCoalescing.None);
         _buffer.BreakUndoCoalescing();
+    }
+
+    /// <summary>Applies a source's <see cref="CompletionCommit"/> as one undo step and places the caret.</summary>
+    void ApplyCommit(CompletionCommit commit)
+    {
+        _buffer.BreakUndoCoalescing();
+        var before = SelectionState();
+        _applyingOwnEdit = true;
+        TextChangedEventArgs? args;
+        try { args = _buffer.Apply(commit.Edits, UndoCoalescing.None, before); }
+        finally { _applyingOwnEdit = false; }
+        int caret;
+        if (commit.Caret is { } c) caret = c;
+        else
+        {
+            var last = commit.Edits.OrderBy(e => e.Start).Last();
+            caret = args == null ? last.Start : TextSnapshot.TranslateThrough(args.Changes, last.End, PointTrackingMode.Positive);
+        }
+        caret = Math.Clamp(caret, 0, Snapshot.Length);
+        SetSelectionsCore([new Sel(caret, caret)], 0, raise: false);
+        if (args != null) _buffer.SetUndoStateAfter(SelectionState());
+        _buffer.BreakUndoCoalescing();
+        ScrollToCaret();
+        RaiseCaretMoved();
     }
 
     Rect? CompletionRect
@@ -365,6 +393,20 @@ public partial class CodeEditor
     }
 
     public void ShowHint(TextPosition position, string text, bool above = false) => ShowHint(Snapshot.GetOffset(position), text, above);
+
+    /// <summary>
+    /// Answers a <see cref="Hover"/> later (quick info that took a moment): shows the hint as if it had been shown from
+    /// the event, so it goes away when the pointer moves on, but only while the pointer still rests where it was
+    /// raised. Returns false (and shows nothing) if the pointer has moved since.
+    /// </summary>
+    public bool ShowHoverHint(int hoverOffset, int hintOffset, string text)
+    {
+        if (_hoverPoint == null || !_hoverRaised || _hoverOffset != hoverOffset) return false;
+        _inHoverEvent = true;
+        try { ShowHint(hintOffset, text); }
+        finally { _inHoverEvent = false; }
+        return true;
+    }
 
     public void HideHint()
     {

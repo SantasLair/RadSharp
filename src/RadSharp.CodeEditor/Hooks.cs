@@ -133,7 +133,21 @@ public interface ICompletionSource
 
     /// <summary>Called when an item is committed, to adjust the edit (snippets, adding parentheses); return null to insert <see cref="CompletionItem.InsertText"/>.</summary>
     TextEdit? GetCommitEdit(TextSnapshot snapshot, CompletionList list, CompletionItem item) => null;
+
+    /// <summary>
+    /// Called before <see cref="GetCommitEdit"/>: a commit that needs more than one edit (an item plus the <c>using</c>
+    /// it needs) or puts the caret somewhere other than after the text. Return null to fall back to
+    /// <see cref="GetCommitEdit"/>. The edits are applied as one undo step.
+    /// </summary>
+    CompletionCommit? GetCommit(TextSnapshot snapshot, CompletionList list, CompletionItem item) => null;
 }
+
+/// <summary>
+/// What committing a completion item does: <see cref="Edits"/> against the snapshot passed to
+/// <see cref="ICompletionSource.GetCommit"/> (non-overlapping), and where the caret goes afterwards, as an offset into
+/// the text after the edits (null: the end of the last edit's new text).
+/// </summary>
+public sealed record CompletionCommit(IReadOnlyList<TextEdit> Edits, int? Caret = null);
 
 /// <summary>Common classification names (the same strings Roslyn's classifier uses, so its results map directly).</summary>
 public static class Classifications
