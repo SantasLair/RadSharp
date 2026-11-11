@@ -62,6 +62,8 @@ public sealed class IdeSession
     public string? Active { get; set; }
     public bool Split { get; set; }
     public DockLayout? Layout { get; set; }
+    /// <summary>The debugger's breakpoints of every project (project or solution file → list), kept across projects.</summary>
+    public JsonObject? Breakpoints { get; set; }
 
     public static IdeSession Load(string path)
     {
@@ -74,6 +76,7 @@ public sealed class IdeSession
             s.Active = root["active"]?.GetValue<string>();
             s.Split = root["split"]?.GetValue<bool>() ?? false;
             s.Layout = DockLayout.FromJson(root["layout"]);
+            s.Breakpoints = root["breakpoints"]?.DeepClone() as JsonObject;
             if (root["documents"] is JsonArray docs)
                 foreach (var d in docs.OfType<JsonObject>())
                     if (d["kind"]?.GetValue<string>() is { } kind && d["path"]?.GetValue<string>() is { } p)
@@ -101,6 +104,7 @@ public sealed class IdeSession
             ["split"] = Split,
             ["layout"] = Layout?.ToJson(),
         };
+        if (Breakpoints is { Count: > 0 }) root["breakpoints"] = Breakpoints.DeepClone();
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, root.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }

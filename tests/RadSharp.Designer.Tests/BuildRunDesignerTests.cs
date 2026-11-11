@@ -197,16 +197,16 @@ public class BuildRunDesignerTests
     }
 
     [Fact]
-    public async Task Stop_kills_the_running_app_and_F5_falls_back_to_Ctrl_F5()
+    public async Task Stop_kills_the_app_started_with_Ctrl_F5()
     {
         var project = ConsoleProject("StopMe");
         LaunchSettings.Save(project, new RunConfiguration { Arguments = "--wait" });
         var (d, _) = Start(project);
 
-        d.Simulate.Key(Key.F5);                                  // Start Debugging: not wired yet, so it runs without
+        d.Simulate.Key("Ctrl+F5");                               // (F5 is the debugger now: DebuggerIntegrationTests)
         await WaitFor(() => d.AppRunning && d.OutputLines.Any(l => l.StartsWith("started")), "the app to start");
-        Assert.Contains(d.OutputLines, l => l.StartsWith("Debugging isn't available yet"));
         Assert.True(d.Commands["Run.Stop"].Enabled);
+        Assert.False(d.Commands["Run.StartDebugging"].Enabled);
         Assert.False(d.Commands["Run.RunWithoutDebugging"].Enabled);
 
         d.Simulate.Key("Shift+F5");

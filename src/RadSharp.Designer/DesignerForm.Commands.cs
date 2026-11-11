@@ -111,6 +111,7 @@ public partial class DesignerForm
         RegisterBuildCommands();
         RegisterLanguageCommands();
         RegisterProjectCommands();
+        RegisterDebugCommands();
         RegisterNavigationCommands();
         RegisterPolishCommands();
 
@@ -205,6 +206,8 @@ public partial class DesignerForm
         Cmd(run, "Run.Build");
         Cmd(run, "Run.CancelBuild");
         Cmd(run, "Run.Publish");
+
+        BuildDebugMenu(Top("Debug"));
 
         var component = Top("Component");
         Cmd(component, "Component.MenuEditor");

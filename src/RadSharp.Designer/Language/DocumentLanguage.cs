@@ -376,7 +376,7 @@ public sealed class DocumentLanguage : ITokenSource, IDecorationSource, IComplet
 
     void OnHover(Control sender, CodeEditorHoverEventArgs e)
     {
-        if (Service == null || FlushAll() is not { } snapshot) return;
+        if (Service == null || _host.QuickInfoSuppressed?.Invoke() == true || FlushAll() is not { } snapshot) return;
         _hover?.Cancel();
         _hover = new CancellationTokenSource();
         int offset = e.Offset;
