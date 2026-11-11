@@ -81,4 +81,14 @@ public class BcfPortFixTests
         Assert.Equal((byte)0x20, bg.Green);
         Assert.Equal((byte)0x30, bg.Blue);
     }
+
+    [Fact]
+    public void DarkTitleBar_is_a_published_window_property()
+    {
+        var f = new Form();
+        Assert.False(f.DarkTitleBar);
+        using var doc = System.Text.Json.JsonDocument.Parse("true");
+        Assert.True(f.ReadProperty("darkTitleBar", doc.RootElement));
+        Assert.True(f.DarkTitleBar);
+    }
 }

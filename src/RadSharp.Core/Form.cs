@@ -115,6 +115,12 @@ public class Form : Control
     }
 
     /// <summary>
+    /// Asks the OS to draw the window's title bar dark (on Windows 11 in the form's background colour) to match a dark
+    /// theme. Read when the window is created; hosts without such a feature ignore it.
+    /// </summary>
+    [Published(Category = "Window")] public bool DarkTitleBar { get; set; }
+
+    /// <summary>
     /// When true, the form sees key presses before the focused control (Delphi's <c>KeyPreview</c>): handle them in
     /// the form's <c>KeyDown</c>/<c>KeyUp</c> events (or by overriding <c>OnKeyDown</c>/<c>OnKeyUp</c>) and set
     /// <c>Handled</c> to stop them reaching the control. Not applied while a popup is open, or when the form itself

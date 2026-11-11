@@ -379,6 +379,11 @@ internal sealed unsafe class FormWindow : IDisposable
         _appliedResizable = form.Resizable;
         ApplyMinSize();
         PlaceWindow(owner);
+        if (form.DarkTitleBar && OperatingSystem.IsWindows())
+        {
+            nint hwnd = (nint)SDL_GetPointerProperty(SDL_GetWindowProperties(_window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, 0);
+            Win32Chrome.ApplyDarkTitleBar(hwnd, form.Color ?? form.Theme.FormBackground, form.Theme.Text);
+        }
         ApplyWindowState();
 
         _renderer = SDL_CreateRenderer(_window, (string?)null);
