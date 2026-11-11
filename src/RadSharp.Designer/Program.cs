@@ -19,4 +19,27 @@ switch (Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_RUN"))
     // Clicks the Run tool button through the same input path as the mouse.
     case "click": designer.Shown += _ => SdlHost.PostToUiThread(() => designer.Simulate.Click(designer.FindControl("btnRun")!)); break;
 }
+// Test hook: RADSHARP_DESIGNER_OPEN=<file> opens a code file; with RADSHARP_DESIGNER_SNAPSHOT=<png> the window is saved
+// (rendered as on screen) once that file has its semantic colours, and the designer exits.
+if (Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_OPEN") is { Length: > 0 } open)
+    designer.Shown += _ => SdlHost.PostToUiThread(() =>
+    {
+        var code = designer.OpenCodeFile(open);
+        if (Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_SNAPSHOT") is not { Length: > 0 } png || code == null) return;
+        var started = DateTime.UtcNow;
+        void Check()
+        {
+            var lang = designer.LanguageHostFor(code.Path)?.Find(code);
+            if (lang is { HasSemanticColours: true } || DateTime.UtcNow - started > TimeSpan.FromSeconds(90))
+            {
+                using var bitmap = RadSharp.Drawing.FormRenderer.RenderToBitmap(designer);
+                File.WriteAllBytes(png, RadSharp.Drawing.FormRenderer.EncodePng(bitmap));
+                Console.WriteLine(lang is { HasSemanticColours: true } ? "snapshot: semantic colours" : "snapshot: timed out without semantic colours");
+                designer.Close();
+                return;
+            }
+            Task.Delay(200).ContinueWith(t => SdlHost.PostToUiThread(Check));
+        }
+        Check();
+    });
 SdlHost.Run(designer);

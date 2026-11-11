@@ -57,6 +57,39 @@ public class HookTests
         Assert.Equal(1, source.Requests);   // filtering is local
     }
 
+    /// <summary>A source whose commit adds a line at the top and puts the caret inside the inserted call.</summary>
+    sealed class UsingCompletion : ICompletionSource
+    {
+        public IReadOnlyCollection<char> TriggerCharacters => [];
+        public Task<CompletionList?> GetCompletionsAsync(CompletionRequest request, CancellationToken cancellationToken)
+        {
+            int start = request.Offset;
+            while (start > 0 && char.IsLetter(request.Snapshot[start - 1])) start--;
+            return Task.FromResult<CompletionList?>(new CompletionList(start, request.Offset - start, [new CompletionItem("WriteLine")]));
+        }
+        public CompletionCommit? GetCommit(TextSnapshot snapshot, CompletionList list, CompletionItem item) =>
+            new([TextEdit.Insert(0, Using), new TextEdit(list.ApplicableStart, list.ApplicableLength, "WriteLine()")],
+                Using.Length + list.ApplicableStart + "WriteLine(".Length);
+
+        public const string Using = "using X;" + "\u000A";
+    }
+
+    [Fact]
+    public void Completion_commit_from_the_source_applies_several_edits_as_one_undo_step()
+    {
+        var (f, ed) = EditorInputTests.Setup("go ");
+        ed.CompletionSource = new UsingCompletion();
+        f.Simulate.Key(Key.End);
+        f.Simulate.Type("Wr");
+        f.Simulate.Key(Key.Space, KeyModifiers.Ctrl);
+        Assert.True(ed.IsCompletionOpen);
+        f.Simulate.Key(Key.Enter);
+        Assert.Equal(UsingCompletion.Using + "go WriteLine()", ed.Text);
+        Assert.Equal(ed.Text.Length - 1, ed.CaretOffset);
+        Assert.True(ed.Undo());
+        Assert.Equal("go Wr", ed.Text);
+    }
+
     [Fact]
     public void Completion_on_ctrl_space_and_typing_and_escape()
     {

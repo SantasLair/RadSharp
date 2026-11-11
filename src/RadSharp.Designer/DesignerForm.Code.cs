@@ -110,13 +110,14 @@ public partial class DesignerForm
     /// <summary>
     /// After a rename: the field and the conventionally named handlers follow in the code, across every
     /// source file in the project (not only this form's own code-behind), so a reference from a partial
-    /// class split across files, or a helper method reaching in, follows too. This is textual, not semantic
-    /// (there is no Roslyn <c>Workspace</c> here): it can't distinguish an unrelated identifier that happens
-    /// to match, the way a full solution-wide rename would.
+    /// class split across files, or a helper method reaching in, follows too. When the project's language
+    /// workspace is ready the rename is semantic (<see cref="TryRenameControlSemantically"/>); otherwise, or with
+    /// <paramref name="textual"/>, it is textual: it can't distinguish an unrelated identifier that happens to match.
     /// </summary>
-    void RenameInCode(string oldName, string newName)
+    void RenameInCode(string oldName, string newName, bool textual = false)
     {
         if (_current is not { } form || _project is not { } project) return;
+        if (!textual && TryRenameControlSemantically(form, oldName, newName)) return;   // semantic when the workspace is ready
         var target = form.Document.Form.FindControl(newName);
         var renames = new List<(string Old, string New)> { (oldName, newName) };
         if (target != null)

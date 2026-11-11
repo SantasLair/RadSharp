@@ -46,7 +46,7 @@ public partial class DesignerForm
         Reg("Edit.LockControls", "Lock Controls", "Edit", ToggleLockControls, "", null, () => _locked);
 
         // View
-        Reg("View.ToggleFormCode", "Toggle Form/Code", "View", () => ToggleFormCode(), "F12", () => HasDocument);
+        Reg("View.ToggleFormCode", "Toggle Form/Code", "View", () => _ = GoToDefinitionOrToggle(), "F12", () => HasDocument);   // in code: go to definition first
         Reg("View.SplitFormCode", "Split Form and Code", "View", ToggleSplitView, "", () => HasDocument, () => _docs.SplitView);
         Reg("View.ShowGrid", "Show Grid", "View", ToggleShowGrid, "", null, () => _showGrid);
         foreach (var w in _dock.Windows)
@@ -109,6 +109,7 @@ public partial class DesignerForm
         Reg("Tools.KeyboardShortcuts", "Keyboard Shortcuts…", "Tools", ShowKeyboardShortcuts);
 
         RegisterBuildCommands();
+        RegisterLanguageCommands();
         RegisterProjectCommands();
 
         c.ShortcutsChanged += () => RefreshCommandState();
@@ -178,6 +179,8 @@ public partial class DesignerForm
         Cmd(view, "Window.PreviousDocument");
         view.AddSeparator();
         Cmd(view, "View.ToggleDarkMode");
+
+        AddCodeMenuItems(Top("Code"));
 
         var project = Top("Project");
         Cmd(project, "Project.AddNewForm");

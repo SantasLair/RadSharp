@@ -132,6 +132,7 @@ public partial class DesignerForm : Form
             }
         }
         finally { _restoring = false; }
+        StartLanguage();
         UpdateUi();
         Output($"Opened project {_project.ProjectFile}");
         SaveSession();
@@ -145,6 +146,7 @@ public partial class DesignerForm : Form
         CloseLiveForm();
         ResetBuildState();
         foreach (var d in _docs.Documents.ToList()) RemoveDocument(d);
+        StopLanguage();
         _project = null;
         ResetSolution();
         _docs.SplitView = false;
@@ -210,6 +212,7 @@ public partial class DesignerForm : Form
         };
         form.StateChanged += UpdateTitle;
         _forms.Add(form);
+        AttachLanguage(form);
         AddDocument(form, preview, activate);
         return form;
     }
@@ -233,6 +236,7 @@ public partial class DesignerForm : Form
         }
         doc.FormFile = (ProjectOf(path) ?? _project)?.FormFiles.FirstOrDefault(f => SamePath(RadProject.CodeFileFor(f), path));
         doc.StateChanged += UpdateTitle;
+        AttachLanguage(doc);
         AddDocument(doc, preview, activate);
         return doc;
     }
@@ -292,6 +296,7 @@ public partial class DesignerForm : Form
     {
         _docs.Remove(doc);
         doc.Close();
+        DetachLanguage(doc);
         _diskIgnored.Remove(doc);
         if (doc is FormDocument form)
         {
