@@ -58,6 +58,9 @@ public sealed class NuGetService
     readonly HttpClient _http;
     string? _searchUrl;
 
+    /// <summary>A service that sends its requests through <paramref name="handler"/> (tests), still with the generic user agent.</summary>
+    public NuGetService(IPackageRunner runner, HttpMessageHandler handler) : this(runner, CreateHttpClient(handler)) { }
+
     public NuGetService(IPackageRunner? runner = null, HttpClient? http = null)
     {
         _runner = runner ?? new DotnetPackageRunner();
@@ -65,9 +68,9 @@ public sealed class NuGetService
     }
 
     /// <summary>An HTTP client that identifies itself generically: no machine, user or project details.</summary>
-    public static HttpClient CreateHttpClient()
+    public static HttpClient CreateHttpClient(HttpMessageHandler? handler = null)
     {
-        var http = new HttpClient { Timeout = TimeSpan.FromSeconds(20) };
+        var http = new HttpClient(handler ?? new HttpClientHandler()) { Timeout = TimeSpan.FromSeconds(20) };
         http.DefaultRequestHeaders.UserAgent.ParseAdd("RADSharp-IDE");
         return http;
     }
@@ -151,11 +154,12 @@ public sealed class NuGetService
     // ---- dotnet command building ----
 
     /// <summary><c>dotnet add "proj" package id [--version v] [--prerelease]</c>. Without a version it adds (or updates to) the latest.</summary>
-    public static IReadOnlyList<string> AddArguments(string projectFile, string id, string? version = null, bool prerelease = false)
+    public static IReadOnlyList<string> AddArguments(string projectFile, string id, string? version = null, bool prerelease = false, string? source = null)
     {
         var args = new List<string> { "add", projectFile, "package", id };
         if (!string.IsNullOrWhiteSpace(version)) { args.Add("--version"); args.Add(version.Trim()); }
         else if (prerelease) args.Add("--prerelease");
+        if (!string.IsNullOrWhiteSpace(source)) { args.Add("--source"); args.Add(source); }
         return args;
     }
 
@@ -163,8 +167,8 @@ public sealed class NuGetService
 
     // ---- Running ----
 
-    public Task<int> AddAsync(RadProject project, string id, string? version, Action<string> onLine, bool prerelease = false, CancellationToken cancel = default) =>
-        RunAsync(AddArguments(project.ProjectFile, id, version, prerelease), project, onLine, cancel);
+    public Task<int> AddAsync(RadProject project, string id, string? version, Action<string> onLine, bool prerelease = false, CancellationToken cancel = default, string? source = null) =>
+        RunAsync(AddArguments(project.ProjectFile, id, version, prerelease, source), project, onLine, cancel);
 
     /// <summary>Updates to the latest version (or to <paramref name="version"/>): <c>dotnet add package</c> replaces the reference.</summary>
     public Task<int> UpdateAsync(RadProject project, string id, Action<string> onLine, string? version = null, CancellationToken cancel = default) =>

@@ -143,7 +143,7 @@ public sealed class ProjectFileOps(RadProject project)
     {
         path = Path.GetFullPath(path);
         if (Directory.Exists(path)) return RenameFolder(path, newName);
-        CheckName(newName, allowDots: false);
+        CheckName(newName, allowDots: PairOf(path) == null);
         var changes = new List<FileChange>();
         if (PairOf(path) is { } pair)
         {
@@ -244,6 +244,26 @@ public sealed class ProjectFileOps(RadProject project)
     public bool NamespaceMismatch(string csFile) =>
         csFile.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) && File.Exists(csFile)
         && DeclaredNamespace(File.ReadAllText(csFile)) is { } declared && declared != NamespaceFor(Path.GetDirectoryName(csFile)!);
+
+    /// <summary>True if moving <paramref name="path"/> (a file, a form's pair or a folder) into <paramref name="targetDirectory"/>
+    /// would leave a <c>.cs</c> declaring a namespace other than the one the new folder implies (the "fix the namespace?" offer).</summary>
+    public bool WouldChangeNamespace(string path, string targetDirectory)
+    {
+        path = Path.GetFullPath(path);
+        var ns = NamespaceFor(Path.Combine(targetDirectory, Directory.Exists(path) ? Path.GetFileName(path) : ""));
+        IEnumerable<string> files = Directory.Exists(path)
+            ? Directory.EnumerateFiles(path, "*.cs", SearchOption.AllDirectories)
+            : PairOf(path) is { } pair ? [pair.Code] : [path];
+        foreach (var f in files)
+        {
+            if (!f.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || !File.Exists(f)) continue;
+            // A moved folder keeps its sub-folders: the namespace each file will get depends on its place below the folder.
+            var sub = Directory.Exists(path) ? Path.GetRelativePath(path, Path.GetDirectoryName(f)!) : ".";
+            var expected = sub == "." ? ns : NamespaceFor(Path.Combine(targetDirectory, Path.GetFileName(path), sub));
+            if (DeclaredNamespace(File.ReadAllText(f)) is { } declared && declared != expected) return true;
+        }
+        return false;
+    }
 
     /// <summary>Rewrites the namespace of each given <c>.cs</c> file to its folder's; returns the files changed.</summary>
     public IReadOnlyList<string> FixNamespaces(IEnumerable<string> files)
