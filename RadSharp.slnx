@@ -12,6 +12,7 @@
     <Project Path="src/RadSharp.Design/RadSharp.Design.csproj" />
     <Project Path="src/RadSharp.Designer/RadSharp.Designer.csproj" />
     <Project Path="src/RadSharp.Generators/RadSharp.Generators.csproj" />
+    <Project Path="src/RadSharp.Ide.Language/RadSharp.Ide.Language.csproj" />
     <Project Path="src/RadSharp.Platform.Sdl/RadSharp.Platform.Sdl.csproj" />
   </Folder>
   <Folder Name="/tests/">

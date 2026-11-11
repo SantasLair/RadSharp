@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <Description>RADSharp IDE language service: a Roslyn workspace over a RADSharp project (with the form generator's output) and UI-agnostic classification, diagnostics, completion, navigation, rename, formatting and code fixes.</Description>
+    <IsPackable>false</IsPackable>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <!-- Public members are documented where they need it (records document only the less obvious parameters). -->
+    <NoWarn>$(NoWarn);CS1591;CS1573</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Pinned to the Roslyn version RadSharp.Design.Code uses. -->
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Features" Version="4.14.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.CSharp.Workspaces" Version="4.14.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RadSharp.Design.Code\RadSharp.Design.Code.csproj" />
+  </ItemGroup>
+
+</Project>
