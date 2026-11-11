@@ -242,7 +242,7 @@ public sealed class DebugSession : IAsyncDisposable
             await _transport.RequestAsync("disconnect",
                 Json(new DisconnectArguments { TerminateDebuggee = terminateDebuggee }, DapJson.Default.DisconnectArguments), ct).ConfigureAwait(false);
         }
-        finally { SetState(DebugSessionState.Ended); }
+        finally { SetState(DebugSessionState.Ended); EndOfSession(); }
     }
 
     public async ValueTask DisposeAsync()
@@ -258,6 +258,7 @@ public sealed class DebugSession : IAsyncDisposable
         }
         _transport.EventReceived -= OnEvent;
         _transport.Closed -= OnClosed;
+        EndOfSession();
         await _transport.DisposeAsync().ConfigureAwait(false);
         if (_process is not null)
         {
@@ -308,6 +309,7 @@ public sealed class DebugSession : IAsyncDisposable
                     var e = Read(body, DapJson.Default.StoppedEventArgs);
                     lock (_gate) _stoppedThreadId = e.ThreadId;
                     if (e.HitBreakpointIds is { Count: > 0 }) Breakpoints.RecordHits(e.HitBreakpointIds);
+                    else if (e.Reason == "breakpoint" && e.ThreadId is { } tid) CountHitFromTopFrame(tid);
                     SetState(DebugSessionState.Stopped);
                     lock (_gate) _stoppedThreadId = e.ThreadId;
                     Stopped?.Invoke(this, e);
@@ -322,7 +324,7 @@ public sealed class DebugSession : IAsyncDisposable
                     break;
                 case "terminated":
                     SetState(DebugSessionState.Ended);
-                    Breakpoints.ResetAdapterState();
+                    EndOfSession();
                     Terminated?.Invoke(this, Read(body, DapJson.Default.TerminatedEventArgs));
                     break;
                 case "output":
@@ -346,11 +348,33 @@ public sealed class DebugSession : IAsyncDisposable
         catch (JsonException) { /* a malformed event body is ignored */ }
     }
 
+    /// <summary>
+    /// netcoredbg does not report hitBreakpointIds, so find the breakpoint from the top frame's file and line.
+    /// Runs on the event thread (which is allowed to issue requests); best effort, bounded to two seconds.
+    /// </summary>
+    private void CountHitFromTopFrame(int threadId)
+    {
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
+            var frame = GetStackTraceAsync(threadId, 0, 1, cts.Token).GetAwaiter().GetResult().StackFrames.FirstOrDefault();
+            if (frame?.Source?.Path is not { } path) return;
+            var bp = Breakpoints.GetForFile(path).FirstOrDefault(b => b.Enabled && (b.ActualLine ?? b.Line) == frame.Line);
+            if (bp?.AdapterId is { } id) Breakpoints.RecordHits([id]);
+        }
+        catch (Exception) { /* hit counts are informational */ }
+    }
+
+    private void EndOfSession()
+    {
+        Breakpoints.ResetAdapterState();
+        lock (_gate) _sentFiles.Clear();
+    }
+
     private void OnClosed(Exception? reason)
     {
         SetState(DebugSessionState.Ended);
-        Breakpoints.ResetAdapterState();
-        lock (_gate) _sentFiles.Clear();
+        EndOfSession();
         _initialized.TrySetException(new DapConnectionClosedException("The debug adapter closed before the session started.", reason));
         _ = _initialized.Task.Exception; // observed
         AdapterClosed?.Invoke(this, reason);
