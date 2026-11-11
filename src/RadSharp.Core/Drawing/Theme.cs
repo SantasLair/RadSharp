@@ -29,6 +29,10 @@ public sealed record Theme
     public Color OnAccent { get; init; } = Color.FromHex("#FFFFFF");
     public Color PopupBackground { get; init; } = Color.FromHex("#FFFFFF");
     public Color PopupBorder { get; init; } = Color.FromHex("#B8BEC8");
+    /// <summary>Status colours for error, warning and information markers (icons, badges).</summary>
+    public Color Error { get; init; } = Color.FromHex("#D13438");
+    public Color Warning { get; init; } = Color.FromHex("#E8A200");
+    public Color Info { get; init; } = Color.FromHex("#2F7FD8");
 
     public FontFace FontFace { get; init; } = FontFace.Regular;
     public FontFace BoldFontFace { get; init; } = FontFace.Bold;
@@ -67,6 +71,9 @@ public sealed record Theme
         OnAccent = Color.FromHex("#FFFFFF"),
         PopupBackground = Color.FromHex("#2D2D30"),
         PopupBorder = Color.FromHex("#555555"),
+        Error = Color.FromHex("#F14C4C"),
+        Warning = Color.FromHex("#CCA700"),
+        Info = Color.FromHex("#3794FF"),
     };
 
     public static Theme Current { get; set; } = Default;
