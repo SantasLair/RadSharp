@@ -56,6 +56,11 @@
                 "shortcut": "Mod+Z"
               },
               {
+                "caption": "Redo",
+                "onClick": "mnuRedo_Click",
+                "shortcut": "Mod+Y"
+              },
+              {
                 "caption": "-",
                 "separator": true
               },
@@ -86,12 +91,38 @@
             ]
           },
           {
-            "caption": "Format",
+            "caption": "Search",
             "items": [
               {
-                "caption": "Word wrap",
-                "onClick": "mnuWordWrap_Click",
-                "name": "mniWordWrap",
+                "caption": "Find…",
+                "onClick": "mnuFind_Click",
+                "shortcut": "Mod+F"
+              },
+              {
+                "caption": "Replace…",
+                "onClick": "mnuReplace_Click",
+                "shortcut": "Mod+H"
+              },
+              {
+                "caption": "Find next",
+                "onClick": "mnuFindNext_Click",
+                "shortcut": "F3"
+              }
+            ]
+          },
+          {
+            "caption": "View",
+            "items": [
+              {
+                "caption": "Line numbers",
+                "onClick": "mnuLineNumbers_Click",
+                "name": "mniLineNumbers",
+                "checked": true
+              },
+              {
+                "caption": "C# colours",
+                "onClick": "mnuCSharp_Click",
+                "name": "mniCSharp",
                 "checked": true
               }
             ]
@@ -103,26 +134,23 @@
         "name": "sbMain"
       },
       {
-        "class": "Memo",
-        "name": "memText",
+        "class": "CodeEditor",
+        "name": "edCode",
         "align": "client",
-        "borderStyle": "none",
-        "onChange": "memText_Change",
-        "onKeyUp": "memText_KeyUp",
-        "onMouseUp": "memText_MouseUp",
-        "placeholder": "Start typing…"
+        "onTextChanged": "edCode_TextChanged",
+        "onCaretMoved": "edCode_CaretMoved"
       },
       {
         "class": "OpenDialog",
         "name": "dlgOpen",
-        "filter": "Text files|*.txt;*.md|All files|*.*",
+        "filter": "Text and code|*.txt;*.md;*.cs;*.json|All files|*.*",
         "left": 20,
         "top": 60
       },
       {
         "class": "SaveDialog",
         "name": "dlgSave",
-        "filter": "Text files|*.txt|All files|*.*",
+        "filter": "Text and code|*.txt;*.md;*.cs;*.json|All files|*.*",
         "left": 60,
         "top": 60
       }

@@ -1,43 +1,46 @@
 using RadSharp;
+using RadSharp.CodeEditing;
 
 namespace TextEditor;
 
-/// <summary>A small Notepad: a Memo, menus, native open/save dialogs and an unsaved-changes prompt.</summary>
+/// <summary>
+/// A small code-aware Notepad: a CodeEditor (C# colours, folding, multiple carets, find/replace), menus, native
+/// open/save dialogs and an unsaved-changes prompt. Line breaks are kept as loaded (CRLF or LF).
+/// </summary>
 public partial class MainForm : Form
 {
     string? _path;
-    bool _dirty;
 
     public MainForm()
     {
         InitializeComponent();
+        UpdateTitle();
         UpdateStatus();
     }
 
-    void UpdateTitle() => Caption = $"{(_path != null ? Path.GetFileName(_path) : "Untitled")}{(_dirty ? " *" : "")} — Text Editor";
+    bool Dirty => edCode.IsModified;
+
+    void UpdateTitle() => Caption = $"{(_path != null ? Path.GetFileName(_path) : "Untitled")}{(Dirty ? " *" : "")} — Text Editor";
 
     void UpdateStatus()
     {
-        var text = memText.Text;
-        int caret = Math.Min(memText.CaretPosition, text.Length);
-        int line = text.AsSpan(0, caret).Count('\n') + 1;
-        int col = caret - (text.LastIndexOf('\n', Math.Max(0, caret - 1)) + 1) + 1;
-        if (caret == 0) col = 1;
-        sbMain.SimpleText = $"Ln {line}, Col {col}    {text.Length} characters    {(memText.WordWrap ? "Wrap" : "No wrap")}";
+        var p = edCode.CaretPosition;
+        int carets = edCode.Selections.Count;
+        var eol = edCode.Buffer.NewLine == "\r\n" ? "CRLF" : "LF";
+        sbMain.SimpleText = $"Ln {p.Line + 1}, Col {p.Column + 1}{(carets > 1 ? $"    {carets} carets" : "")}    {edCode.LineCount} lines    {eol}    {(edCode.TokenSource != null ? "C#" : "Plain text")}";
     }
 
-    void memText_Change(Control sender)
+    void edCode_TextChanged(Control sender, TextChangedEventArgs e)
     {
-        if (!_dirty) { _dirty = true; UpdateTitle(); }
+        UpdateTitle();
         UpdateStatus();
     }
 
-    void memText_KeyUp(Control sender, KeyEventArgs e) => UpdateStatus();
-    void memText_MouseUp(Control sender, MouseEventArgs e) => UpdateStatus();
+    void edCode_CaretMoved(Control sender) => UpdateStatus();
 
     bool ConfirmDiscard()
     {
-        if (!_dirty) return true;
+        if (!Dirty) return true;
         return Dialogs.MessageDlg("Save the changes?", MessageType.Confirmation, MessageButtons.YesNoCancel, this) switch
         {
             ModalResult.Yes => Save(_path),
@@ -53,18 +56,19 @@ public partial class MainForm : Form
             if (!dlgSave.Execute()) return false;
             path = dlgSave.FileName;
         }
-        File.WriteAllText(path, memText.Text);
+        File.WriteAllText(path, edCode.Text);
+        edCode.Buffer.MarkClean();
         _path = path;
-        _dirty = false;
         UpdateTitle();
         return true;
     }
 
     void Load(string path)
     {
-        memText.Text = File.ReadAllText(path);
+        edCode.Language = Path.GetExtension(path).Equals(".cs", StringComparison.OrdinalIgnoreCase) ? "csharp" : "plain";
+        edCode.Text = File.ReadAllText(path);
+        mniCSharp.Checked = edCode.Language == "csharp";
         _path = path;
-        _dirty = false;
         UpdateTitle();
         UpdateStatus();
     }
@@ -72,10 +76,10 @@ public partial class MainForm : Form
     void mnuNew_Click(MenuItem sender)
     {
         if (!ConfirmDiscard()) return;
-        memText.Text = "";
+        edCode.Text = "";
         _path = null;
-        _dirty = false;
         UpdateTitle();
+        UpdateStatus();
     }
 
     void mnuOpen_Click(MenuItem sender)
@@ -88,16 +92,26 @@ public partial class MainForm : Form
     void mnuSave_Click(MenuItem sender) => Save(_path);
     void mnuSaveAs_Click(MenuItem sender) => Save(null);
     void mnuExit_Click(MenuItem sender) => Close();
-    void mnuUndo_Click(MenuItem sender) => memText.Undo();
-    void mnuCut_Click(MenuItem sender) => memText.CutToClipboard();
-    void mnuCopy_Click(MenuItem sender) => memText.CopyToClipboard();
-    void mnuPaste_Click(MenuItem sender) => memText.PasteFromClipboard();
-    void mnuSelectAll_Click(MenuItem sender) => memText.SelectAll();
+    void mnuUndo_Click(MenuItem sender) => edCode.Undo();
+    void mnuRedo_Click(MenuItem sender) => edCode.Redo();
+    void mnuCut_Click(MenuItem sender) => edCode.CutToClipboard();
+    void mnuCopy_Click(MenuItem sender) => edCode.CopyToClipboard();
+    void mnuPaste_Click(MenuItem sender) => edCode.PasteFromClipboard();
+    void mnuSelectAll_Click(MenuItem sender) => edCode.SelectAll();
+    void mnuFind_Click(MenuItem sender) => edCode.ShowFind();
+    void mnuReplace_Click(MenuItem sender) => edCode.ShowFind(replace: true);
+    void mnuFindNext_Click(MenuItem sender) => edCode.FindNext();
 
-    void mnuWordWrap_Click(MenuItem sender)
+    void mnuLineNumbers_Click(MenuItem sender)
     {
-        memText.WordWrap = !memText.WordWrap;
-        mniWordWrap.Checked = memText.WordWrap;
+        edCode.ShowLineNumbers = !edCode.ShowLineNumbers;
+        mniLineNumbers.Checked = edCode.ShowLineNumbers;
+    }
+
+    void mnuCSharp_Click(MenuItem sender)
+    {
+        edCode.Language = edCode.Language == "csharp" ? "plain" : "csharp";
+        mniCSharp.Checked = edCode.Language == "csharp";
         UpdateStatus();
     }
 
@@ -106,10 +120,26 @@ public partial class MainForm : Form
     /// <summary>Some text for screenshots.</summary>
     public void LoadDemoText()
     {
-        memText.Text = "RADSharp text editor\n\nA Memo with word wrap, undo, the clipboard and IME input; menus with shortcuts; " +
-                       "native open and save dialogs; and a prompt for unsaved changes when closing.\n\n日本語もOK 👍";
-        _dirty = true;
+        edCode.Text = """
+            using RadSharp;
+
+            namespace Demo;
+
+            /// <summary>The RADSharp code editor: colours, folding, multiple carets, find/replace.</summary>
+            public sealed class Greeter
+            {
+                readonly string _name = "World";
+
+                public void Greet(int times)
+                {
+                    for (int i = 0; i < times; i++)
+                        Console.WriteLine($"Hello, {_name}! 日本語もOK 👍");
+                }
+            }
+            """;
+        edCode.GoTo(12, 12);
+        edCode.Focus();
         UpdateTitle();
-        memText.Focus();
+        UpdateStatus();
     }
 }
