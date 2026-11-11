@@ -1,12 +1,13 @@
 using System.Text.Json.Nodes;
+using RadSharp.CodeEditing;
 
 namespace RadSharp.Designer;
 
 /// <summary>
-/// The seam between <see cref="CodeDocument"/> and the control that edits its text. Today
-/// <see cref="MemoCodeEditorView"/> (a <see cref="Memo"/>) stands in; the real editor (<c>RadSharp.CodeEditor</c>,
-/// milestone I1) plugs in by implementing this interface and setting <see cref="CodeEditors.Factory"/>.
-/// Lines and columns are 1-based; text uses <c>\n</c> line breaks (the document converts on load and save).
+/// The seam between <see cref="CodeDocument"/> and the control that edits its text: <see cref="CodeEditorAdapter"/>
+/// over the <see cref="CodeEditor"/> control (set as <see cref="CodeEditors.Factory"/>). Lines and columns are
+/// 1-based; offsets are 0-based. The text keeps the file's own line breaks (CRLF, LF or mixed): the buffer preserves
+/// them, so nothing converts on load or save.
 /// </summary>
 public interface ICodeEditorView
 {
@@ -16,8 +17,23 @@ public interface ICodeEditorView
     /// <summary>The whole buffer. Setting it replaces the buffer (and its undo history) and raises <see cref="TextChanged"/>.</summary>
     string Text { get; set; }
 
-    /// <summary>Raised after every change to <see cref="Text"/>, typed or set.</summary>
+    /// <summary>Raised after every change to <see cref="Text"/>, typed, set or applied.</summary>
     event Action? TextChanged;
+
+    /// <summary>
+    /// Changes the text with <paramref name="edits"/> (against the current text, non-overlapping) as one undo step,
+    /// keeping the carets (they move with the text) and the undo history. Works when <see cref="ReadOnly"/> is set.
+    /// </summary>
+    void ApplyEdits(IReadOnlyList<TextEdit> edits);
+
+    /// <summary>True when the text differs from when it was loaded or <see cref="MarkClean"/> was last called (undo back to it clears it).</summary>
+    bool IsModified { get; }
+
+    /// <summary>Remembers the current text as saved.</summary>
+    void MarkClean();
+
+    /// <summary>The colouriser: <c>"csharp"</c>, <c>"json"</c> or <c>"plain"</c>.</summary>
+    string Language { get; set; }
 
     (int Line, int Column) Caret { get; }
 
@@ -43,19 +59,19 @@ public interface ICodeEditorView
 /// <summary>Creates the editor every <see cref="CodeDocument"/> uses.</summary>
 public static class CodeEditors
 {
-    /// <summary>The editor factory. The I1 code editor replaces this with one that builds its own view.</summary>
-    public static Func<ICodeEditorView> Factory { get; set; } = () => new MemoCodeEditorView();
+    /// <summary>The editor factory: a <see cref="CodeEditorAdapter"/> over a new <see cref="CodeEditor"/>.</summary>
+    public static Func<ICodeEditorView> Factory { get; set; } = () => new CodeEditorAdapter();
 }
 
 /// <summary>
-/// A code file open in the IDE (<c>.cs</c>, read/write), shown in an <see cref="ICodeEditorView"/>. A form's
-/// code-behind knows its form (<see cref="FormFile"/>) so F12 can switch between them in place.
+/// A code file open in the IDE (<c>.cs</c>, or any text file such as a <c>.radform.json</c> opened as text), shown in an
+/// <see cref="ICodeEditorView"/>. A form's code-behind knows its form (<see cref="FormFile"/>) so F12 can switch
+/// between them in place. The tab's dirty marker follows the buffer's undo history (<see cref="ICodeEditorView.IsModified"/>):
+/// typing and undoing back to the saved text is clean again. A file that is read-only on disk opens read-only.
 /// </summary>
 public sealed class CodeDocument : IDocumentView, IEditTarget
 {
     readonly ICodeEditorView _editor;
-    string _saved = "";
-    bool _crlf;
     bool _dirty;
 
     public CodeDocument(string path, ICodeEditorView? editor = null)
@@ -63,6 +79,7 @@ public sealed class CodeDocument : IDocumentView, IEditTarget
         Path = System.IO.Path.GetFullPath(path);
         _editor = editor ?? CodeEditors.Factory();
         _editor.Control.Name = "";
+        _editor.Language = LanguageOf(Path);
         Load();
         _editor.TextChanged += Refresh;
     }
@@ -70,15 +87,20 @@ public sealed class CodeDocument : IDocumentView, IEditTarget
     public string Kind => "code";
     public string Path { get; private set; }
     string? IDocumentView.Path => Path;
-    public string Title => System.IO.Path.GetFileName(Path);
 
     /// <summary>The file was renamed or moved (by the project tree): the open document follows it.</summary>
     public void MovedTo(string newPath)
     {
+        var old = Path;
         Path = System.IO.Path.GetFullPath(newPath);
         DiskTimestamp = DocumentFiles.Stamp(Path);
+        Moved?.Invoke(old);
         StateChanged?.Invoke();
     }
+
+    /// <summary>Raised by <see cref="MovedTo"/> with the old path (the language host renames the document).</summary>
+    public event Action<string>? Moved;
+    public string Title => System.IO.Path.GetFileName(Path) + (ReadOnly ? " [read-only]" : "");
     public bool IsDirty => _dirty;
     public Control View => _editor.Control;
     public ICodeEditorView Editor => _editor;
@@ -87,29 +109,53 @@ public sealed class CodeDocument : IDocumentView, IEditTarget
     /// <summary>The form this file is the code-behind of, if it is one.</summary>
     public string? FormFile { get; set; }
 
-    /// <summary>The buffer (with <c>\n</c> line breaks). Setting it keeps the document dirty until saved.</summary>
+    /// <summary>True for a C# file (the language service works on these).</summary>
+    public bool IsCSharp => _editor.Language == "csharp";
+
+    /// <summary>The file is read-only on disk, so the buffer is too.</summary>
+    public bool ReadOnly => _editor.ReadOnly;
+
+    /// <summary>The colouriser for a file: C# for <c>.cs</c>, JSON for <c>.json</c> (forms opened as text), plain otherwise.</summary>
+    public static string LanguageOf(string path) => System.IO.Path.GetExtension(path).ToLowerInvariant() switch
+    {
+        ".cs" => "csharp",
+        ".json" => "json",
+        _ => "plain",
+    };
+
+    /// <summary>
+    /// The buffer, with the file's line breaks. Setting it applies the difference as minimal edits (one undo step),
+    /// so the caret and the undo history survive; the document stays dirty until saved.
+    /// </summary>
     public string Text
     {
         get => _editor.Text;
-        set { if (value != _editor.Text) _editor.Text = Normalize(value); }
+        set => ApplyText(value);
+    }
+
+    /// <summary>Replaces the text with <paramref name="text"/> through the smallest edits (see <see cref="BufferDiff"/>), as one undo step.</summary>
+    public void ApplyText(string text)
+    {
+        var edits = BufferDiff.Edits(_editor.Text, text);
+        if (edits.Count > 0) _editor.ApplyEdits(edits);
     }
 
     public event Action? StateChanged;
 
-    static string Normalize(string text) => text.Replace("\r\n", "\n");
-
     void Load()
     {
-        var raw = File.ReadAllText(Path);
-        _crlf = raw.Contains("\r\n", StringComparison.Ordinal);
-        _saved = Normalize(raw);
-        _editor.Text = _saved;
+        _editor.Text = File.ReadAllText(Path);
+        _editor.MarkClean();
+        bool readOnly;
+        try { readOnly = (File.GetAttributes(Path) & FileAttributes.ReadOnly) != 0; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { readOnly = false; }
+        if (readOnly != _editor.ReadOnly) { _editor.ReadOnly = readOnly; StateChanged?.Invoke(); }
         DiskTimestamp = DocumentFiles.Stamp(Path);
     }
 
     void Refresh()
     {
-        bool dirty = _editor.Text != _saved;
+        bool dirty = _editor.IsModified;
         if (dirty == _dirty) return;
         _dirty = dirty;
         StateChanged?.Invoke();
@@ -121,16 +167,23 @@ public sealed class CodeDocument : IDocumentView, IEditTarget
     public bool Save()
     {
         var text = _editor.Text;
-        try { File.WriteAllText(Path, _crlf ? text.Replace("\n", "\r\n") : text); }
+        try { File.WriteAllText(Path, text); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
-        _saved = text;
+        _editor.MarkClean();
         DiskTimestamp = DocumentFiles.Stamp(Path);
         Refresh();
+        Saved?.Invoke();
         return true;
     }
 
+    /// <summary>Raised after the file was written (the language host stops overriding it with unsaved text then).</summary>
+    public event Action? Saved;
+
+    /// <summary>Raised when the document closes.</summary>
+    public event Action? Closed;
+
     public bool CanClose() => true;
-    public void Close() { }
+    public void Close() => Closed?.Invoke();
     public void Focus() => _editor.Focus();
 
     public bool Reload()
@@ -171,105 +224,4 @@ public sealed class CodeDocument : IDocumentView, IEditTarget
     public void Paste() => _editor.Paste();
     public void Delete() => _editor.Delete();
     public void SelectAll() => _editor.SelectAll();
-}
-
-/// <summary>
-/// The placeholder code editor: a <see cref="Memo"/> without word wrap that takes tabs. Fine for small files;
-/// <c>Memo</c> re-lays out every line per keystroke, which is why I1 builds a real editor (see ide-plan.md).
-/// </summary>
-public sealed class MemoCodeEditorView : ICodeEditorView
-{
-    readonly CodeMemo _memo = new() { WordWrap = false, WantTabs = true, BorderStyle = BorderStyle.None, HideSelection = false };
-
-    public MemoCodeEditorView() => _memo.Change += _ => TextChanged?.Invoke();
-
-    public Control Control => _memo;
-    public Memo Memo => _memo;
-
-    public string Text { get => _memo.Text; set => _memo.Text = value; }
-    public event Action? TextChanged;
-
-    public (int Line, int Column) Caret
-    {
-        get
-        {
-            var text = _memo.Text;
-            int caret = Math.Min(_memo.CaretPosition, text.Length);
-            int lineStart = caret == 0 ? 0 : text.LastIndexOf('\n', caret - 1) + 1;
-            int line = 1;
-            for (int i = 0; i < lineStart; i++) if (text[i] == '\n') line++;
-            return (line, caret - lineStart + 1);
-        }
-    }
-
-    public void SetCaret(int line, int column)
-    {
-        var text = _memo.Text;
-        int index = 0;
-        for (int l = 1; l < line && index <= text.Length; l++)
-        {
-            int nl = text.IndexOf('\n', index);
-            if (nl < 0) { index = text.Length; break; }
-            index = nl + 1;
-        }
-        int lineEnd = text.IndexOf('\n', Math.Min(index, text.Length));
-        if (lineEnd < 0) lineEnd = text.Length;
-        index = Math.Min(index + Math.Max(0, column - 1), lineEnd);
-        _memo.Select(index, 0);
-        _memo.RevealCaret();
-    }
-
-    public int ScrollOffset { get => _memo.VerticalScroll; set => _memo.VerticalScroll = value; }
-    public bool ReadOnly { get => _memo.ReadOnly; set => _memo.ReadOnly = value; }
-    public bool CanUndo => _memo.CanUndo;
-    public bool CanRedo => _memo.CanRedo;
-    public void Undo() => _memo.Undo();
-    public void Redo() => _memo.Redo();
-    public void Cut() => _memo.CutToClipboard();
-    public void Copy() => _memo.CopyToClipboard();
-    public void Paste() => _memo.PasteFromClipboard();
-    public void Delete() => _memo.DeleteSelection();
-    public void SelectAll() => _memo.SelectAll();
-    public void Focus() => _memo.Focus();
-
-    /// <summary>A memo that exposes its scroll position and redo state, and keeps the caret in view once it has a size.</summary>
-    sealed class CodeMemo : Memo
-    {
-        int? _pendingScroll;
-        bool _revealPending;
-
-        public bool CanRedo => Editor.CanRedo;
-
-        public void DeleteSelection()
-        {
-            if (!ReadOnly && Editor.HasSelection) Editor.DeleteForward();
-        }
-
-        public void RevealCaret()
-        {
-            if (Height <= 0) { _revealPending = true; return; }
-            EnsureCaretVisible();
-            Invalidate();
-        }
-
-        public int VerticalScroll
-        {
-            get => _pendingScroll ?? ScrollY;
-            set
-            {
-                if (Height <= 0) { _pendingScroll = value; return; }
-                ScrollY = value;
-                ClampScroll();
-                Invalidate();
-            }
-        }
-
-        protected override void OnResize()
-        {
-            base.OnResize();
-            if (Height <= 0) return;
-            if (_revealPending) { _revealPending = false; EnsureCaretVisible(); }
-            if (_pendingScroll is { } s) { _pendingScroll = null; ScrollY = s; ClampScroll(); }
-        }
-    }
 }
