@@ -50,7 +50,7 @@ public static class ProjectTemplates
             ((Button)button).Caption = "About…";
             button.EventHandlers["onClick"] = "btnAbout_Click";
         });
-        AddHandler(main, "MainForm", "btnAbout_Click", "using var about = new AboutDialog();\n        about.ShowModal();");
+        AddHandler(main, "MainForm", "btnAbout_Click", "new AboutDialog().ShowModal();");
 
         var dialog = project.AddForm("AboutDialog", "About");
         EditForm(dialog, doc =>

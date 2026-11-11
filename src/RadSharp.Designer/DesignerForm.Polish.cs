@@ -170,10 +170,7 @@ public partial class DesignerForm
                     if (form.Document.Save() == item.Text) break;
                     try
                     {
-                        form.Document.Snapshot();
-                        form.Document.Load(item.Text);
-                        form.Document.FileName = form.Path;
-                        form.Document.NotifyChanged();
+                        form.Document.ReplaceWithJson(item.Text);
                         restored++;
                     }
                     catch (FormFileException) { Output($"The recovered copy of {Path.GetFileName(item.Path)} could not be read; the file on disk is unchanged."); }
@@ -202,6 +199,7 @@ public partial class DesignerForm
             Item(menu, "Code.Rename", "Rename…");
             Item(menu, "Code.FormatDocument", "Format Document");
             Item(menu, "Code.QuickFix", "Quick Fixes…");
+            Item(menu, "Debug.ToggleBreakpoint");
             Separator(menu);
         }
         Item(menu, "Edit.Cut");
