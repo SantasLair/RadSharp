@@ -136,6 +136,7 @@ public partial class DesignerForm
         var sep = new ToolSeparator { Name = "sepDebug" };
         _debugToolbar.Add(sep);
         tbMain.Add(sep);
+        sep.SetBounds(0, 0, sep.Px(9), sep.Px(24));
         foreach (var (name, caption, id, width) in new[]
         {
             ("btnDebugContinue", "Continue", "Debug.Continue", 72), ("btnDebugPause", "Pause", "Debug.Pause", 56),
@@ -145,7 +146,7 @@ public partial class DesignerForm
         })
         {
             var b = new ToolButton { Name = name, Caption = caption };
-            b.SetBounds(0, 0, width, 28);
+            b.SetBounds(0, 0, b.Px(width), b.Px(28));
             _commands.Bind(b, id);
             _debugToolbar.Add(b);
             tbMain.Add(b);
