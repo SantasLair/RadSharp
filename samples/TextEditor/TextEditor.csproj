@@ -9,6 +9,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\RadSharp.Platform.Sdl\RadSharp.Platform.Sdl.csproj" />
+    <ProjectReference Include="..\..\src\RadSharp.CodeEditor\RadSharp.CodeEditor.csproj" />
     <!-- In a packaged app these come from the RadSharp.Core NuGet package. -->
     <ProjectReference Include="..\..\src\RadSharp.Generators\RadSharp.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
   </ItemGroup>
