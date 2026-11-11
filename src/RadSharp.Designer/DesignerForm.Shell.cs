@@ -73,6 +73,7 @@ public partial class DesignerForm
     /// <summary>Shows a place in the code through <see cref="CodeNavigator"/> and reports it in the status bar.</summary>
     public bool NavigateToCode(string file, int line, int column)
     {
+        using var _ = JumpScope();
         var nav = CodeNavigator;
         if (nav.Navigate(file, line, column))
         {

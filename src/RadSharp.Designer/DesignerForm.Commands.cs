@@ -111,6 +111,7 @@ public partial class DesignerForm
         RegisterBuildCommands();
         RegisterLanguageCommands();
         RegisterProjectCommands();
+        RegisterNavigationCommands();
 
         c.ShortcutsChanged += () => RefreshCommandState();
     }
@@ -163,6 +164,7 @@ public partial class DesignerForm
         Cmd(edit, "Edit.SelectAll");
         edit.AddSeparator();
         Cmd(edit, "Edit.LockControls");
+        AddSearchMenuItems(edit);
 
         var view = Top("View");
         Cmd(view, "View.ToggleFormCode");
@@ -180,6 +182,7 @@ public partial class DesignerForm
         view.AddSeparator();
         Cmd(view, "View.ToggleDarkMode");
 
+        AddGoMenuItems(Top("Go"));
         AddCodeMenuItems(Top("Code"));
 
         var project = Top("Project");

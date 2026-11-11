@@ -32,7 +32,9 @@ public sealed class NavigationHistory
 
     readonly List<NavLocation> _entries = [];
     int _index = -1;
-    bool _jumping, _jumpRecorded;
+    int _jumpDepth;
+    bool _jumpRecorded;
+    bool Jumping => _jumpDepth > 0;
 
     public NavigationHistory(int capacity = 100) => Capacity = Math.Max(2, capacity);
 
@@ -56,17 +58,16 @@ public sealed class NavigationHistory
     /// activates it and moves its caret, and that is one place). The place the jump left stays as it was.</summary>
     public void BeginJump()
     {
-        _jumping = true;
-        _jumpRecorded = false;
+        if (_jumpDepth++ == 0) _jumpRecorded = false;
     }
 
-    public void EndJump() => _jumping = false;
+    public void EndJump() { if (_jumpDepth > 0) _jumpDepth--; }
 
     /// <summary>Reports where the user is now.</summary>
     public void Capture(NavLocation location)
     {
         if (Navigating) return;
-        if (_jumping)
+        if (Jumping)
         {
             if (_jumpRecorded && _index >= 0) Replace(location);
             else if (Current == location) { _jumpRecorded = true; }
@@ -91,7 +92,6 @@ public sealed class NavigationHistory
     {
         if (_entries[_index] == location) return;
         _entries[_index] = location;
-        Changed?.Invoke();
     }
 
     void Push(NavLocation location)

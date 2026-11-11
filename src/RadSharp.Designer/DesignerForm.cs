@@ -147,6 +147,7 @@ public partial class DesignerForm : Form
         ResetBuildState();
         foreach (var d in _docs.Documents.ToList()) RemoveDocument(d);
         StopLanguage();
+        ClearNavigationHistory();
         _project = null;
         ResetSolution();
         _docs.SplitView = false;
@@ -213,6 +214,7 @@ public partial class DesignerForm : Form
         form.StateChanged += UpdateTitle;
         _forms.Add(form);
         AttachLanguage(form);
+        HookNavigation(form);
         AddDocument(form, preview, activate);
         return form;
     }
@@ -237,6 +239,7 @@ public partial class DesignerForm : Form
         doc.FormFile = (ProjectOf(path) ?? _project)?.FormFiles.FirstOrDefault(f => SamePath(RadProject.CodeFileFor(f), path));
         doc.StateChanged += UpdateTitle;
         AttachLanguage(doc);
+        HookNavigation(doc);
         AddDocument(doc, preview, activate);
         return doc;
     }
@@ -252,6 +255,7 @@ public partial class DesignerForm : Form
     void OnActiveDocumentChanged(IDocumentView? doc)
     {
         ActivateOwningProject(doc);
+        CaptureLocation();
         if (doc is FormDocument form)
         {
             _current = form;
