@@ -44,7 +44,7 @@ namespace RadSharp.VisualStudio
         /// <summary>The designer wants VS's code editor opened at a file and 1-based line (event handler jump).</summary>
         event EventHandler<NavigateToCodeEventArgs>? NavigateToCode;
 
-        /// <summary>Something went wrong; shown in the VS status bar and the "RADSharp Designer" Output pane.</summary>
+        /// <summary>Something went wrong; shown in the VS status bar and the "RadSharp Designer" Output pane.</summary>
         event EventHandler<DesignerErrorEventArgs>? Error;
 
         /// <summary>The tab became the active document (the inspector and palette should follow it).</summary>

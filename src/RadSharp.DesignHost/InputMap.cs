@@ -1,6 +1,6 @@
 namespace RadSharp.DesignHost;
 
-/// <summary>Maps protocol input values to RADSharp's.</summary>
+/// <summary>Maps protocol input values to RadSharp's.</summary>
 internal static class InputMap
 {
     public static KeyModifiers Modifiers(Protocol.Modifiers mods)
@@ -20,7 +20,7 @@ internal static class InputMap
         _ => MouseButton.Left,
     };
 
-    /// <summary>A RADSharp <see cref="RadSharp.Key"/> by name ("A", "Enter", "F9"...), or null if there is no such key.</summary>
+    /// <summary>A RadSharp <see cref="RadSharp.Key"/> by name ("A", "Enter", "F9"...), or null if there is no such key.</summary>
     public static Key? Key(string name)
     {
         if (string.IsNullOrEmpty(name) || !char.IsLetter(name[0])) return null;   // no numeric values

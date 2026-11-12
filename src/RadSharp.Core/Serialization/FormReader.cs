@@ -59,7 +59,7 @@ public static class FormReader
     }
 
     /// <summary>Receives warnings from <c>LoadInto</c> (unknown classes, properties...).</summary>
-    public static Action<string>? Warning { get; set; } = w => System.Diagnostics.Debug.WriteLine("RADSharp: " + w);
+    public static Action<string>? Warning { get; set; } = w => System.Diagnostics.Debug.WriteLine("RadSharp: " + w);
 
     static FormLoadResult LoadCore(string json, Form? target, FormLoadOptions options)
     {

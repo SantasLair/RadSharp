@@ -5,24 +5,24 @@ using P = RadSharp.DesignHost.Protocol;
 namespace RadSharp.VisualStudio.Client;
 
 /// <summary>
-/// Maps WPF input to the names and flags the design host understands. Key names are RADSharp <c>Key</c> enum names
+/// Maps WPF input to the names and flags the design host understands. Key names are RadSharp <c>Key</c> enum names
 /// (src/RadSharp.Core/Input/Input.cs); a test checks every name here against that file.
 /// </summary>
 public static class InputMapping
 {
     private static readonly Dictionary<Key, string> Keys = BuildKeys();
 
-    /// <summary>All WPF keys that have a RADSharp name, with that name.</summary>
+    /// <summary>All WPF keys that have a RadSharp name, with that name.</summary>
     public static IReadOnlyDictionary<Key, string> KeyNames => Keys;
 
     /// <summary>
-    /// The RADSharp key name for a WPF key event, or null when RADSharp has no such key. Unwraps
+    /// The RadSharp key name for a WPF key event, or null when RadSharp has no such key. Unwraps
     /// <see cref="Key.System"/> (keys pressed with Alt), <see cref="Key.ImeProcessed"/> and
     /// <see cref="Key.DeadCharProcessed"/>.
     /// </summary>
     public static string? MapKey(KeyEventArgs e) => MapKey(RealKey(e));
 
-    /// <summary>The RADSharp key name for <paramref name="key"/>, or null when there is none.</summary>
+    /// <summary>The RadSharp key name for <paramref name="key"/>, or null when there is none.</summary>
     public static string? MapKey(Key key) => Keys.TryGetValue(key, out var name) ? name : null;
 
     /// <summary>The key actually pressed: <see cref="KeyEventArgs.Key"/> with the System / IME / dead-key wrappers removed.</summary>
@@ -54,7 +54,7 @@ public static class InputMapping
         _ => null,
     };
 
-    /// <summary>The RADSharp cursor names the host sends (src/RadSharp.Core/Input/Input.cs, <c>enum Cursor</c>).</summary>
+    /// <summary>The RadSharp cursor names the host sends (src/RadSharp.Core/Input/Input.cs, <c>enum Cursor</c>).</summary>
     public static IReadOnlyDictionary<string, Cursor> CursorNames { get; } = new Dictionary<string, Cursor>
     {
         ["Default"] = Cursors.Arrow,
@@ -70,7 +70,7 @@ public static class InputMapping
         ["Crosshair"] = Cursors.Cross,
     };
 
-    /// <summary>The WPF cursor for a RADSharp cursor name; the arrow for unknown names.</summary>
+    /// <summary>The WPF cursor for a RadSharp cursor name; the arrow for unknown names.</summary>
     public static Cursor MapCursor(string? name) =>
         name != null && CursorNames.TryGetValue(name, out var c) ? c : Cursors.Arrow;
 

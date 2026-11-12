@@ -170,7 +170,7 @@ public sealed class MouseUp : MouseMessage { public const byte Type = 0x12; publ
 /// <summary>Mouse wheel; Dx / Dy carry the delta.</summary>
 public sealed class MouseWheel : MouseMessage { public const byte Type = 0x13; public override byte MessageType => Type; }
 
-/// <summary>Shared payload of the key messages. <see cref="Key"/> is the RADSharp <c>Key</c> enum name.</summary>
+/// <summary>Shared payload of the key messages. <see cref="Key"/> is the RadSharp <c>Key</c> enum name.</summary>
 public abstract class KeyMessage : Message
 {
     public int WindowId { get; set; }
@@ -330,7 +330,7 @@ public sealed class Frame : Message
     }
 }
 
-/// <summary>The mouse cursor to show over a window (RADSharp cursor name).</summary>
+/// <summary>The mouse cursor to show over a window (RadSharp cursor name).</summary>
 public sealed class Cursor : Message
 {
     public const byte Type = 0x86;

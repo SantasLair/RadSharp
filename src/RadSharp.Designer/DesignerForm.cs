@@ -5,7 +5,7 @@ using RadSharp.Drawing;
 namespace RadSharp.Designer;
 
 /// <summary>
-/// The RADSharp IDE — itself a RADSharp form (DesignerForm.radform.json). As in Delphi and Lazarus, the
+/// The RadSharp IDE — itself a RadSharp form (DesignerForm.radform.json). As in Delphi and Lazarus, the
 /// designer always works on a project: with none open it shows the welcome page (new application, open
 /// project, recent projects); with one open, each open form has a tab with its own design surface.
 /// </summary>
@@ -242,8 +242,8 @@ public partial class DesignerForm : Form
         lstRecent.Items = [.. _settings.RecentProjects.Select(p => $"{System.IO.Path.GetFileNameWithoutExtension(p)}   —   {System.IO.Path.GetDirectoryName(p)}")];
         var source = _settings.EffectivePackageSource;
         lblPackages.Caption = source != null
-            ? $"RADSharp packages for new projects: {source}"
-            : "RADSharp packages: none found locally, so new projects use nuget.org (run dotnet pack in the RADSharp repository).";
+            ? $"RadSharp packages for new projects: {source}"
+            : "RadSharp packages: none found locally, so new projects use nuget.org (run dotnet pack in the RadSharp repository).";
 
         mniReopen.Items.Clear();
         foreach (var p in _settings.RecentProjects)
@@ -266,10 +266,10 @@ public partial class DesignerForm : Form
 
     void UpdateTitle()
     {
-        if (_project == null) { Caption = "RADSharp"; return; }
+        if (_project == null) { Caption = "RadSharp"; return; }
         Caption = _active == null
-            ? $"RADSharp — {_project.Name}"
-            : $"RADSharp — {_project.Name} — {_active.ClassName}{(_active.Document.Modified ? " *" : "")}";
+            ? $"RadSharp — {_project.Name}"
+            : $"RadSharp — {_project.Name} — {_active.ClassName}{(_active.Document.Modified ? " *" : "")}";
     }
 
     // ---- Inspector, name, structure ----

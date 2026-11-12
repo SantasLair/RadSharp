@@ -24,7 +24,7 @@ namespace RadSharp.VisualStudio
             }
 
             if (!task.IsCompleted)
-                throw new TimeoutException("The RADSharp design host did not answer within " + timeout.TotalSeconds + " s.");
+                throw new TimeoutException("The RadSharp design host did not answer within " + timeout.TotalSeconds + " s.");
             // The task has completed: this only rethrows its exception, it never blocks.
 #pragma warning disable VSTHRD002
             task.GetAwaiter().GetResult();

@@ -253,7 +253,7 @@ internal sealed class HostDocument
             case "SelectAll": Doc.SelectMany(Doc.PasteTarget().Children.Where(c => c.IsShown || c is Component)); break;
             case "BringToFront": Reorder(toFront: true); break;
             case "SendToBack": Reorder(toFront: false); break;
-            // The editors are modal RADSharp forms; HeadlessPlatform shows them as Dialog windows owned by the surface.
+            // The editors are modal RadSharp forms; HeadlessPlatform shows them as Dialog windows owned by the surface.
             case "TabOrder": TabOrderEditor.Edit(Doc, Doc.PasteTarget(), Surface?.OwningForm); break;
             case "MenuEditor":
                 if (FindMenuOwner() is not { } menu) return true;
@@ -280,7 +280,7 @@ internal sealed class HostDocument
         var code = IsFormFile ? RadProject.CodeFileFor(Path) : null;
         if (code == null || !File.Exists(code) || FindProjectFile(System.IO.Path.GetDirectoryName(Path)) == null)
         {
-            _server.SendError(DocId, $"Can't create an event handler: {System.IO.Path.GetFileName(Path)} is not part of a RADSharp project "
+            _server.SendError(DocId, $"Can't create an event handler: {System.IO.Path.GetFileName(Path)} is not part of a RadSharp project "
                 + $"(it needs a .csproj in its folder or above and its code-behind {(code != null ? System.IO.Path.GetFileName(code) : "<Name>.cs")} next to it).");
             return;
         }

@@ -22,7 +22,7 @@ namespace RadSharp.VisualStudio
         private readonly RemoteWindowView _view = new RemoteWindowView();
         private readonly TextBlock _message = new TextBlock
         {
-            Text = "No RADSharp form is active.",
+            Text = "No RadSharp form is active.",
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
@@ -96,19 +96,19 @@ namespace RadSharp.VisualStudio
             _view.Visibility = Visibility.Collapsed;
             _message.Visibility = Visibility.Visible;
             _message.Text = _service?.ActiveDesigner == null
-                ? "No RADSharp form is active."
-                : _service.DownReason != null ? "The RADSharp design host is not running." : "Loading…";
+                ? "No RadSharp form is active."
+                : _service.DownReason != null ? "The RadSharp design host is not running." : "Loading…";
         }
     }
 
-    /// <summary>View → Other Windows → RADSharp Toolbox: the component palette of the active form.</summary>
+    /// <summary>View → Other Windows → RadSharp Toolbox: the component palette of the active form.</summary>
     [Guid(GuidString)]
     public sealed class ToolboxToolWindow : RadSharpToolWindow
     {
         public const string GuidString = "42d7b6d4-d391-4a96-829c-97a567cb223b";
 
         public ToolboxToolWindow()
-            : base("RADSharp Toolbox")
+            : base("RadSharp Toolbox")
         {
             BitmapImageMoniker = KnownMonikers.ToolBox;
         }
@@ -116,14 +116,14 @@ namespace RadSharp.VisualStudio
         protected override WindowRole Role => WindowRole.Palette;
     }
 
-    /// <summary>View → Other Windows → RADSharp Properties: the Object Inspector of the active form.</summary>
+    /// <summary>View → Other Windows → RadSharp Properties: the Object Inspector of the active form.</summary>
     [Guid(GuidString)]
     public sealed class PropertiesToolWindow : RadSharpToolWindow
     {
         public const string GuidString = "d3a72c8a-8cf6-41fc-abc3-4d139b01e6bd";
 
         public PropertiesToolWindow()
-            : base("RADSharp Properties")
+            : base("RadSharp Properties")
         {
             BitmapImageMoniker = KnownMonikers.Property;
         }

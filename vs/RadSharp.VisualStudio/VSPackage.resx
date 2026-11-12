@@ -13,15 +13,15 @@
     <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </resheader>
   <data name="110" xml:space="preserve">
-    <value>RADSharp Form Designer</value>
+    <value>RadSharp Form Designer</value>
     <comment>Editor factory display name (Open With dialog).</comment>
   </data>
   <data name="111" xml:space="preserve">
-    <value>RADSharp Form Designer</value>
+    <value>RadSharp Form Designer</value>
     <comment>Package name.</comment>
   </data>
   <data name="112" xml:space="preserve">
-    <value>Visual form designer for RADSharp *.radform.json files.</value>
+    <value>Visual form designer for RadSharp *.radform.json files.</value>
     <comment>Package description.</comment>
   </data>
 </root>

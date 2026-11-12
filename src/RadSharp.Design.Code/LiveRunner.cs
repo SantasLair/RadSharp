@@ -16,9 +16,9 @@ public sealed record BuildMessage(string File, int Line, int Column, string Seve
 }
 
 /// <summary>
-/// F9: compiles a project in memory with Roslyn (running RADSharp's own generators on the forms,
+/// F9: compiles a project in memory with Roslyn (running RadSharp's own generators on the forms,
 /// including unsaved designer changes), and loads it into a collectible load context that shares the
-/// designer's RADSharp assemblies — so the live form opens in a window of the designer's own host.
+/// designer's RadSharp assemblies — so the live form opens in a window of the designer's own host.
 /// </summary>
 public sealed class LiveSession : IDisposable
 {
@@ -112,7 +112,7 @@ public sealed class LiveSession : IDisposable
             d.Severity.ToString().ToLowerInvariant(), d.Id, d.GetMessage());
     }
 
-    /// <summary>The designer process's own assemblies (the BCL, RADSharp, Skia...) as references.</summary>
+    /// <summary>The designer process's own assemblies (the BCL, RadSharp, Skia...) as references.</summary>
     static readonly Lazy<ImmutableArray<MetadataReference>> References = new(() =>
     [
         .. ((string)AppContext.GetData("TRUSTED_PLATFORM_ASSEMBLIES")!).Split(Path.PathSeparator)

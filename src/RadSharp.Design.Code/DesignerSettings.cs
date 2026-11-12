@@ -12,12 +12,14 @@ public sealed class DesignerSettings
     /// <summary>For <see cref="EditorKind.Custom"/>: a command with {file}, {line}, {folder}, {solution}.</summary>
     public string CustomEditorCommand { get; set; } = "";
     /// <summary>Where New Application puts projects by default.</summary>
+    /// <remarks>The folder keeps the original "RADSharp" spelling so existing projects and settings stay where they are.</remarks>
     public string ProjectsFolder { get; set; } = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "RADSharp Projects");
-    /// <summary>A local folder of RADSharp packages for new projects; empty = auto-detect, then nuget.org.</summary>
+    /// <summary>A local folder of RadSharp packages for new projects; empty = auto-detect, then nuget.org.</summary>
     public string PackageSource { get; set; } = "";
     /// <summary>Theme preference: "light" or "dark".</summary>
     public string Theme { get; set; } = "light";
 
+    /// <summary>The settings file. The folder keeps the original "RADSharp" spelling (see <see cref="ProjectsFolder"/>).</summary>
     public static string DefaultPath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "RADSharp", "designer.json");
 

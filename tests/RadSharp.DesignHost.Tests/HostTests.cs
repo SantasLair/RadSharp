@@ -202,7 +202,7 @@ public class HostTests
         var path = TestFiles.HelloForm();
         var (client, _) = OpenHello(path);
         using var __ = client;
-        File.WriteAllText(path, File.ReadAllText(path).Replace("\"Hello RADSharp\"", "\"Reloaded\""));
+        File.WriteAllText(path, File.ReadAllText(path).Replace("\"Hello RadSharp\"", "\"Reloaded\""));
         client.Send(new P.ReloadDocument { DocId = Doc });
         client.Settle();
         Assert.Equal("Reloaded", client.Ui(() => client.Server!.Document(Doc)!.Doc.Form.Caption));
@@ -284,7 +284,7 @@ public class HostTests
         client.DoubleClick(panes.Surface, x, y);
         var error = client.Expect<P.Error>();
         Assert.Equal(Doc, error.DocId);
-        Assert.Contains("not part of a RADSharp project", error.Text);
+        Assert.Contains("not part of a RadSharp project", error.Text);
     }
 
     /// <summary>A project with a MainForm and a Button1 on it, its surface and inspector shown.</summary>

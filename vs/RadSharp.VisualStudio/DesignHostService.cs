@@ -202,7 +202,7 @@ namespace RadSharp.VisualStudio
 
         /// <summary>
         /// Sets RADSHARP_THEME in this process while the host is launched (the child inherits the environment), then
-        /// restores it, so programs VS starts later (F5 of a RADSharp app) don't inherit the designer's theme.
+        /// restores it, so programs VS starts later (F5 of a RadSharp app) don't inherit the designer's theme.
         /// </summary>
         private static IDisposable WithHostTheme(bool dark)
         {

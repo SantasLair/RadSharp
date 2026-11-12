@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <!-- The Visual Studio side of the out-of-process designer: starts RadSharpDesignHost.exe, talks the pipe protocol and
-       shows host windows as WPF elements. No RADSharp and no VS SDK references, so the VSIX and the harness can share it. -->
+       shows host windows as WPF elements. No RadSharp and no VS SDK references, so the VSIX and the harness can share it. -->
   <PropertyGroup>
     <UseWPF>true</UseWPF>
     <RootNamespace>RadSharp.VisualStudio.Client</RootNamespace>

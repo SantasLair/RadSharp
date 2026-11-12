@@ -1,7 +1,7 @@
 namespace RadSharp.DesignHost;
 
 /// <summary>
-/// RADSharp's platform services without a window system. Forms shown with Show / ShowModal become host windows
+/// RadSharp's platform services without a window system. Forms shown with Show / ShowModal become host windows
 /// the client is told about (<c>WindowOpened</c> with the owner window); modal loops and
 /// <see cref="ProcessEventsUntil"/> pump the host's UI queue. File dialogs report "cancelled" (v1).
 /// </summary>

@@ -1,6 +1,6 @@
-# RADSharp roadmap
+# RadSharp roadmap
 
-> **RADSharp is the working title.** The released product name must be vetted before release (M9).
+> **The product name is RadSharp** (chosen 2026-11-11). Domain and trademark checks are still open.
 
 > A cross-platform, Delphi-like RAD tool for C#: custom-drawn controls, a visual form designer, and
 > NativeAOT executables. Written 2026-09-26. Background and alternatives: `future-framework-brainstorm.md`.
@@ -238,9 +238,9 @@ without leaving the designer except to type code.
 `RADSHARP_SLOW_TESTS=1`, after `dotnet pack`) publishes a designer-created project with NativeAOT (~20 s).
 - `src/RadSharp.Design.Code` (Roslyn): `RadProject` (a .csproj + `X.radform.json`/`X.cs` pairs; create project,
   add form), `CodeIntegration` (handler stubs inserted with matching indentation and needed usings, identifier
-  renames, Delphi-style default events), `LiveSession` (F9: in-memory compile of the project with RADSharp's
+  renames, Delphi-style default events), `LiveSession` (F9: in-memory compile of the project with RadSharp's
   generators run in-process on the designer's unsaved form text, forms embedded as resources, loaded into a
-  collectible `AssemblyLoadContext` that shares the designer's RADSharp assemblies; entry points are skipped;
+  collectible `AssemblyLoadContext` that shares the designer's RadSharp assemblies; entry points are skipped;
   `ComponentRegistry.Unregister` on unload), `ProjectBuilder` (`dotnet publish` NativeAOT, streamed output),
   `ExternalEditor` (`code -g file:line`, or `RADSHARP_EDITOR`).
 - Designer: File › New project / Open project / New form, a Project tab, Run › Run (F9) / Build (Ctrl+F9), an Output
@@ -330,7 +330,7 @@ controls, canvas, fonts, window/DPI model, frames, cross-OS verification). They 
 
 ## Open decisions
 
-- Released product name (RADSharp is the working title).
+- Released product name: RadSharp (chosen 2026-11-11; domain and trademark checks still open).
 - Form file extension: `.radform.json` or `.radform`.
 - Target .NET version and minimum OS versions.
 - Licence (MIT or similar) if the project is published.

@@ -22,4 +22,4 @@ jobs:
           name: app-${{ matrix.os }}
           path: out/
 # Before shipping: sign the Windows .exe (SmartScreen warns about unsigned apps) and sign and
-# notarize the macOS app (Gatekeeper blocks unsigned downloads). See the RADSharp docs.
+# notarize the macOS app (Gatekeeper blocks unsigned downloads). See the RadSharp docs.

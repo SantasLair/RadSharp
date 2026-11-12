@@ -7,7 +7,7 @@ using Rgb = RadSharp.Drawing.Color;
 namespace TileEditor;
 
 /// <summary>
-/// The tile editor from GMForms, rebuilt on RADSharp: the layout, menus and toolbar come from
+/// The tile editor from GMForms, rebuilt on RadSharp: the layout, menus and toolbar come from
 /// MainForm.radform.json (converted from the GameMaker version); this is the code-behind.
 /// </summary>
 public partial class MainForm : Form

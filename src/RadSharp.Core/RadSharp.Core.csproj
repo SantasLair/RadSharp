@@ -4,7 +4,7 @@
     <RootNamespace>RadSharp</RootNamespace>
     <IsAotCompatible>true</IsAotCompatible>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Description>RADSharp core: Delphi-style controls with Align + Anchors layout, pixel-perfect Skia rendering, form files and the form source generator.</Description>
+    <Description>RadSharp core: Delphi-style controls with Align + Anchors layout, pixel-perfect Skia rendering, form files and the form source generator.</Description>
   </PropertyGroup>
 
   <ItemGroup>

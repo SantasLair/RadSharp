@@ -268,7 +268,7 @@ public sealed class NavigateToCodeEventArgs : EventArgs
     public DesignDocument? Document { get; }
     public string File { get; }
 
-    /// <summary>The line as the host sent it (RADSharp's <c>EnsureHandler</c> line).</summary>
+    /// <summary>The line as the host sent it (RadSharp's <c>EnsureHandler</c> line).</summary>
     public int Line { get; }
 }
 

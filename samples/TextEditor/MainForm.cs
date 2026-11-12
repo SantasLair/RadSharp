@@ -106,7 +106,7 @@ public partial class MainForm : Form
     /// <summary>Some text for screenshots.</summary>
     public void LoadDemoText()
     {
-        memText.Text = "RADSharp text editor\n\nA Memo with word wrap, undo, the clipboard and IME input; menus with shortcuts; " +
+        memText.Text = "RadSharp text editor\n\nA Memo with word wrap, undo, the clipboard and IME input; menus with shortcuts; " +
                        "native open and save dialogs; and a prompt for unsaved changes when closing.\n\n日本語もOK 👍";
         _dirty = true;
         UpdateTitle();

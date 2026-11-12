@@ -76,7 +76,7 @@ public class RemoteWindowView : FrameworkElement
 
     /// <summary>
     /// Decides whether a key event goes to the host. Return false to let the key bubble on unhandled (for example Ctrl+S in
-    /// Visual Studio). Keys that are forwarded are marked handled, except KeyDowns of keys that type text (so TextInput still follows). Null forwards every key RADSharp knows.
+    /// Visual Studio). Keys that are forwarded are marked handled, except KeyDowns of keys that type text (so TextInput still follows). Null forwards every key RadSharp knows.
     /// </summary>
     public Func<KeyEventArgs, bool>? ShouldForwardKey { get; set; }
 
@@ -423,7 +423,7 @@ public class RemoteWindowView : FrameworkElement
 
     // ---- Keyboard ----
 
-    /// <summary>Sends a key message for <paramref name="key"/> if it has a RADSharp name. Returns the message sent.</summary>
+    /// <summary>Sends a key message for <paramref name="key"/> if it has a RadSharp name. Returns the message sent.</summary>
     internal P.KeyMessage? SendKey(bool down, Key key, ModifierKeys mods, bool repeat)
     {
         if (!Attached) return null;

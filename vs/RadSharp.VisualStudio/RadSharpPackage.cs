@@ -10,7 +10,7 @@ using Task = System.Threading.Tasks.Task;
 namespace RadSharp.VisualStudio
 {
     /// <summary>
-    /// The RADSharp Form Designer package. VS loads it (in the background) the first time it needs the editor factory,
+    /// The RadSharp Form Designer package. VS loads it (in the background) the first time it needs the editor factory,
     /// i.e. when a *.json file is opened; there is no auto-load.
     /// </summary>
     /// <remarks>
@@ -24,7 +24,7 @@ namespace RadSharp.VisualStudio
     /// text editor is the "*" fallback. 0x64 puts us first, which makes the designer the default for
     /// *.radform.json; every other .json file gets VS_E_UNSUPPORTEDFORMAT and falls through to the JSON editor
     /// unchanged. (A per-user "Open With → Set as Default" choice for .json overrides priorities, as for any editor.)</item>
-    /// <item><b>ProvideEditorFactory</b> with display name #110 lists "RADSharp Form Designer" in Open With.
+    /// <item><b>ProvideEditorFactory</b> with display name #110 lists "RadSharp Form Designer" in Open With.
     /// We don't touch the other registrations, so "Source Code (Text) Editor" and the JSON editor stay in Open With
     /// for the raw JSON.</item>
     /// <item><b>ProvideEditorLogicalView(Designer)</b>. MapLogicalView accepts only Primary and Designer. Anything that
@@ -62,7 +62,7 @@ namespace RadSharp.VisualStudio
         /// <summary>The shared design host. Created in <see cref="InitializeAsync"/>; the host process starts on first use.</summary>
         internal DesignHostService HostService => _hostService ?? throw new InvalidOperationException("The package is not initialized.");
 
-        /// <summary>Shows the RADSharp Toolbox and Properties windows the first time a designer opens in this VS session.</summary>
+        /// <summary>Shows the RadSharp Toolbox and Properties windows the first time a designer opens in this VS session.</summary>
         internal void ShowToolWindowsOnce()
         {
             if (_toolWindowsShown)
@@ -75,7 +75,7 @@ namespace RadSharp.VisualStudio
             }).FileAndForget("RadSharp/Designer/ShowToolWindows");
         }
 
-        /// <summary>Status bar and the "RADSharp Designer" Output pane. UI thread only.</summary>
+        /// <summary>Status bar and the "RadSharp Designer" Output pane. UI thread only.</summary>
         internal DesignerOutput Output
         {
             get
@@ -93,7 +93,7 @@ namespace RadSharp.VisualStudio
             ViewFactory ??= new ClientDesignerViewFactory(this);
             RegisterEditorFactory(new DesignerEditorFactory(this));
 
-            // View > Other Windows > RADSharp Toolbox / RADSharp Properties.
+            // View > Other Windows > RadSharp Toolbox / RadSharp Properties.
             if (await GetServiceAsync(typeof(IMenuCommandService)) is OleMenuCommandService commands)
             {
                 var set = new Guid(CommandSetGuidString);

@@ -1,7 +1,7 @@
 # Plan: closing the gaps for 1.0
 
 > Written 2026-09-26. Turns [gap-analysis.md](gap-analysis.md) into milestones (M10 onwards, continuing
-> `RADSharp-roadmap.md`). Same rules as the roadmap: ordered by dependency, not by date; sizes are rough
+> `RadSharp-roadmap.md`). Same rules as the roadmap: ordered by dependency, not by date; sizes are rough
 > (S ≈ days, M ≈ 1–2 weeks, L ≈ several weeks); every milestone has a **done when** that a test can check.
 > Web (WASM) is **not** part of 1.0; only the no-regret items from gap-analysis §5.0 are (they sit in M11).
 >
@@ -145,7 +145,7 @@ CI matrix remains desirable but is no longer the gate for calling this milestone
   checked, out of scope per the decision above.
 - Golden policy: one set for all OSes, confirmed viable for Windows+Linux; still the default policy on the
   (deferred) macOS question too, until evidence says otherwise.
-- README/roadmap "run in CI" vs "not yet run" contradiction: still open (`RADSharp-roadmap.md:46` says "not yet
+- README/roadmap "run in CI" vs "not yet run" contradiction: still open (`RadSharp-roadmap.md:46` says "not yet
   run: no remote", which is now stale since a remote exists) — small copy fix, not blocking.
 - `dotnet test` result upload / NativeAOT publish artifacts in CI: still open, but not required for the reduced
   local-verification bar.

@@ -72,8 +72,8 @@ public sealed class DesignHostServer
         var previousPlatform = PlatformHost.Current;
         PlatformHost.Current = _platform;
         Application.ThreadException += OnThreadException;
-        var reader = new Thread(ReadLoop) { IsBackground = true, Name = "RADSharp design host reader" };
-        var writer = new Thread(WriteLoop) { IsBackground = true, Name = "RADSharp design host writer" };
+        var reader = new Thread(ReadLoop) { IsBackground = true, Name = "RadSharp design host reader" };
+        var writer = new Thread(WriteLoop) { IsBackground = true, Name = "RadSharp design host writer" };
         reader.Start();
         writer.Start();
         try
@@ -98,7 +98,7 @@ public sealed class DesignHostServer
     /// <summary>Runs the host on a new background thread (for tests and embedding).</summary>
     public Thread Start()
     {
-        var thread = new Thread(Run) { IsBackground = true, Name = "RADSharp design host UI" };
+        var thread = new Thread(Run) { IsBackground = true, Name = "RadSharp design host UI" };
         thread.Start();
         return thread;
     }
@@ -580,7 +580,7 @@ public sealed class DesignHostServer
     }
 
     // =====================================================================
-    // Windows for forms shown by RADSharp code (dialogs)
+    // Windows for forms shown by RadSharp code (dialogs)
     // =====================================================================
 
     /// <summary>Announces a form shown with Show / ShowModal as a <see cref="WindowRole.Dialog"/> window over its owner.</summary>

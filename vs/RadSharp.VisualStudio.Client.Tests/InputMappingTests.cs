@@ -9,7 +9,7 @@ using P = RadSharp.DesignHost.Protocol;
 
 namespace RadSharp.VisualStudio.Client.Tests;
 
-/// <summary>The client has no reference to RADSharp, so these tests read RADSharp's source to keep the name tables honest.</summary>
+/// <summary>The client has no reference to RadSharp, so these tests read RadSharp's source to keep the name tables honest.</summary>
 public class InputMappingTests
 {
     private static string RepoRoot()
@@ -44,7 +44,7 @@ public class InputMappingTests
         var keys = EnumMembers("Key");
         Assert.Contains("F12", keys); // the parse found the real enum
         var missing = InputMapping.KeyNames.Values.Distinct().Where(n => !keys.Contains(n)).ToList();
-        Assert.True(missing.Count == 0, "Not in RADSharp's Key enum: " + string.Join(", ", missing));
+        Assert.True(missing.Count == 0, "Not in RadSharp's Key enum: " + string.Join(", ", missing));
     }
 
     [Fact]
@@ -52,7 +52,7 @@ public class InputMappingTests
     {
         var mapped = new HashSet<string>(InputMapping.KeyNames.Values);
         var unmapped = EnumMembers("Key").Where(k => k != "Unknown" && !mapped.Contains(k)).ToList();
-        Assert.True(unmapped.Count == 0, "RADSharp keys with no WPF mapping: " + string.Join(", ", unmapped));
+        Assert.True(unmapped.Count == 0, "RadSharp keys with no WPF mapping: " + string.Join(", ", unmapped));
     }
 
     [Fact]

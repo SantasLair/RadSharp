@@ -5,10 +5,10 @@ using Microsoft.VisualStudio.Shell.Interop;
 
 namespace RadSharp.VisualStudio
 {
-    /// <summary>Writes to the "RADSharp Designer" Output pane and the VS status bar. UI thread only.</summary>
+    /// <summary>Writes to the "RadSharp Designer" Output pane and the VS status bar. UI thread only.</summary>
     internal sealed class DesignerOutput
     {
-        public const string PaneTitle = "RADSharp Designer";
+        public const string PaneTitle = "RadSharp Designer";
         private static Guid s_paneGuid = new Guid("3464abcd-fcf4-458d-bf1c-07ed8524614b");
 
         private readonly IServiceProvider _services;

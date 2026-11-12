@@ -4,7 +4,7 @@
 > Claims about behaviour come from the code; where I inferred something it says so. Delphi comparisons are from
 > general knowledge of VCL/FMX/RAD Studio, not from a licensed copy.
 >
-> Scope, as requested: what stops RADSharp being used to build **real cross-platform applications**, with no bells
+> Scope, as requested: what stops RadSharp being used to build **real cross-platform applications**, with no bells
 > and whistles. Then: what a browser (WebAssembly) target needs, and which decisions have to be made first.
 >
 > **Web is an eventual goal, not a 1.0 requirement.** Sections 2–4 are the 1.0 material. Section 5 is post-1.0
@@ -91,7 +91,7 @@ without a workaround; **P1** = painful but workable; **P2** = polish.
 
 ## 3. Comparison with Delphi / RAD Studio, by area
 
-| Area | Delphi VCL/FMX | RADSharp today | Verdict |
+| Area | Delphi VCL/FMX | RadSharp today | Verdict |
 |---|---|---|---|
 | Form format + code-behind | .dfm/.fmx + .pas | `.radform.json` + partial class, compile-time binding | **On par** (arguably stricter) |
 | Layout | Align, Anchors, plus Flow/Grid/Stack panels, AutoSize | Align, Anchors, constraints | Missing flow/grid/auto-size |
@@ -155,7 +155,7 @@ Do them only where they also make sense on desktop.
 
 Everything else in this section can wait until after 1.0.
 
-### 5.1 What is already in RADSharp's favour
+### 5.1 What is already in RadSharp's favour
 
 - `Core` needs only: Skia, HarfBuzz, System.Text.Json and file/environment APIs. None of it is OS-specific.
 - The host contract is small: `IPlatformServices` (show/close form, modal loop, file dialog), `IClipboard`, and
@@ -247,7 +247,7 @@ Everything else in this section can wait until after 1.0.
 
 **Status as of 2026-09-28:** 1 and 3 below are done (M11/M12); the rest are still the real list.
 
-RADSharp's core is a credible base for real apps. For 1.0 the gaps that hurt most are not exotic:
+RadSharp's core is a credible base for real apps. For 1.0 the gaps that hurt most are not exotic:
 
 1. ~~safe UI-thread access and error handling~~ — **done**,
 2. a real grid and fuller list/tree controls,

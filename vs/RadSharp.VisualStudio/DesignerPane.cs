@@ -25,7 +25,7 @@ namespace RadSharp.VisualStudio
         IVsFileChangeEvents, IVsDocDataFileChangeControl
     {
         private const uint FormatIndex = 0;
-        private const string FormatList = "RADSharp form (*.radform.json)\n*.radform.json\n\n";
+        private const string FormatList = "RadSharp form (*.radform.json)\n*.radform.json\n\n";
 
         private static readonly Guid s_std97 = VSConstants.GUID_VSStandardCommandSet97;
 
@@ -419,7 +419,7 @@ namespace RadSharp.VisualStudio
             {
                 var answer = VsShellUtilities.ShowMessageBox(_package,
                     $"{_path}\n\nThis file has been modified outside of Visual Studio and has unsaved changes in the designer.\n\nReload it and lose your changes?",
-                    "RADSharp Form Designer", OLEMSGICON.OLEMSGICON_QUERY, OLEMSGBUTTON.OLEMSGBUTTON_YESNO, OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_SECOND);
+                    "RadSharp Form Designer", OLEMSGICON.OLEMSGICON_QUERY, OLEMSGBUTTON.OLEMSGBUTTON_YESNO, OLEMSGDEFBUTTON.OLEMSGDEFBUTTON_SECOND);
                 if (answer != 6) // IDYES
                     return;
             }

@@ -1,6 +1,6 @@
 # Visual Studio designer: plan
 
-Goal: open a `*.radform.json` file in Visual Studio and get the RADSharp form designer in the document tab, like the
+Goal: open a `*.radform.json` file in Visual Studio and get the RadSharp form designer in the document tab, like the
 WinForms designer. That means design surface, component palette, Object Inspector, Ctrl+S / dirty asterisk / undo,
 and double-click on a control or event that jumps to the handler in VS's own C# editor.
 
@@ -19,7 +19,7 @@ Avalonia-style: the real renderer runs out of process and VS only shows pixels.
               both reference RadSharp.DesignHost.Protocol (netstandard2.0)
 ```
 
-Why it works with little change to RADSharp (from the code survey):
+Why it works with little change to RadSharp (from the code survey):
 - `DesignSurface` is a plain `Control` and `DesignDocument` is UI-free (src/RadSharp.Design).
 - Forms already render headlessly: `FormRenderer.Render(form, SKCanvas, clip)` with dirty rects from
   `Form.TryTakeDirtyRect` (the same path SdlHost uses and golden tests rely on).
@@ -28,7 +28,7 @@ Why it works with little change to RADSharp (from the code survey):
 - `PropertyGrid` lives in Core and takes `SetTargets(...)`, so it can be its own window.
 - `CodeIntegration.EnsureHandler` returns `(source, line)`. We send that line to VS instead of launching an editor.
 
-The VS side never references RADSharp. It is about 1–2k lines of net48 WPF: show bitmaps, forward input, map VS
+The VS side never references RadSharp. It is about 1–2k lines of net48 WPF: show bitmaps, forward input, map VS
 commands.
 
 ## Projects
@@ -78,7 +78,7 @@ Client → host
 - `AttachWindow(windowId)` binds a client view to a host window that the host announced
 - `ResizeWindow(windowId, w, h, scale)`, `FocusWindow(windowId, focused)`
 - `MouseMove/MouseDown/MouseUp/MouseWheel(windowId, x, y, button, mods, clicks, dx, dy)`
-- `KeyDown/KeyUp(windowId, key, mods, repeat)`, where `key` is the RADSharp `Key` name as a string, so the protocol
+- `KeyDown/KeyUp(windowId, key, mods, repeat)`, where `key` is the RadSharp `Key` name as a string, so the protocol
   needs no copy of the enum. `TextInput(windowId, text)`.
 - `Command(docId, name)`: `Undo, Redo, Cut, Copy, Paste, Delete, SelectAll`, plus the alignment commands later
 - `CloseWindow(windowId)`: user closed a modal or popup
@@ -135,10 +135,10 @@ handler name back, and sends `Error`, if the code file cannot be read or the han
   the owner window's top-left.
 - `Modal` dialogs are shown modally by the client. Closing one in the client sends `CloseWindow`.
 
-**Cursors** are RADSharp `Cursor` enum names (src/RadSharp.Core/Input/Input.cs:32): `Default, IBeam, Hand, SizeWE,
+**Cursors** are RadSharp `Cursor` enum names (src/RadSharp.Core/Input/Input.cs:32): `Default, IBeam, Hand, SizeWE,
 SizeNS, SizeNWSE, SizeNESW, SizeAll, Wait, NotAllowed, Crosshair`.
 
-**Keys** are RADSharp `Key` enum names (src/RadSharp.Core/Input). The client maps WPF `Key` values to those names and
+**Keys** are RadSharp `Key` enum names (src/RadSharp.Core/Input). The client maps WPF `Key` values to those names and
 drops keys with no mapping.
 
 Host threading: a reader thread queues messages. One UI thread drains the queue, calls `ProcessTick` about every
@@ -165,7 +165,7 @@ clipboard bridge goes through the client later, and v1 uses the in-process clipb
 - **Keyboard in VS panes.** VS pre-translates keys into commands. The pane must claim keys while focused
   (`IVsWindowPane.TranslateAccelerator` / WPF `PreviewKeyDown`) and route Edit-menu commands as `Command` messages.
 - **Custom controls from the user's project.** v1 shows built-in components only, as the standalone designer does today.
-- **Runtime.** The host is framework-dependent .NET 10, shipped inside the VSIX. RADSharp users already have the SDK.
+- **Runtime.** The host is framework-dependent .NET 10, shipped inside the VSIX. RadSharp users already have the SDK.
 - **Verification.** Everything but the VSIX is tested headlessly or in the harness. The VSIX gets a build check plus
   a manual checklist in the experimental instance (`devenv /rootsuffix Exp`), because driving VS's UI can't be automated here.
 - **Targets.** `InstallationTarget [17.0,19.0)`, amd64 and arm64, which covers VS 2022 (17.14) and VS 18.
@@ -178,8 +178,8 @@ and `dotnet test vs/RadSharp.VisualStudio.slnx` (78 client tests and 86 VSIX tes
 **Checked live in the VS 2022 (17.14) experimental instance**, using the Release `.vsix` with synthetic mouse and
 keyboard input:
 
-- **Opening a form:** `MainForm.radform.json` opens as `[Design]` with the out-of-process surface. RADSharp Toolbox
-  docks on the left and RADSharp Properties on the right; both follow the active designer and show "No RADSharp form
+- **Opening a form:** `MainForm.radform.json` opens as `[Design]` with the out-of-process surface. RadSharp Toolbox
+  docks on the left and RadSharp Properties on the right; both follow the active designer and show "No RadSharp form
   is active" on a code tab. The dark VS theme is applied.
 - **Selection and keyboard:** clicking a control selects it and the Properties window follows. Arrow keys nudge the
   control, so keys get past VS's accelerator translation, and the tab shows `*`.
@@ -192,7 +192,7 @@ keyboard input:
 explicitly white panels. The designed form now always uses `Theme.Default` (`HostDocument.UseDesignedTheme`, with a
 test). Re-checked live with a rebuilt `.vsix`.
 
-**Typing:** checked live in the rebuilt `.vsix`. Ctrl+A then "Okay" + Enter in RADSharp Properties renamed the
+**Typing:** checked live in the rebuilt `.vsix`. Ctrl+A then "Okay" + Enter in RadSharp Properties renamed the
 button's caption on the surface. Ctrl+A stayed in the text field and did not become a designer Select All.
 
 **Second live pass (same day, rebuilt Release `.vsix`):**
@@ -230,26 +230,26 @@ between monitors.
 Run these in the experimental instance only, never in the main VS hive.
 
 1. Build: from `vs/`, run `"C:\Program Files\Microsoft Visual Studio\2022\Community\MSBuild\Current\Bin\MSBuild.exe" -restore RadSharp.VisualStudio.slnx`.
-   The build has no warnings, and the log says `RADSharp design host: N files added`. `dotnet test RadSharp.VisualStudio.slnx`
+   The build has no warnings, and the log says `RadSharp design host: N files added`. `dotnet test RadSharp.VisualStudio.slnx`
    passes.
 2. Install: `"C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\VSIXInstaller.exe" /rootSuffix:Exp vs\RadSharp.VisualStudio\bin\Debug\net48\RadSharp.VisualStudio.vsix`.
    To uninstall, run the same tool with `/rootSuffix:Exp /u:RadSharp.VisualStudio.cc12a64b-3c38-44bd-9d86-2bf42bfc792b`.
    **Then run `devenv /rootsuffix Exp /updateconfiguration` once.** Without it, VS kept the old configuration after a
-   command-line install: the RADSharp commands were missing, and `.radform.json` opened in the JSON editor.
+   command-line install: the RadSharp commands were missing, and `.radform.json` opened in the JSON editor.
    Do not pass a file after a bare `/log`, because VS takes it as the log path and overwrites the file.
 3. Run `devenv /rootsuffix Exp` and open a sample, for example `samples/Hello`, which has `MainForm.radform.json` next to its code-behind. The steps below say `Form1` for the form.
 4. Open: open `Form1.radform.json`.
-   - The tab reads `Form1.radform.json [Design]`. It says "Starting the RADSharp designer…", then shows the form.
-   - The Output pane "RADSharp Designer" logs "Design host connected".
-   - The "RADSharp Toolbox" opens, tabbed with the VS Toolbox, and "RADSharp Properties" opens, tabbed with Properties.
+   - The tab reads `Form1.radform.json [Design]`. It says "Starting the RadSharp designer…", then shows the form.
+   - The Output pane "RadSharp Designer" logs "Design host connected".
+   - The "RadSharp Toolbox" opens, tabbed with the VS Toolbox, and "RadSharp Properties" opens, tabbed with Properties.
      Both show this form's palette and inspector.
    - View → Other Windows lists both windows.
    - Any other `.json` file opens in the normal JSON editor.
 5. Open With: open the Open With dialog on `Form1.radform.json`.
-   - "RADSharp Form Designer" is the default. "Source Code (Text) Editor" opens the raw JSON.
+   - "RadSharp Form Designer" is the default. "Source Code (Text) Editor" opens the raw JSON.
    - Find in Files results for the file open as text.
 6. Edit and save:
-   - Drop a control from the RADSharp Toolbox and move it. An asterisk appears on the tab.
+   - Drop a control from the RadSharp Toolbox and move it. An asterisk appears on the tab.
    - Ctrl+S clears the asterisk and writes the file.
    - Save All works, and so does File → Save As (the dialog filters `*.radform.json`; the tab follows the new name).
    - Save Copy As: with no changes, it copies the file. With changes, it saves the copy, then saves the original too,
@@ -267,7 +267,7 @@ Run these in the experimental instance only, never in the main VS hive.
     - Arrow keys (with or without Shift or Ctrl) nudge or resize the selection.
     - Tab, Escape, Enter and letter keys reach the host and do what they do in the standalone designer.
     - VS keeps Ctrl+S, Ctrl+Shift+S, Ctrl+Tab, Ctrl+F4, F5, F7, F9, Ctrl+Q and Alt+letter menu access.
-11. Keys in RADSharp Properties: edit a text property.
+11. Keys in RadSharp Properties: edit a text property.
     - Typing, arrows, Home/End, Backspace, Del, Ctrl+A, Ctrl+C, Ctrl+V, Ctrl+X and Ctrl+Z edit the text.
     - These keys don't act on the designer's controls. Enter commits the edit.
     - VS's global keys still work.
@@ -278,17 +278,17 @@ Run these in the experimental instance only, never in the main VS hive.
     - With `Form1.cs` closed, the file is written with its encoding kept (BOM or not) and then opened.
     - Double-click an existing handler: the editor jumps to it with no edit.
 13. Two forms: open two forms and switch tabs. The Toolbox and Properties follow the active form. Switch to a C# file:
-    both show "No RADSharp form is active".
+    both show "No RadSharp form is active".
 14. Host crash: kill `RadSharpDesignHost.exe` in Task Manager.
     - Each designer tab shows a banner with "Restart designer host", and the Output pane logs the reason.
     - Restart reloads the forms from disk, and the tool windows reattach.
 15. Theme: switch Tools → Options → Environment → Color Theme between Light and Dark.
     - With no unsaved forms, the host restarts in the matching theme.
     - With unsaved forms, the Output pane asks you to restart the host yourself.
-    - A RADSharp app started with F5 doesn't inherit `RADSHARP_THEME`.
+    - A RadSharp app started with F5 doesn't inherit `RADSHARP_THEME`.
 16. Missing host: set `RADSHARP_DESIGNHOST` to a missing path and restart the Exp instance. Opening a form shows the
     reason and the path in the tab, and Open With → text editor still works. Pointing the variable at a fresh
     `src/RadSharp.DesignHost/bin/.../RadSharpDesignHost.exe` uses that host instead.
-17. Dialogs and popups: open a property drop-down in RADSharp Properties and a dialog-style editor, if any.
+17. Dialogs and popups: open a property drop-down in RadSharp Properties and a dialog-style editor, if any.
     - The drop-down appears at the right place.
     - The dialog is owned by VS and centred over it.

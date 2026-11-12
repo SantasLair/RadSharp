@@ -1,6 +1,6 @@
-# RADSharp Code Assistant Guide
+# RadSharp Code Assistant Guide
 
-**RADSharp** is a Delphi-style RAD framework for C# with visual form designer, NativeAOT compilation, and cross-platform support (Windows, macOS, Linux).
+**RadSharp** is a Delphi-style RAD framework for C# with visual form designer, NativeAOT compilation, and cross-platform support (Windows, macOS, Linux).
 
 ## Recommended Skills
 
@@ -28,7 +28,7 @@ These skills are configured for this project and will help you work effectively:
 - **Layout engine** following Delphi's Align + Anchors model
 - **Form files** as JSON (like `.dfm` files), embedded as resources
 - **Source generators** emit metadata and code-behind (AOT-safe, no reflection)
-- **Designer** built in RADSharp itself (dogfooding principle)
+- **Designer** built in RadSharp itself (dogfooding principle)
 - **Roslyn-based** F9 live run with collectible `AssemblyLoadContext`
 - **Golden-image tests** for cross-platform pixel-perfect validation
 - **NativeAOT** shipping via `dotnet publish`

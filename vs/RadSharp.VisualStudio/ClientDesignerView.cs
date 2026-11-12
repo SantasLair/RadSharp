@@ -27,7 +27,7 @@ namespace RadSharp.VisualStudio
             if (!DesignHostLocator.TryGetHostPath(out var host))
             {
                 return new PlaceholderDesignerView(path,
-                    "The RADSharp design host was not found at\n" + host + "\n\nReinstall the extension, or set the " +
+                    "The RadSharp design host was not found at\n" + host + "\n\nReinstall the extension, or set the " +
                     DesignHostLocator.EnvironmentVariable + " environment variable to RadSharpDesignHost.exe (or its folder) and restart Visual Studio.");
             }
 
@@ -48,7 +48,7 @@ namespace RadSharp.VisualStudio
         private readonly RemoteWindowView _surface = new RemoteWindowView();
         private readonly TextBlock _status = new TextBlock
         {
-            Text = "Starting the RADSharp designer…",
+            Text = "Starting the RadSharp designer…",
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
             TextWrapping = TextWrapping.Wrap,
@@ -168,7 +168,7 @@ namespace RadSharp.VisualStudio
             if (_service.Session != null)
                 EnsureDocument(_service.Session);
             HideBanner();
-            _status.Text = "Starting the RADSharp designer…";
+            _status.Text = "Starting the RadSharp designer…";
             if (_doc?.GetWindow(WindowRole.Surface) == null)
                 _status.Visibility = Visibility.Visible;
         }
@@ -183,7 +183,7 @@ namespace RadSharp.VisualStudio
         {
             _bannerText.Text = message + "  Restarting reloads the form from disk.";
             _banner.Visibility = Visibility.Visible;
-            _status.Text = "The RADSharp design host is not running.";
+            _status.Text = "The RadSharp design host is not running.";
             _status.Visibility = Visibility.Visible;
         }
 
@@ -244,7 +244,7 @@ namespace RadSharp.VisualStudio
             await _package.JoinableTaskFactory.SwitchToMainThreadAsync(cancellationToken);
             var doc = _doc;
             if (doc == null || !Connected)
-                throw new InvalidOperationException("The RADSharp design host is not running. Restart it from the banner in the designer tab.");
+                throw new InvalidOperationException("The RadSharp design host is not running. Restart it from the banner in the designer tab.");
 
             if (remember)
             {

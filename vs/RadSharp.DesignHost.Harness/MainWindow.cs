@@ -38,7 +38,7 @@ internal sealed class MainWindow : Window
     public MainWindow(Program.Options options)
     {
         _options = options;
-        Title = "RADSharp design host harness";
+        Title = "RadSharp design host harness";
         Width = 1280;
         Height = 800;
         UseLayoutRounding = true;
@@ -204,7 +204,7 @@ internal sealed class MainWindow : Window
         _doc = _session.OpenDocument(_options.FormPath);
         HookDocument(_doc);
         _doc.Activate();
-        Title = "RADSharp harness - " + Path.GetFileName(_options.FormPath);
+        Title = "RadSharp harness - " + Path.GetFileName(_options.FormPath);
         UpdateStatus();
     }
 
@@ -308,7 +308,7 @@ internal sealed class MainWindow : Window
         if (_doc.CanUndo) parts.Add("can undo");
         if (_doc.CanRedo) parts.Add("can redo");
         _stateText.Text = string.Join(", ", parts);
-        Title = "RADSharp harness - " + Path.GetFileName(_doc.Path) + (_doc.IsDirty ? "*" : "");
+        Title = "RadSharp harness - " + Path.GetFileName(_doc.Path) + (_doc.IsDirty ? "*" : "");
     }
 
     // ---- Screenshot ----

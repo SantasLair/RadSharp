@@ -5,7 +5,7 @@
   "root": {
     "class": "Form",
     "name": "frmDesigner",
-    "caption": "RADSharp",
+    "caption": "RadSharp",
     "width": 1220,
     "height": 780,
     "onCloseQuery": "frmDesigner_CloseQuery",
@@ -652,7 +652,7 @@
           {
             "class": "Label",
             "name": "lblWelcome",
-            "caption": "RADSharp",
+            "caption": "RadSharp",
             "fontSize": 30,
             "fontBold": true,
             "left": 48,

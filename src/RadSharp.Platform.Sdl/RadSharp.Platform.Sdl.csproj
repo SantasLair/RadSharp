@@ -3,7 +3,7 @@
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <Description>RADSharp host for SDL3: windows, input and the event loop for RADSharp forms.</Description>
+    <Description>RadSharp host for SDL3: windows, input and the event loop for RadSharp forms.</Description>
   </PropertyGroup>
 
   <ItemGroup>

@@ -12,7 +12,7 @@
       {
         "class": "Label",
         "name": "lblMessage",
-        "caption": "Hello from RADSharp!",
+        "caption": "Hello from RadSharp!",
         "height": 24,
         "left": 24,
         "top": 32,

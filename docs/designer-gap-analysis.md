@@ -44,7 +44,7 @@ double-click for a handler" loop is solid and the fundamentals are in the right 
 
 ## 2. Head-to-head by area
 
-| Area | Delphi (VCL Form Designer) | Visual Studio (WinForms Designer) | RADSharp today | Verdict |
+| Area | Delphi (VCL Form Designer) | Visual Studio (WinForms Designer) | RadSharp today | Verdict |
 |---|---|---|---|---|
 | Canvas fidelity | Native VCL controls painted for real | `.NET Framework` controls painted for real | Real `Form`/`Control` tree via `Canvas.DrawForm` | **On par** |
 | Grid snap / guides | Grid snap; no live alignment guides (classic VCL) | Grid snap **and** blue "SnapLines" to siblings, margins, baselines | Grid snap + edge/centre guide lines (no baseline) | **On par with VS**, ahead of classic Delphi |
@@ -200,7 +200,7 @@ alternative, not a replacement.
 
 Delphi and WinForms place non-visual components (timers, image lists, menus, …) in a fixed strip **below** the
 design surface, independent of the form's own coordinate space — deliberately, since these components have no
-visual position on the form and shouldn't clutter the canvas. RADSharp instead paints each `Component`'s icon
+visual position on the form and shouldn't clutter the canvas. RadSharp instead paints each `Component`'s icon
 *at the component's own `Left`/`Top`* directly over the form (`DesignSurface.PaintComponentIcon`,
 `DesignSurface.cs:530-541`, and `DesignRect`'s special case for `Component`, line 77). Practically this means a
 `MainMenu` or `Timer` icon sits wherever it happened to be created and can visually collide with real controls
@@ -233,7 +233,7 @@ open form.
 
 Delphi and WinForms both have a generic **Collection Editor** (add/remove/reorder items of a list-typed property,
 each item itself getting its own mini property grid) used for anything from a `TStrings` list to a `ListView`'s
-`Columns` to an `ImageList`'s images. RADSharp has exactly two purpose-built editors — `MenuEditor` and
+`Columns` to an `ImageList`'s images. RadSharp has exactly two purpose-built editors — `MenuEditor` and
 `TabOrderEditor` (`Editors.cs`) — and nothing generic. This directly blocks the `ListView`/`TreeView` v2 work
 already planned in [gap-plan.md](gap-plan.md) M14 (Columns editor, Nodes editor) — those will each need either
 their own bespoke editor (as menu items got) or a shared generic one built once. Given `MenuEditor` and
@@ -272,9 +272,9 @@ match, the way Visual Studio's solution-wide, semantic rename can. Closing that 
 ## 4. A structural difference worth naming, not fixing: no embedded code editor
 
 Both reference IDEs put code and design in the *same window* — Delphi toggles the same pane between a form view
-and a code view (classically bound to the same Alt-key/F12 gesture RADSharp's own View ▸ Toggle Form/Code menu
+and a code view (classically bound to the same Alt-key/F12 gesture RadSharp's own View ▸ Toggle Form/Code menu
 item deliberately echoes — `mnuToggleCode_Click`, `DesignerForm.Code.cs:100-105`); Visual Studio can even split
-them side by side. RADSharp instead **shells out to a real, separate editor process** (VS Code, Rider, Visual
+them side by side. RadSharp instead **shells out to a real, separate editor process** (VS Code, Rider, Visual
 Studio, or a custom command — `ExternalEditor.cs`) for all code editing, and the designer itself has no source
 view, no IntelliSense, no debugger, no breakpoints margin, and (per `gap-analysis.md` #24) no debugging story of
 its own — F5-in-the-external-IDE is the documented workaround.

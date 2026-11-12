@@ -21,7 +21,7 @@ namespace RadSharp.VisualStudio
             _path = path;
             var title = new TextBlock
             {
-                Text = "The RADSharp designer can't open " + Path.GetFileName(path),
+                Text = "The RadSharp designer can't open " + Path.GetFileName(path),
                 FontSize = 16,
                 FontWeight = FontWeights.SemiBold,
                 TextWrapping = TextWrapping.Wrap,

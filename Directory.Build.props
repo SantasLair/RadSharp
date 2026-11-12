@@ -7,11 +7,12 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 
-  <!-- Packaging. RADSharp is a working title; the released name is still to be decided. -->
+  <!-- Packaging. -->
   <PropertyGroup>
     <!-- A unique pre-release per build: projects reference 0.1.0-dev* and always get the newest local pack. -->
     <Version>0.1.0-dev.$([System.DateTime]::UtcNow.ToString(yyyyMMddHHmm))</Version>
-    <Authors>RADSharp contributors</Authors>
+    <Authors>RadSharp contributors</Authors>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageOutputPath>$(MSBuildThisFileDirectory)artifacts/packages</PackageOutputPath>
     <PackageTags>rad;forms;designer;delphi;skia;sdl;ui</PackageTags>
   </PropertyGroup>

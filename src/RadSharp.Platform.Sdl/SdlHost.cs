@@ -185,7 +185,7 @@ public static unsafe class SdlHost
         catch (Exception ex)
         {
             // An exception must not unwind into native code; the next normal frame repaints anyway.
-            System.Diagnostics.Debug.WriteLine("RADSharp live resize: " + ex);
+            System.Diagnostics.Debug.WriteLine("RadSharp live resize: " + ex);
         }
         finally { _inWatch = false; }
         return true;   // watches can't drop events; the event still reaches the queue
@@ -335,7 +335,7 @@ public static unsafe class SdlHost
     }
 }
 
-/// <summary>The platform services RADSharp's core uses, backed by SDL.</summary>
+/// <summary>The platform services RadSharp's core uses, backed by SDL.</summary>
 internal sealed class SdlPlatform : IPlatformServices
 {
     public void ShowForm(Form form) => SdlHost.ShowForm(form, form.Owner, modal: false);

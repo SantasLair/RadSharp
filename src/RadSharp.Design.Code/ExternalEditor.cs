@@ -160,11 +160,11 @@ public static class ExternalEditor
     }
 }
 
-/// <summary>Where the designer finds RADSharp packages for new projects.</summary>
+/// <summary>Where the designer finds RadSharp packages for new projects.</summary>
 public static class RadSharpPackages
 {
     /// <summary>
-    /// A local folder of RADSharp packages: RADSHARP_PACKAGES if set, otherwise <c>artifacts/packages</c>
+    /// A local folder of RadSharp packages: RADSHARP_PACKAGES if set, otherwise <c>artifacts/packages</c>
     /// of the repository the designer runs from (found by walking up from the designer's folder). Null if
     /// none: new projects then restore from nuget.org.
     /// </summary>

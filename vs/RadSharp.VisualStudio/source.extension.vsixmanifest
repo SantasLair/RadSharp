@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="RadSharp.VisualStudio.cc12a64b-3c38-44bd-9d86-2bf42bfc792b" Version="0.1.0" Language="en-US" Publisher="RADSharp contributors" />
-    <DisplayName>RADSharp Form Designer</DisplayName>
-    <Description xml:space="preserve">Opens *.radform.json files in the RADSharp visual form designer: design surface, component palette and Object Inspector inside a Visual Studio document tab, with save, undo and jump-to-handler in the C# editor.</Description>
-    <Tags>RADSharp, form designer, forms, RAD</Tags>
+    <Identity Id="RadSharp.VisualStudio.cc12a64b-3c38-44bd-9d86-2bf42bfc792b" Version="0.1.0" Language="en-US" Publisher="RadSharp contributors" />
+    <DisplayName>RadSharp Form Designer</DisplayName>
+    <Description xml:space="preserve">Opens *.radform.json files in the RadSharp visual form designer: design surface, component palette and Object Inspector inside a Visual Studio document tab, with save, undo and jump-to-handler in the C# editor.</Description>
+    <Tags>RadSharp, form designer, forms, RAD</Tags>
   </Metadata>
   <Installation>
     <!-- VS 2022 (17.x) and VS 18. -->

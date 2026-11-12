@@ -2,7 +2,7 @@
 
   <!--
     Every *.radform.json in the project is a designed form:
-    - an AdditionalFile, so the RADSharp form generator emits its partial class (fields + InitializeComponent);
+    - an AdditionalFile, so the RadSharp form generator emits its partial class (fields + InitializeComponent);
     - an EmbeddedResource named after the file, which InitializeComponent streams in at run time.
     Set RadSharpFormsExclude (a glob) to leave some form files out, or EnableRadSharpForms=false to turn this off.
   -->

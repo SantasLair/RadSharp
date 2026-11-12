@@ -2,7 +2,7 @@ using System.Windows.Input;
 
 namespace RadSharp.VisualStudio
 {
-    /// <summary>Where a key pressed in a RADSharp pane goes.</summary>
+    /// <summary>Where a key pressed in a RadSharp pane goes.</summary>
     public enum KeyRoute
     {
         /// <summary>Leave it to Visual Studio: a global shortcut, or (in the designer) an Edit command that VS turns into

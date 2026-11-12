@@ -2,7 +2,7 @@ using SDL;
 
 namespace RadSharp.Platform.Sdl;
 
-/// <summary>Translates SDL input codes to RADSharp's platform-neutral ones.</summary>
+/// <summary>Translates SDL input codes to RadSharp's platform-neutral ones.</summary>
 internal static class SdlInput
 {
     public static KeyModifiers Modifiers(SDL_Keymod m)

@@ -1,8 +1,8 @@
-# RADSharp specification: form files, layout, input
+# RadSharp specification: form files, layout, input
 
-This is the language-neutral part of RADSharp: any runtime that follows it can load any designed form.
+This is the language-neutral part of RadSharp: any runtime that follows it can load any designed form.
 The conformance tests are machine-readable in `spec/vectors/` (layout, Appendix D) and
-`spec/vectors/serialization/` (form files). *RADSharp is a working title; the format ID is the neutral `"radform"`.*
+`spec/vectors/serialization/` (form files). *The format ID is the neutral `"radform"`.*
 
 ## A. Form file format (v1.0)
 

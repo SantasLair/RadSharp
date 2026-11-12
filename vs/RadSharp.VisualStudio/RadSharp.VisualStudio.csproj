@@ -77,7 +77,7 @@
 
   <Target Name="PublishDesignHost" BeforeTargets="GetVsixSourceItems" Condition="'$(SkipDesignHostPublish)' != 'true'">
     <Warning Condition="!Exists('$(DesignHostProject)')"
-             Text="RADSharp design host project not found at $(DesignHostProject); the VSIX is built without host\RadSharpDesignHost.exe." />
+             Text="RadSharp design host project not found at $(DesignHostProject); the VSIX is built without host\RadSharpDesignHost.exe." />
 
     <!-- Always start empty, so a failed or skipped publish never ships a stale host. -->
     <RemoveDir Directories="$(DesignHostPublishDir)" />
@@ -94,9 +94,9 @@
     </Exec>
 
     <Warning Condition="Exists('$(DesignHostProject)') And '$(_DesignHostPublishExitCode)' != '0'"
-             Text="dotnet publish of the RADSharp design host failed (exit code $(_DesignHostPublishExitCode)); the VSIX is built without host\. Run: dotnet publish &quot;$(DesignHostProject)&quot; -c Release to see the errors." />
+             Text="dotnet publish of the RadSharp design host failed (exit code $(_DesignHostPublishExitCode)); the VSIX is built without host\. Run: dotnet publish &quot;$(DesignHostProject)&quot; -c Release to see the errors." />
     <Warning Condition="Exists('$(DesignHostProject)') And '$(_DesignHostPublishExitCode)' == '0' And !Exists('$(DesignHostPublishDir)RadSharpDesignHost.exe')"
-             Text="The RADSharp design host was published but $(DesignHostPublishDir)RadSharpDesignHost.exe is missing; the VSIX is built without host\." />
+             Text="The RadSharp design host was published but $(DesignHostPublishDir)RadSharpDesignHost.exe is missing; the VSIX is built without host\." />
 
     <ItemGroup Condition="Exists('$(DesignHostPublishDir)RadSharpDesignHost.exe')">
       <!-- devenv is 64-bit (x64 or arm64): native libraries for other RIDs are dead weight. -->
@@ -107,7 +107,7 @@
       </VSIXSourceItem>
     </ItemGroup>
     <Message Importance="high" Condition="Exists('$(DesignHostPublishDir)RadSharpDesignHost.exe')"
-             Text="RADSharp design host: @(_DesignHostFile->Count()) files added to the VSIX under host\" />
+             Text="RadSharp design host: @(_DesignHostFile->Count()) files added to the VSIX under host\" />
   </Target>
 
 </Project>

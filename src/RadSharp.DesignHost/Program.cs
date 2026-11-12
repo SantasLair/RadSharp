@@ -31,7 +31,7 @@ if (parentPid is { } parent) WatchParent(parent);
 if (Environment.GetEnvironmentVariable("RADSHARP_THEME") == "dark") Theme.Current = Theme.Dark;
 
 using var pipe = new NamedPipeServerStream(pipeName, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
-Console.Error.WriteLine($"[info] RADSharp design host {DesignHostServer.HostVersion} waiting on pipe \"{pipeName}\".");
+Console.Error.WriteLine($"[info] RadSharp design host {DesignHostServer.HostVersion} waiting on pipe \"{pipeName}\".");
 pipe.WaitForConnection();
 Console.Error.WriteLine("[info] Client connected.");
 new DesignHostServer(pipe).Run();
