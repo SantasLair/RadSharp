@@ -5,7 +5,7 @@ using RadSharp.Drawing;
 namespace RadSharp.Designer;
 
 /// <summary>
-/// The RADSharp IDE — itself a RADSharp form (DesignerForm.radform.json). As in Delphi and Lazarus, the
+/// The RadSharp IDE — itself a RadSharp form (DesignerForm.radform.json). As in Delphi and Lazarus, the
 /// designer always works on a project: with none open it shows the welcome page (new application, open
 /// project, recent projects); with one open, each open form has a tab with its own design surface.
 /// </summary>
@@ -40,9 +40,7 @@ public partial class DesignerForm : Form
         Theme.Current = _settings.Theme == "dark" ? Theme.Dark : Theme.Default;
         this.Theme = Theme.Current;
 
-        _palette = [.. ComponentRegistry.All
-            .Where(c => c.CanCreate && c.Type != typeof(Control) && !typeof(Form).IsAssignableFrom(c.Type) && c.Type != typeof(DesignSurface))
-            .OrderBy(c => c.Name, StringComparer.Ordinal)];
+        _palette = ComponentPalette.Classes();
         RebuildPalette();
         tvPalette.DragMode = DragMode.Automatic;   // drag a palette entry onto a form to place it, not just click
 
@@ -244,8 +242,8 @@ public partial class DesignerForm : Form
         lstRecent.Items = [.. _settings.RecentProjects.Select(p => $"{System.IO.Path.GetFileNameWithoutExtension(p)}   —   {System.IO.Path.GetDirectoryName(p)}")];
         var source = _settings.EffectivePackageSource;
         lblPackages.Caption = source != null
-            ? $"RADSharp packages for new projects: {source}"
-            : "RADSharp packages: none found locally, so new projects use nuget.org (run dotnet pack in the RADSharp repository).";
+            ? $"RadSharp packages for new projects: {source}"
+            : "RadSharp packages: none found locally, so new projects use nuget.org (run dotnet pack in the RadSharp repository).";
 
         mniReopen.Items.Clear();
         foreach (var p in _settings.RecentProjects)
@@ -268,10 +266,10 @@ public partial class DesignerForm : Form
 
     void UpdateTitle()
     {
-        if (_project == null) { Caption = "RADSharp"; return; }
+        if (_project == null) { Caption = "RadSharp"; return; }
         Caption = _active == null
-            ? $"RADSharp — {_project.Name}"
-            : $"RADSharp — {_project.Name} — {_active.ClassName}{(_active.Document.Modified ? " *" : "")}";
+            ? $"RadSharp — {_project.Name}"
+            : $"RadSharp — {_project.Name} — {_active.ClassName}{(_active.Document.Modified ? " *" : "")}";
     }
 
     // ---- Inspector, name, structure ----
@@ -390,24 +388,7 @@ public partial class DesignerForm : Form
     /// no longer be in the filtered list.</summary>
     void RebuildPalette()
     {
-        tvPalette.Nodes.Clear();
-        string filter = edtPaletteFilter.Text.Trim();
-        var groups = _palette
-            .Where(c => filter.Length == 0 || c.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
-            .GroupBy(c => PaletteCategories.Of(c.Name))
-            .OrderBy(g => g.Key, StringComparer.Ordinal);
-        foreach (var g in groups)
-        {
-            var category = new TreeNode(g.Key) { Expanded = true };
-            foreach (var cls in g.OrderBy(c => c.Name, StringComparer.Ordinal))
-            {
-                var node = category.Add(cls.Name);
-                node.Tag = cls;
-                node.Icon = PaletteIcons.For(cls);
-            }
-            tvPalette.Nodes.Add(category);
-        }
-        tvPalette.Invalidate();
+        ComponentPalette.Fill(tvPalette, _palette, edtPaletteFilter.Text);
         if (_active != null) _active.Surface.PendingClass = null;
     }
 

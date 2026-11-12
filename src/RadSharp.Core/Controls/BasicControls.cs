@@ -39,6 +39,14 @@ public class Label : Control
     /// <summary>Text colour; null uses the theme's.</summary>
     [Published(Category = "Appearance")] public Color? FontColor { get; set; }
 
+    bool _wordWrap, _ellipsis;
+
+    /// <summary>Wraps the caption onto several lines at the label's width (and at explicit newlines).</summary>
+    [Published(Category = "Appearance")] public bool WordWrap { get => _wordWrap; set { _wordWrap = value; Invalidate(); } }
+
+    /// <summary>A single-line caption wider than the label ends in "…" instead of being cut off. Ignored with <see cref="WordWrap"/>.</summary>
+    [Published(Category = "Appearance")] public bool Ellipsis { get => _ellipsis; set { _ellipsis = value; Invalidate(); } }
+
     protected override void Paint(Canvas canvas)
     {
         var color = !IsEffectivelyEnabled ? canvas.Theme.TextDisabled : FontColor ?? canvas.Theme.Text;
@@ -47,7 +55,9 @@ public class Label : Control
             Size = FontSize > 0 ? FontSize : EffectiveFont.Size,
             Bold = FontBold || EffectiveFont.Bold,
         };
-        canvas.DrawText(Caption, font, color, new Rect(0, 0, Width, Height), Alignment, Layout);
+        var rect = new Rect(0, 0, Width, Height);
+        if (WordWrap) canvas.DrawWrappedText(Caption, font, color, rect, Alignment, Layout);
+        else canvas.DrawText(Caption, font, color, rect, Alignment, Layout, Ellipsis);
     }
 
 }
@@ -70,6 +80,26 @@ public class Button : Control
 
     /// <summary>Escape clicks this button when no control handled the key (Delphi's <c>Cancel</c>).</summary>
     [Published(Category = "Behavior")] public bool Cancel { get; set; }
+
+    bool _flat;
+
+    /// <summary>
+    /// Draws the button without a border and without a face until the pointer is over it or it is pressed
+    /// (a toolbar-style button). The face then comes from <see cref="Color"/>/<see cref="HoverColor"/> or the theme.
+    /// </summary>
+    [Published(Category = "Appearance")] public bool Flat { get => _flat; set { _flat = value; Invalidate(); } }
+
+    /// <summary>Face colour; null uses the theme's (or, for a <see cref="Flat"/> button, no face at rest).</summary>
+    [Published(Category = "Appearance")] public Color? Color { get; set; }
+
+    /// <summary>Caption colour; null uses the theme's text colour.</summary>
+    [Published(Category = "Appearance")] public Color? FontColor { get; set; }
+
+    /// <summary>
+    /// Face colour while the pointer is over the button; null derives it from <see cref="Color"/> (blended a little
+    /// towards the text colour) or, without a colour, uses the theme's hover face. A pressed button is shaded the same way.
+    /// </summary>
+    [Published(Category = "Appearance")] public Color? HoverColor { get; set; }
 
     /// <summary>Clicking the button sets its form's <see cref="Form.ModalResult"/>, which closes a modal dialog.</summary>
     [Published(Category = "Behavior")] public ModalResult ModalResult { get; set; }
@@ -149,10 +179,17 @@ public class Button : Control
         var r = new Rect(0, 0, Width, Height);
         bool enabled = IsEffectivelyEnabled;
         float radius = canvas.Px(t.ButtonRadius);
-        var face = !enabled ? t.FormBackground : IsPressed ? t.ButtonFacePressed : IsHovered ? t.ButtonFaceHover : t.ButtonFace;
-        canvas.FillRoundRect(r, radius, face);
-        var border = enabled && (IsHovered || Default) ? t.Accent : t.ButtonBorder;
-        canvas.DrawRoundBorder(r, radius, border, canvas.Px(1));
+        var custom = Color;
+        var rest = custom ?? (Flat ? null : t.ButtonFace);
+        var hover = HoverColor ?? (custom is { } c ? c.Blend(t.Text, 0.12) : t.ButtonFaceHover);
+        var pressed = (HoverColor ?? custom) is { } p ? p.Blend(t.Text, HoverColor is null ? 0.22 : 0.10) : t.ButtonFacePressed;
+        var face = !enabled ? custom ?? (Flat ? null : t.FormBackground) : IsPressed ? pressed : IsHovered ? hover : rest;
+        if (face is { } f) canvas.FillRoundRect(r, radius, f);
+        if (!Flat)
+        {
+            var border = enabled && (IsHovered || Default) ? t.Accent : t.ButtonBorder;
+            canvas.DrawRoundBorder(r, radius, border, canvas.Px(1));
+        }
         if (Focused && OwningForm is { ShowFocusCues: true }) canvas.DrawFocusRing(r, radius);
         var textRect = r;
         if (ResolveIcon() is { } pic)
@@ -162,7 +199,7 @@ public class Button : Control
             canvas.DrawPicture(pic, new Rect(x, (Height - s) / 2, s, s));
             if (Caption.Length > 0) textRect = new Rect(x + s + canvas.Px(6), 0, Width - x - s - canvas.Px(16), Height);
         }
-        canvas.DrawText(Caption, EffectiveFont, enabled ? t.Text : t.TextDisabled, textRect,
+        canvas.DrawText(Caption, EffectiveFont, enabled ? FontColor ?? t.Text : t.TextDisabled, textRect,
             textRect == r ? TextAlign.Center : TextAlign.Left, VerticalAlign.Center);
     }
 

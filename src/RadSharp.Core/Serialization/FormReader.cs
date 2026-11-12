@@ -59,7 +59,7 @@ public static class FormReader
     }
 
     /// <summary>Receives warnings from <c>LoadInto</c> (unknown classes, properties...).</summary>
-    public static Action<string>? Warning { get; set; } = w => System.Diagnostics.Debug.WriteLine("RADSharp: " + w);
+    public static Action<string>? Warning { get; set; } = w => System.Diagnostics.Debug.WriteLine("RadSharp: " + w);
 
     static FormLoadResult LoadCore(string json, Form? target, FormLoadOptions options)
     {
@@ -89,10 +89,7 @@ public static class FormReader
         else if (ReadNode(rootJson, warnings, "root") is Form created) form = created;
         else throw new FormFileException("The root node must be a Form.");
 
-        form.DesignWidth = form.Width;
-        form.DesignHeight = form.Height;
-        if (options.Scale != 1) form.ScaleLengths(options.Scale);
-        form.Scale = options.Scale;
+        form.ApplyScaleCore(options.Scale);
         form.PerformLayout();
         return new FormLoadResult(form, warnings);
     }

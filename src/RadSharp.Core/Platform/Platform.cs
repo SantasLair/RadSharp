@@ -69,6 +69,25 @@ public interface IPlatformServices
 
     /// <summary>Shows a form modally without blocking, calling <paramref name="onClosed"/> when it closes. Non-blocking version of RunModal.</summary>
     void ShowModal(Form form, Action onClosed);
+
+    /// <summary>Opens a URL in the user's default browser or mail client. Returns false if the host can't. Hosts that don't override it return false.</summary>
+    bool OpenUrl(string url) => false;
+}
+
+/// <summary>Whether a form's window is normal, maximised or minimised.</summary>
+public enum WindowState { Normal, Maximized, Minimized }
+
+/// <summary>Where a form's window first appears.</summary>
+public enum FormStartPosition
+{
+    /// <summary>The OS decides.</summary>
+    Default,
+    /// <summary>Centred on the screen the window opens on.</summary>
+    CenterScreen,
+    /// <summary>Centred on <see cref="Form.Owner"/> (falls back to the screen when there is none).</summary>
+    CenterOwner,
+    /// <summary>At <see cref="Control.Left"/>, <see cref="Control.Top"/>.</summary>
+    Manual,
 }
 
 public enum FileDialogKind { Open, Save, Folder }

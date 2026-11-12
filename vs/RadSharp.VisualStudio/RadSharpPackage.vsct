@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- View > Other Windows > RadSharp Toolbox / RadSharp Properties. Ids match RadSharpPackage.CmdIdShow*. -->
+<CommandTable xmlns="http://schemas.microsoft.com/VisualStudio/2005-10-18/CommandTable" xmlns:xs="http://www.w3.org/2001/XMLSchema">
+  <Extern href="stdidcmd.h" />
+  <Extern href="vsshlids.h" />
+  <Include href="KnownImageIds.vsct" />
+
+  <Commands package="guidRadSharpPackage">
+    <Buttons>
+      <Button guid="guidRadSharpCmdSet" id="cmdidShowToolbox" priority="0x0100" type="Button">
+        <Parent guid="guidSHLMainMenu" id="IDG_VS_WNDO_OTRWNDWS1" />
+        <Icon guid="ImageCatalogGuid" id="ToolBox" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>RadSharp Toolbox</ButtonText>
+        </Strings>
+      </Button>
+      <Button guid="guidRadSharpCmdSet" id="cmdidShowProperties" priority="0x0101" type="Button">
+        <Parent guid="guidSHLMainMenu" id="IDG_VS_WNDO_OTRWNDWS1" />
+        <Icon guid="ImageCatalogGuid" id="Property" />
+        <CommandFlag>IconIsMoniker</CommandFlag>
+        <Strings>
+          <ButtonText>RadSharp Properties</ButtonText>
+        </Strings>
+      </Button>
+    </Buttons>
+  </Commands>
+
+  <Symbols>
+    <GuidSymbol name="guidRadSharpPackage" value="{5d0adadb-2d8e-4660-b721-fa0512f83271}" />
+    <GuidSymbol name="guidRadSharpCmdSet" value="{b0754257-40bf-4afa-9a12-4dbee8f9ecb4}">
+      <IDSymbol name="cmdidShowToolbox" value="0x0100" />
+      <IDSymbol name="cmdidShowProperties" value="0x0101" />
+    </GuidSymbol>
+  </Symbols>
+</CommandTable>

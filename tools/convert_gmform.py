@@ -1,4 +1,4 @@
-"""Converts a GMForms form file (*.gmform.json) to a RADSharp form file (*.radform.json).
+"""Converts a GMForms form file (*.gmform.json) to a RadSharp form file (*.radform.json).
 
 Usage: python tools/convert_gmform.py input.gmform.json output.radform.json
 
@@ -7,7 +7,7 @@ What changes (see the brainstorm, Appendix E):
 - snake_case keys -> camelCase (tab_stop -> tabStop, min_size -> minSize, alt_shortcut -> altShortcut)
 - classes: MenuBar -> MainMenu (its "menus" become "items"), Toolbar -> ToolBar, Viewport -> PaintBox
 - events: Viewport onDraw -> onPaint, onWheel -> onMouseWheel
-The output is not canonical; load and save it with RADSharp to normalize it.
+The output is not canonical; load and save it with RadSharp to normalize it.
 """
 import json
 import re

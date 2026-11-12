@@ -486,4 +486,22 @@ public class InputTests
         Assert.False(Shortcut.TryParse("Ctrl+", out _));
         Assert.False(Shortcut.TryParse("", out _));
     }
+
+    [Theory]
+    [InlineData("Menu")]
+    [InlineData("Apps")]
+    public void Menu_key_shortcut_parses_and_prints(string text)
+    {
+        var s = Shortcut.Parse(text);
+        Assert.Equal(new Shortcut(Key.Menu, KeyModifiers.None), s);
+        Assert.Equal("Menu", s.ToString());
+        Assert.Equal("Shift+Menu", Shortcut.Parse("Shift+Menu").ToString());
+    }
+
+    [Fact]
+    public void Alt_key_by_itself_matches_no_shortcut()
+    {
+        Assert.False(Shortcut.TryParse("Alt", out _));
+        Assert.False(Shortcut.Parse("Alt+F").Matches(new KeyEventArgs(Key.Alt, KeyModifiers.Alt)));
+    }
 }

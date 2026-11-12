@@ -84,6 +84,76 @@ public sealed class TextLayout
             run.Face.DrawShaped(canvas, run.Shaped, Font.Size, x + run.X, baseline, paint);
     }
 
+    // ---- Fitting text to a width ----
+
+    /// <summary>The character <see cref="Ellipsize"/> appends.</summary>
+    public const string EllipsisText = "\u2026";
+
+    /// <summary>
+    /// Shortens a single line to fit <paramref name="maxWidth"/> pixels, cutting at a grapheme boundary and
+    /// appending an ellipsis (<c>"Quarterly rep…"</c>). Returns the text unchanged if it already fits, just the
+    /// ellipsis if only that fits, and an empty string if not even that does.
+    /// </summary>
+    public static string Ellipsize(string text, RenderFont font, float maxWidth)
+    {
+        if (text.Length == 0 || font.MeasureWidth(text) <= maxWidth) return text;
+        if (font.MeasureWidth(EllipsisText) > maxWidth) return "";
+        var boundaries = GraphemeBoundaries(text);
+        // Largest number of leading graphemes whose text plus the ellipsis still fits (0 = just the ellipsis).
+        int lo = 0, hi = boundaries.Length - 1;
+        while (lo < hi)
+        {
+            int mid = (lo + hi + 1) / 2;
+            if (font.MeasureWidth(text[..boundaries[mid]].TrimEnd() + EllipsisText) <= maxWidth) lo = mid;
+            else hi = mid - 1;
+        }
+        return text[..boundaries[lo]].TrimEnd() + EllipsisText;
+    }
+
+    /// <summary>
+    /// Breaks text into lines no wider than <paramref name="maxWidth"/> pixels: explicit newlines always break,
+    /// otherwise at spaces (runs of spaces collapse to one), and a single word wider than the width is split
+    /// between graphemes. A <paramref name="maxWidth"/> of 0 or less only splits at newlines.
+    /// </summary>
+    public static IReadOnlyList<string> WrapLines(string text, RenderFont font, float maxWidth)
+    {
+        var lines = new List<string>();
+        foreach (var paragraph in text.Replace("\r\n", "\n").Replace('\r', '\n').Split('\n'))
+        {
+            if (maxWidth <= 0 || font.MeasureWidth(paragraph) <= maxWidth) { lines.Add(paragraph); continue; }
+            var line = "";
+            foreach (var word in paragraph.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var candidate = line.Length == 0 ? word : line + " " + word;
+                if (font.MeasureWidth(candidate) <= maxWidth) { line = candidate; continue; }
+                if (line.Length > 0) lines.Add(line);
+                var rest = word;
+                while (font.MeasureWidth(rest) > maxWidth)
+                {
+                    int cut = FitGraphemes(rest, font, maxWidth);
+                    lines.Add(rest[..cut]);
+                    rest = rest[cut..];
+                }
+                line = rest;
+            }
+            lines.Add(line);
+        }
+        return lines;
+    }
+
+    /// <summary>The length of the longest prefix (whole graphemes, at least one) that fits <paramref name="maxWidth"/>.</summary>
+    static int FitGraphemes(string text, RenderFont font, float maxWidth)
+    {
+        var layout = Get(text, font);
+        int best = layout.Boundaries[1];
+        foreach (int b in layout.Boundaries.Skip(2))
+        {
+            if (layout.CaretX(b) > maxWidth) break;
+            best = b;
+        }
+        return best;
+    }
+
     // ---- Construction helpers ----
 
     public static int[] GraphemeBoundaries(string text)

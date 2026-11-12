@@ -316,9 +316,13 @@ public sealed class Canvas
         layout.Draw(_sk, MathF.Round(x, MidpointRounding.AwayFromZero), MathF.Round(baseline, MidpointRounding.AwayFromZero), _smooth);
     }
 
-    /// <summary>Draws one line of text aligned inside a rectangle.</summary>
-    public void DrawText(string text, RenderFont font, Color color, Rect r, TextAlign align, VerticalAlign valign)
+    /// <summary>
+    /// Draws one line of text aligned inside a rectangle. With <paramref name="ellipsis"/>, text wider than the
+    /// rectangle is shortened with "…" (see <see cref="TextLayout.Ellipsize"/>) instead of running past it.
+    /// </summary>
+    public void DrawText(string text, RenderFont font, Color color, Rect r, TextAlign align, VerticalAlign valign, bool ellipsis = false)
     {
+        if (ellipsis) text = TextLayout.Ellipsize(text, font, r.Width);
         if (text.Length == 0) return;
         float width = font.MeasureWidth(text);
         float x = align switch
@@ -348,11 +352,15 @@ public sealed class Canvas
         if (font.Underline) DrawUnderline(render, text, color, x, baseline);
     }
 
-    /// <summary>Draws one line of text using a published <see cref="Font"/> descriptor, aligned inside a rectangle.</summary>
-    public void DrawText(string text, Font font, Color color, Rect r, TextAlign align, VerticalAlign valign)
+    /// <summary>
+    /// Draws one line of text using a published <see cref="Font"/> descriptor, aligned inside a rectangle.
+    /// With <paramref name="ellipsis"/>, text wider than the rectangle is shortened with "…".
+    /// </summary>
+    public void DrawText(string text, Font font, Color color, Rect r, TextAlign align, VerticalAlign valign, bool ellipsis = false)
     {
-        if (text.Length == 0) return;
         var render = Resolve(font);
+        if (ellipsis) text = TextLayout.Ellipsize(text, render, r.Width);
+        if (text.Length == 0) return;
         float width = render.MeasureWidth(text);
         float x = align switch
         {
@@ -370,6 +378,54 @@ public sealed class Canvas
         float baseline = top + render.Ascent;
         DrawText(text, render, color, x, baseline);
         if (font.Underline) DrawUnderline(render, text, color, x, baseline);
+    }
+
+    /// <summary>
+    /// Draws text word-wrapped to the rectangle's width (see <see cref="TextLayout.WrapLines"/>), each line aligned
+    /// horizontally and the block placed vertically by <paramref name="valign"/>. Lines that fall outside the
+    /// rectangle are skipped. Returns the height of the whole wrapped block in pixels, which may exceed the
+    /// rectangle's.
+    /// </summary>
+    public int DrawWrappedText(string text, Font font, Color color, Rect r, TextAlign align, VerticalAlign valign)
+    {
+        var render = Resolve(font);
+        var lines = TextLayout.WrapLines(text, render, r.Width);
+        int lineHeight = (int)Math.Ceiling(render.LineHeight);
+        int total = lines.Count * lineHeight;
+        int y = valign switch
+        {
+            VerticalAlign.Center => r.Y + (r.Height - total) / 2,
+            VerticalAlign.Bottom => r.Y + r.Height - total,
+            _ => r.Y,
+        };
+        foreach (var line in lines)
+        {
+            if (y + lineHeight > r.Y && y < r.Y + r.Height)
+                DrawText(line, font, color, new Rect(r.X, y, r.Width, lineHeight), align, VerticalAlign.Top);
+            y += lineHeight;
+        }
+        return total;
+    }
+
+    /// <summary>The <see cref="RenderFont"/> counterpart of <see cref="DrawWrappedText(string, Font, Color, Rect, TextAlign, VerticalAlign)"/>.</summary>
+    public int DrawWrappedText(string text, RenderFont font, Color color, Rect r, TextAlign align, VerticalAlign valign)
+    {
+        var lines = TextLayout.WrapLines(text, font, r.Width);
+        int lineHeight = (int)Math.Ceiling(font.LineHeight);
+        int total = lines.Count * lineHeight;
+        int y = valign switch
+        {
+            VerticalAlign.Center => r.Y + (r.Height - total) / 2,
+            VerticalAlign.Bottom => r.Y + r.Height - total,
+            _ => r.Y,
+        };
+        foreach (var line in lines)
+        {
+            if (y + lineHeight > r.Y && y < r.Y + r.Height)
+                DrawText(line, font, color, new Rect(r.X, y, r.Width, lineHeight), align, VerticalAlign.Top);
+            y += lineHeight;
+        }
+        return total;
     }
 
     void DrawUnderline(RenderFont font, string text, Color color, float x, float baseline)

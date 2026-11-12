@@ -1,8 +1,8 @@
-# RADSharp specification: form files, layout, input
+# RadSharp specification: form files, layout, input
 
-This is the language-neutral part of RADSharp: any runtime that follows it can load any designed form.
+This is the language-neutral part of RadSharp: any runtime that follows it can load any designed form.
 The conformance tests are machine-readable in `spec/vectors/` (layout, Appendix D) and
-`spec/vectors/serialization/` (form files). *RADSharp is a working title; the format ID is the neutral `"radform"`.*
+`spec/vectors/serialization/` (form files). *The format ID is the neutral `"radform"`.*
 
 ## A. Form file format (v1.0)
 
@@ -65,7 +65,7 @@ A form file is UTF-8 JSON:
 - The root form saves `width`/`height` as its design size.
 
 **Menus** save their items as nested objects:
-`{ "caption", "shortcut", "altShortcut", "onClick", "enabled", "checked", "visible", "separator", "items": [...] }`,
+`{ "caption", "shortcut", "altShortcut", "onClick", "enabled", "checked", "radioItem", "visible", "separator", "items": [...] }`,
 with only non-default values written.
 
 **Deterministic output** (save → load → save is byte-identical, in every runtime)

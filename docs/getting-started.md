@@ -1,6 +1,6 @@
 # Getting started
 
-RADSharp (working title) is a Delphi-style RAD tool for C#: design a form visually, double-click to write
+RadSharp is a Delphi-style RAD tool for C#: design a form visually, double-click to write
 a handler, press F9 to run it, press Build to get a native executable for Windows, macOS or Linux.
 
 ## What you need
@@ -22,9 +22,9 @@ you always work in a **project**: the designer starts on a welcome page with **N
 
 1. **New Application…** asks for a name and a location and creates the project: `.csproj`, `.sln`,
    `Program.cs`, `MainForm.radform.json` (the designed form), `MainForm.cs` (your code), a `.gitignore` and a
-   GitHub Actions workflow for cross-platform builds. When the designer runs from the RADSharp repository it finds
+   GitHub Actions workflow for cross-platform builds. When the designer runs from the RadSharp repository it finds
    the local packages in `artifacts/packages` (run `dotnet pack` for `src/RadSharp.Core` and
-   `src/RadSharp.Platform.Sdl` first); otherwise projects restore RADSharp from nuget.org.
+   `src/RadSharp.Platform.Sdl` first); otherwise projects restore RadSharp from nuget.org.
 2. Each open form has a **tab**. **File › New Form** (Ctrl+N) adds `FormN.radform.json` + `FormN.cs`; the
    **Project** tab of the inspector lists every form (double-click to open one). **Project › Set as Main Form**
    changes which form `Program.cs` starts with.
@@ -75,7 +75,7 @@ class is compile error **RAD1001**, reported at the right line of the form file.
 
 ## Concepts, for Delphi developers
 
-| Delphi | RADSharp |
+| Delphi | RadSharp |
 |---|---|
 | `.dfm` + `.pas` | `X.radform.json` + `X.cs` (partial class; the generated half holds the fields) |
 | `published` | `[Published]` on a property or event |

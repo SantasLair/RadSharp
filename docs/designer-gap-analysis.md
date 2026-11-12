@@ -44,7 +44,7 @@ double-click for a handler" loop is solid and the fundamentals are in the right 
 
 ## 2. Head-to-head by area
 
-| Area | Delphi (VCL Form Designer) | Visual Studio (WinForms Designer) | RADSharp today | Verdict |
+| Area | Delphi (VCL Form Designer) | Visual Studio (WinForms Designer) | RadSharp today | Verdict |
 |---|---|---|---|---|
 | Canvas fidelity | Native VCL controls painted for real | `.NET Framework` controls painted for real | Real `Form`/`Control` tree via `Canvas.DrawForm` | **On par** |
 | Grid snap / guides | Grid snap; no live alignment guides (classic VCL) | Grid snap **and** blue "SnapLines" to siblings, margins, baselines | Grid snap + edge/centre guide lines (no baseline) | **On par with VS**, ahead of classic Delphi |
@@ -54,7 +54,7 @@ double-click for a handler" loop is solid and the fundamentals are in the right 
 | **Right-click context menu on the surface** | Yes: Align, Order, Edit menu items, View as Text, Create/Delete handler | Yes: Align, Bring/Send, View Code, Properties, Document Outline | `DesignSurface.ContextMenuRequested` + `DesignerForm.ShowSurfaceContextMenu` | **Fixed** — see §3.4 |
 | Property grid layout | Categorized (collapsible bands) or alphabetical, toggle | Categorized or alphabetical, toggle, **search box** (VS2019+) | `PropertyGridArrangement` (Declared/Alphabetical/Categorized) + `Filter`, with a toolbar on the designer's Properties/Events tabs | **Fixed** — see §3.5 |
 | Anchors editor | Expandable composite row: akLeft/akTop/akRight/akBottom as checkboxes | Visual "kite" widget (4 clickable bars) | `PropertyGrid.ToggleAnchorsExpanded`/`IsAnchorFlag` — same expand-to-checkboxes model as Delphi | **Fixed** — see §3.6 |
-| Component palette | Tabbed by category (Standard, Additional, Data Access, …), icons, drag-drop, search (RAD Studio) | Toolbox: categorized, icons, drag-drop, search box, "General" auto-bucket for new libraries | A `TreeView` grouped by category (`PaletteCategories`) with a filter box, a colour-coded initials icon per entry (`PaletteIcons`), and drag-from-palette on the general `DragMode`/`OnDragOver`/`OnDragDrop` primitive | **Fixed** — see §3.7 |
+| Component palette | Tabbed by category (Standard, Additional, Data Access, …), icons, drag-drop, search (RAD Studio) | Toolbox: categorized, icons, drag-drop, search box, "General" auto-bucket for new libraries | A `TreeView` grouped by category (`PaletteCategories`) with a filter box, a vector picture per entry (`PaletteIcons`), and drag-from-palette on the general `DragMode`/`OnDragOver`/`OnDragDrop` primitive | **Fixed** — see §3.7 |
 | Non-visual components | Dedicated **component tray** strip below the form, fixed icon row | Same (component tray under the designer) | Icons painted *at the component's own X/Y* directly on the form surface | **Different, arguably worse** — see §3.8 |
 | Structure/outline view | Object TreeView (separate dockable window) | Document Outline / Solution Explorer (separate windows) | One `TreeView` inside a tab of the same panel as Properties/Events | Workable, less discoverable |
 | IDE panel layout | Fully dockable/floatable, savable desktop layouts, multi-monitor | Fully dockable/floatable, savable layouts, multi-monitor | Fixed `Splitter`-based left/right/bottom panels, no floating, no saved layouts | **Missing** — see §3.9 |
@@ -175,11 +175,12 @@ designer project — deliberately *not* a new `[Component(Category = ...)]` meta
 control class plus the source generator for a designer-polish item. An uncategorized class defaults to
 "Additional" rather than being hidden.
 
-Each entry also gets a small toolbox icon (`PaletteIcons.For`): a rounded, category-tinted swatch with the
-control's initials (e.g. "SB" for `ScrollBar`), drawn with the same `Canvas` primitives
-`DesignSurface.PaintComponentIcon` already uses for non-visual components on the form, rather than real
-per-control artwork — that would need actual icon assets, a genuinely separate and larger piece of work. Getting
-there needed one small addition to `TreeView` itself: `TreeNode.Icon` (`Action<Canvas, Rect>?`), a per-node custom
+Each entry also gets a toolbox icon (`PaletteIcons.For`): a picture of the control, such as a checked box for
+`CheckBox` or a stopwatch for `Timer`, in the flat outline-and-accent style of the Visual Studio icon set. Every
+icon is a vector drawing on a 16 × 16 grid made with `Canvas` paths, so there are no image assets and it stays
+sharp at any scale. Its colours switch with the theme: dark outlines on light themes, light outlines on dark ones.
+Non-visual components on the form (`DesignSurface.PaintComponentIcon`) show the same pictures. A class with no
+picture yet falls back to a category-tinted badge with its initials (e.g. "SB"). Getting there needed one small addition to `TreeView` itself: `TreeNode.Icon` (`Action<Canvas, Rect>?`), a per-node custom
 paint hook reserving a fixed icon column before the label, mirroring `ListBox`'s existing `ItemPainter`. It's
 opt-in and additive — a node that never sets `Icon` (the Structure tab's `tvStructure`, any other `TreeView` user)
 paints exactly as before.
@@ -199,7 +200,7 @@ alternative, not a replacement.
 
 Delphi and WinForms place non-visual components (timers, image lists, menus, …) in a fixed strip **below** the
 design surface, independent of the form's own coordinate space — deliberately, since these components have no
-visual position on the form and shouldn't clutter the canvas. RADSharp instead paints each `Component`'s icon
+visual position on the form and shouldn't clutter the canvas. RadSharp instead paints each `Component`'s icon
 *at the component's own `Left`/`Top`* directly over the form (`DesignSurface.PaintComponentIcon`,
 `DesignSurface.cs:530-541`, and `DesignRect`'s special case for `Component`, line 77). Practically this means a
 `MainMenu` or `Timer` icon sits wherever it happened to be created and can visually collide with real controls
@@ -232,7 +233,7 @@ open form.
 
 Delphi and WinForms both have a generic **Collection Editor** (add/remove/reorder items of a list-typed property,
 each item itself getting its own mini property grid) used for anything from a `TStrings` list to a `ListView`'s
-`Columns` to an `ImageList`'s images. RADSharp has exactly two purpose-built editors — `MenuEditor` and
+`Columns` to an `ImageList`'s images. RadSharp has exactly two purpose-built editors — `MenuEditor` and
 `TabOrderEditor` (`Editors.cs`) — and nothing generic. This directly blocks the `ListView`/`TreeView` v2 work
 already planned in [gap-plan.md](gap-plan.md) M14 (Columns editor, Nodes editor) — those will each need either
 their own bespoke editor (as menu items got) or a shared generic one built once. Given `MenuEditor` and
@@ -271,9 +272,9 @@ match, the way Visual Studio's solution-wide, semantic rename can. Closing that 
 ## 4. A structural difference worth naming, not fixing: no embedded code editor
 
 Both reference IDEs put code and design in the *same window* — Delphi toggles the same pane between a form view
-and a code view (classically bound to the same Alt-key/F12 gesture RADSharp's own View ▸ Toggle Form/Code menu
+and a code view (classically bound to the same Alt-key/F12 gesture RadSharp's own View ▸ Toggle Form/Code menu
 item deliberately echoes — `mnuToggleCode_Click`, `DesignerForm.Code.cs:100-105`); Visual Studio can even split
-them side by side. RADSharp instead **shells out to a real, separate editor process** (VS Code, Rider, Visual
+them side by side. RadSharp instead **shells out to a real, separate editor process** (VS Code, Rider, Visual
 Studio, or a custom command — `ExternalEditor.cs`) for all code editing, and the designer itself has no source
 view, no IntelliSense, no debugger, no breakpoints margin, and (per `gap-analysis.md` #24) no debugging story of
 its own — F5-in-the-external-IDE is the documented workaround.

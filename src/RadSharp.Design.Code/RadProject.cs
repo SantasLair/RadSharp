@@ -1,7 +1,7 @@
 namespace RadSharp.Design.Code;
 
 /// <summary>
-/// A RADSharp app project: an ordinary .csproj whose folder holds forms (<c>X.radform.json</c>) next to
+/// A RadSharp app project: an ordinary .csproj whose folder holds forms (<c>X.radform.json</c>) next to
 /// their code-behind (<c>X.cs</c>).
 /// </summary>
 public sealed class RadProject
@@ -53,7 +53,7 @@ public sealed class RadProject
 
     /// <summary>
     /// Creates a new app project in <paramref name="directory"/>: .csproj, Program.cs and a main form.
-    /// <paramref name="packageSource"/> (a folder of RADSharp packages) is written to a nuget.config.
+    /// <paramref name="packageSource"/> (a folder of RadSharp packages) is written to a nuget.config.
     /// </summary>
     public static RadProject Create(string directory, string name, string radSharpVersion = "0.1.0-dev*", string? packageSource = null)
     {
@@ -213,7 +213,7 @@ public sealed class RadProject
                   name: app-${{ matrix.os }}
                   path: out/
         # Before shipping: sign the Windows .exe (SmartScreen warns about unsigned apps) and sign and
-        # notarize the macOS app (Gatekeeper blocks unsigned downloads). See the RADSharp docs.
+        # notarize the macOS app (Gatekeeper blocks unsigned downloads). See the RadSharp docs.
         """;
 
     /// <summary>Adds an empty form and its code-behind; returns the form file.</summary>

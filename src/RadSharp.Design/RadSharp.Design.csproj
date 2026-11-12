@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <IsAotCompatible>true</IsAotCompatible>
-    <Description>RADSharp design-time support: the design surface, document model and editors used by the designer.</Description>
+    <Description>RadSharp design-time support: the design surface, document model and editors used by the designer.</Description>
   </PropertyGroup>
 
   <ItemGroup>

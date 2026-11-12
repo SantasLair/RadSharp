@@ -41,7 +41,7 @@ public class Form : Control
     public int DesignWidth { get; set; }
     public int DesignHeight { get; set; }
 
-    /// <summary>The UI scale factor lengths were multiplied by when the form was loaded.</summary>
+    /// <summary>The UI scale factor lengths were multiplied by when the form was loaded (or <see cref="ApplyScale"/> was called).</summary>
     public double Scale { get; set; } = 1;
 
     public Theme Theme { get; set; }
@@ -59,6 +59,130 @@ public class Form : Control
     protected virtual string? DesignedClassName => null;
 
     internal string? DesignedClass => DesignedClassName;
+
+    // =====================================================================
+    // Window: state, size limits, start position, border
+    // =====================================================================
+
+    WindowState _windowState;
+    FormStartPosition _startPosition;
+    bool _resizable = true;
+
+    /// <summary>
+    /// Whether the window is normal, maximised or minimised. Setting it while the window is open asks
+    /// the host to change it; when the user maximises or restores the window, the host writes the new
+    /// state back here (and raises <see cref="WindowStateChanged"/>).
+    /// </summary>
+    [Published(Category = "Window")]
+    public WindowState WindowState
+    {
+        get => _windowState;
+        set
+        {
+            if (_windowState == value) return;
+            _windowState = value;
+            WindowStateChanged?.Invoke(this);
+        }
+    }
+
+    /// <summary>Raised when <see cref="WindowState"/> changes, from code or because the user changed the window.</summary>
+    public event Action<Form>? WindowStateChanged;
+
+    /// <summary>
+    /// Host callback: the window's state was changed by the user or the OS. Updates <see cref="WindowState"/>
+    /// without asking the host to apply it again.
+    /// </summary>
+    public void NotifyWindowStateChanged(WindowState state) => WindowState = state;
+
+    Rect? _restoredBounds;
+
+    /// <summary>
+    /// The window's last normal (not maximised, not minimised) bounds in screen coordinates, in form pixels (the same
+    /// units as <see cref="Control.Left"/>/<see cref="Control.Top"/>/<see cref="Control.Width"/>/<see cref="Control.Height"/>
+    /// for <see cref="FormStartPosition.Manual"/>). It stays available while the window is maximised, so an app can
+    /// save it. Until the host reports anything it is the form's own bounds.
+    /// </summary>
+    public Rect RestoredBounds => _restoredBounds ?? new Rect(Left, Top, Width, Height);
+
+    /// <summary>Raised when <see cref="RestoredBounds"/> changes because the host reported a new normal window rect.</summary>
+    public event Action<Form>? RestoredBoundsChanged;
+
+    /// <summary>Host callback: the window's normal rect (screen coordinates, form pixels) was set or changed.</summary>
+    public void NotifyRestoredBounds(Rect bounds)
+    {
+        if (_restoredBounds == bounds) return;
+        _restoredBounds = bounds;
+        RestoredBoundsChanged?.Invoke(this);
+    }
+
+    /// <summary>
+    /// Where the window first appears (Delphi's <c>Position</c>). Read when the window is created; changing it
+    /// afterwards has no effect. <see cref="FormStartPosition.Manual"/> uses <see cref="Control.Left"/> and
+    /// <see cref="Control.Top"/> (form pixels, screen coordinates).
+    /// </summary>
+    [Published(Category = "Window")]
+    public FormStartPosition StartPosition { get => _startPosition; set => _startPosition = value; }
+
+    /// <summary>
+    /// Whether the user can resize the window by its border. Turn it off for fixed-size dialogs; the host
+    /// applies later changes to an open window. The window's minimum size is <see cref="Control.MinWidth"/> and
+    /// <see cref="Control.MinHeight"/> (form pixels); 0 means no minimum.
+    /// </summary>
+    [Published(Category = "Window")]
+    public bool Resizable
+    {
+        get => _resizable;
+        set => _resizable = value;
+    }
+
+    /// <summary>
+    /// Asks the OS to draw the window's title bar dark (on Windows 11 in the form's background colour) to match a dark
+    /// theme. Read when the window is created; hosts without such a feature ignore it.
+    /// </summary>
+    [Published(Category = "Window")] public bool DarkTitleBar { get; set; }
+
+    /// <summary>Caption colour for the OS title bar (Windows 11), instead of the form colour. Read when the window is created.</summary>
+    public Color? TitleBarColor { get; set; }
+
+    /// <summary>Caption text colour for the OS title bar, instead of the theme text colour. Read when the window is created.</summary>
+    public Color? TitleBarTextColor { get; set; }
+
+    /// <summary>
+    /// When true, the form sees key presses before the focused control (Delphi's <c>KeyPreview</c>): handle them in
+    /// the form's <c>KeyDown</c>/<c>KeyUp</c> events (or by overriding <c>OnKeyDown</c>/<c>OnKeyUp</c>) and set
+    /// <c>Handled</c> to stop them reaching the control. Not applied while a popup is open, or when the form itself
+    /// has the focus (it gets the key anyway).
+    /// </summary>
+    [Published(Category = "Behavior")] public bool KeyPreview { get; set; }
+
+    /// <summary>
+    /// Scales every length in this form's tree (bounds, margins, padding, min/max sizes, a splitter's minimum
+    /// size) by <paramref name="scale"/> once and records it as <see cref="Scale"/>, exactly as loading a form
+    /// file does. Use it for forms built in code: lay the controls out at 100 %, add them all, then call this
+    /// before the form is shown. <paramref name="scale"/> 0 uses <see cref="DefaultScale"/>. Controls added
+    /// afterwards aren't scaled; give them <see cref="Control.Px"/> lengths or call <see cref="Control.ScaleLengths"/>
+    /// on them first. Throws if the form was already scaled.
+    /// </summary>
+    public void ApplyScale(double scale = 0)
+    {
+        if (scale == 0) scale = DefaultScale;
+        if (scale <= 0) throw new ArgumentOutOfRangeException(nameof(scale), "Scale must be positive.");
+        if (_scaleApplied) throw new InvalidOperationException("The form's scale was already applied.");
+        ApplyScaleCore(scale);
+        PerformLayout();
+    }
+
+    /// <summary>The scaling step shared with the form-file reader (which may reload into the same form).</summary>
+    internal void ApplyScaleCore(double scale)
+    {
+        _scaleApplied = true;
+        DesignWidth = Width;
+        DesignHeight = Height;
+        if (scale != 1) ScaleLengths(scale);
+        Scale = scale;
+    }
+
+    bool _scaleApplied;
 
     /// <summary>Feeds synthetic input through the same code paths as real input (for tests).</summary>
     public InputSimulator Simulate { get; }
@@ -82,7 +206,13 @@ public class Form : Control
     // =====================================================================
 
     readonly List<Control> _tickers = [];
-    Control? _tooltipControl;
+    // The hint under the pointer (control, region within it, text), when it was first seen, and whether a
+    // click or key press dismissed it (it comes back only once the pointer moves to a different hint).
+    Control? _tipControl;
+    Rect _tipRegion;
+    string _tipText = "";
+    int _tipX, _tipY;
+    bool _tipDismissed;
     double _tooltipStartTime;
     ToolTipPopup? _tooltipPopup;
     const double TooltipDelayMs = 1000;
@@ -111,19 +241,9 @@ public class Form : Control
         _timers ??= [.. Descendants().OfType<Timer>()];
         foreach (var t in _timers.ToArray()) t.Tick(nowMs);
 
-        // Update tooltip state
-        if (_tooltipControl != null && !string.IsNullOrEmpty(_tooltipControl.Hint))
-        {
-            double elapsed = nowMs - _tooltipStartTime;
-            if (elapsed >= TooltipDelayMs && _tooltipPopup == null)
-            {
-                ShowTooltip(_tooltipControl);
-            }
-        }
-        else if (_tooltipPopup != null)
-        {
-            CloseTooltip();
-        }
+        // Show the pending tooltip once the pointer has rested on its hint long enough.
+        if (_tipText.Length > 0 && !_tipDismissed && _tooltipPopup == null && nowMs - _tooltipStartTime >= TooltipDelayMs)
+            ShowTooltip();
     }
 
     /// <summary>Computes the next deadline (in ms) when the host should wake up: timer deadlines, tooltip delay, etc. Returns null if no deadline.</summary>
@@ -141,7 +261,7 @@ public class Form : Control
         }
 
         // Check tooltip deadline
-        if (_tooltipControl != null && !string.IsNullOrEmpty(_tooltipControl.Hint) && _tooltipPopup == null)
+        if (_tipText.Length > 0 && !_tipDismissed && _tooltipPopup == null)
         {
             var tooltipDeadline = _tooltipStartTime + TooltipDelayMs;
             if (!nearest.HasValue || tooltipDeadline < nearest.Value)
@@ -151,20 +271,66 @@ public class Form : Control
         return nearest;
     }
 
-    void ShowTooltip(Control control)
+    /// <summary>
+    /// Re-reads the hint under the pointer (<see cref="Control.GetHintAt"/>). A new control, region or text closes
+    /// the tooltip and starts the delay again — or, if a tooltip was showing, shows the new one at once, as
+    /// moving between toolbar buttons does. No hint, or a pressed mouse button, removes it.
+    /// </summary>
+    void UpdateTip(int x, int y)
     {
-        if (_tooltipPopup != null) return;
+        var c = _capture == null ? _hover : null;
+        string text = "";
+        Rect region = default;
+        if (c != null) text = c.GetHintAt(x - c.AbsoluteLeft, y - c.AbsoluteTop, out region) ?? "";
+        if (text.Length == 0)
+        {
+            ClearTip();
+            return;
+        }
+        _tipX = x;
+        _tipY = y;
+        if (c == _tipControl && region == _tipRegion && text == _tipText) return;
+        bool wasShowing = _tooltipPopup != null;
+        CloseTooltip();
+        _tipControl = c;
+        _tipRegion = region;
+        _tipText = text;
+        _tipDismissed = false;
+        _tooltipStartTime = wasShowing ? Now - TooltipDelayMs : Now;
+    }
 
-        _tooltipPopup = new ToolTipPopup(control.Hint ?? "");
-        _tooltipPopup.SetBounds(control.AbsoluteLeft, control.AbsoluteTop + control.Height + 4, 200, 40);
-        OpenPopup(_tooltipPopup, control.AbsoluteLeft, control.AbsoluteTop + control.Height + 4, control);
+    void ClearTip()
+    {
+        CloseTooltip();
+        _tipControl = null;
+        _tipText = "";
+        _tipDismissed = false;
+    }
+
+    /// <summary>Closes the tooltip because of input (click, key, wheel, drag); it stays away until the hint changes.</summary>
+    void DismissTooltip()
+    {
+        CloseTooltip();
+        if (_tipText.Length > 0) _tipDismissed = true;
+    }
+
+    void ShowTooltip()
+    {
+        if (_tooltipPopup != null || _tipControl == null) return;
+        var popup = ToolTipPopup.Create(this, _tipText);
+        // Just below and to the right of the pointer; above it if there's no room underneath.
+        int x = _tipX + Px(12);
+        int y = _tipY + Px(20);
+        if (y + popup.Height > Height) y = Math.Max(0, _tipY - popup.Height - Px(6));
+        _tooltipPopup = popup;
+        OpenPopup(popup, x, y, _tipControl);
     }
 
     void CloseTooltip()
     {
-        if (_tooltipPopup == null) return;
-        ClosePopup(_tooltipPopup);
+        if (_tooltipPopup is not { } popup) return;
         _tooltipPopup = null;
+        ClosePopup(popup);
     }
 
     // =====================================================================
@@ -362,6 +528,7 @@ public class Form : Control
         if (_hover != null && _hover.IsSelfOrDescendantOf(control)) { var h = _hover; _hover = null; h.SetHovered(false); }
         if (_capture != null && _capture.IsSelfOrDescendantOf(control)) _capture = null;
         if (_focused != null && _focused.IsSelfOrDescendantOf(control)) SetFocus(null);
+        if (_tipControl != null && _tipControl.IsSelfOrDescendantOf(control)) ClearTip();
         for (int i = _popups.Count - 1; i >= 0 && i < _popups.Count; i--)
         {
             var owner = _popupOwners[i];
@@ -387,6 +554,9 @@ public class Form : Control
     public void OpenPopup(Control popup, int x, int y, Control? owner = null)
     {
         if (popup.Parent != null) throw new InvalidOperationException("A popup must not have a parent.");
+        // The tooltip stays the topmost popup: closing it closes every popup above it, so a popup opened from
+        // code (a timer, a posted callback) while it shows would otherwise vanish with it.
+        if (popup != _tooltipPopup) DismissTooltip();
         if (_popups.Contains(popup)) ClosePopup(popup);
         x = Math.Max(0, Math.Min(x, Width - popup.Width));
         y = Math.Max(0, Math.Min(y, Height - popup.Height));
@@ -417,6 +587,7 @@ public class Form : Control
             var p = _popups[i];
             _popups.RemoveAt(i);
             _popupOwners.RemoveAt(i);
+            if (p == _tooltipPopup) _tooltipPopup = null;
             if (_hover != null && _hover.IsSelfOrDescendantOf(p)) { var h = _hover; _hover = null; h.SetHovered(false); }
             if (_capture != null && _capture.IsSelfOrDescendantOf(p)) _capture = null;
             if (_focused != null && _focused.IsSelfOrDescendantOf(p)) SetFocus(null);
@@ -442,13 +613,14 @@ public class Form : Control
         for (int i = _popups.Count - 1; i >= 0; i--)
         {
             var p = _popups[i];
+            if (p == _tooltipPopup) continue;   // a tooltip never takes the pointer
             if (x >= p.Left && y >= p.Top && x < p.Left + p.Width && y < p.Top + p.Height)
                 return p.HitTest(x - p.Left, y - p.Top);
         }
         return HitTest(x, y);
     }
 
-    bool InAnyPopup(Control c) => _popups.Any(c.IsSelfOrDescendantOf);
+    bool InAnyPopup(Control c) => _popups.Any(p => p != _tooltipPopup && c.IsSelfOrDescendantOf(p));
 
     static MouseEventArgs Local(Control c, int x, int y, MouseButton b, KeyModifiers m, int clicks = 1) =>
         new(x - c.AbsoluteLeft, y - c.AbsoluteTop, b, m, clicks);
@@ -464,18 +636,6 @@ public class Form : Control
         _hover = hover;
         old?.SetHovered(false);
         hover?.SetHovered(true);
-
-        // Update tooltip
-        CloseTooltip();
-        if (hover != null && !string.IsNullOrEmpty(hover.Hint))
-        {
-            _tooltipControl = hover;
-            _tooltipStartTime = Now;
-        }
-        else
-        {
-            _tooltipControl = null;
-        }
     }
 
     public void ProcessMouseMove(int x, int y, KeyModifiers modifiers = KeyModifiers.None)
@@ -483,6 +643,7 @@ public class Form : Control
         PerformLayout();
         if (_dragSource != null) { _dragAcceptedTarget = BubbleDragOver(_dragSource, x, y); return; }
         UpdateHover(x, y);
+        UpdateTip(x, y);
         var target = _capture ?? _hover;
         if (target == null || !target.IsEffectivelyEnabled) return;
         // Automatic drag: once the press moves past a small threshold, start dragging instead of
@@ -505,6 +666,7 @@ public class Form : Control
     public void BeginDrag(Control source)
     {
         if (_dragSource != null) return;
+        DismissTooltip();
         _dragSource = source;
         _dragAcceptedTarget = null;
     }
@@ -528,7 +690,10 @@ public class Form : Control
 
     public void ProcessMouseDown(int x, int y, MouseButton button, KeyModifiers modifiers = KeyModifiers.None, int clicks = 1)
     {
+        _altAlone = false;
         PerformLayout();
+        // A click is never swallowed by a tooltip: it closes it (the tooltip isn't a "press outside" popup).
+        DismissTooltip();
         var hit = HitTestForm(x, y);
 
         // A press outside every popup closes them all and is consumed.
@@ -541,7 +706,6 @@ public class Form : Control
         if (_capture != null) return;  // another button is already down
         if (!hit.IsEffectivelyEnabled) return;
 
-        CloseTooltip();
         ShowFocusCues = false;
         if (hit.TabStop) SetFocus(hit);
         _capture = hit;
@@ -593,6 +757,7 @@ public class Form : Control
     public void ProcessMouseWheel(int x, int y, float deltaX, float deltaY, KeyModifiers modifiers = KeyModifiers.None)
     {
         PerformLayout();
+        DismissTooltip();
         for (Control? c = HitTestForm(x, y); c != null; c = c.Parent)
         {
             if (!c.IsEffectivelyEnabled) continue;
@@ -602,10 +767,33 @@ public class Form : Control
         }
     }
 
+    // Alt pressed and released with nothing in between toggles the menu bar's keyboard mode.
+    bool _altAlone;
+
+    /// <summary>The first shown <see cref="MainMenu"/> in the control tree, or null.</summary>
+    MainMenu? FindMainMenu(Control c)
+    {
+        foreach (var child in c.Children)
+        {
+            if (!child.IsShown) continue;
+            if (child is MainMenu m) return m;
+            if (FindMainMenu(child) is { } found) return found;
+        }
+        return null;
+    }
+
     public void ProcessKeyDown(Key key, KeyModifiers modifiers = KeyModifiers.None, bool repeat = false)
     {
+        if (key == Key.Alt) _altAlone = !repeat || _altAlone;
+        else _altAlone = false;
         PerformLayout();
+        DismissTooltip();
         var e = new KeyEventArgs(key, modifiers, repeat);
+        if (KeyPreview && _popups.Count == 0 && _focused != null && _focused != this)
+        {
+            OnKeyDown(e);
+            if (e.Handled) return;
+        }
         bool plainTab = key == Key.Tab && (modifiers & (KeyModifiers.Ctrl | KeyModifiers.Alt | KeyModifiers.Meta)) == 0;
 
         // Tab closes all popups, then moves focus (unless the focused control wants tabs).
@@ -637,7 +825,18 @@ public class Form : Control
 
     public void ProcessKeyUp(Key key, KeyModifiers modifiers = KeyModifiers.None)
     {
+        DismissTooltip();
+        if (key == Key.Alt && _altAlone)
+        {
+            _altAlone = false;
+            if (FindMainMenu(this) is { } bar) { bar.ToggleMenuMode(); return; }
+        }
         var e = new KeyEventArgs(key, modifiers);
+        if (KeyPreview && _popups.Count == 0 && _focused != null && _focused != this)
+        {
+            OnKeyUp(e);
+            if (e.Handled) return;
+        }
         var target = _popups.Count > 0 ? _popups[^1] : _focused ?? this;
         if (target.IsEffectivelyEnabled) target.OnKeyUp(e);
     }
@@ -645,6 +844,7 @@ public class Form : Control
     /// <summary>Typed text goes to the focused control; it is discarded while a popup is open.</summary>
     public void ProcessTextInput(string text)
     {
+        DismissTooltip();
         if (string.IsNullOrEmpty(text) || TextTarget() is not { } target) return;
         if (target.IsEffectivelyEnabled) target.OnTextInput(new TextInputEventArgs(text));
     }
@@ -652,6 +852,7 @@ public class Form : Control
     /// <summary>An IME composition update for the focused control (discarded while a popup is open).</summary>
     public void ProcessTextComposition(string text, int cursor, int selectionLength = 0)
     {
+        DismissTooltip();
         if (TextTarget() is not { } target) return;
         if (target.IsEffectivelyEnabled) target.OnTextComposition(new TextCompositionEventArgs(text, cursor, selectionLength));
     }

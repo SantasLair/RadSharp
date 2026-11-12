@@ -1,10 +1,10 @@
 # The AOT-safe stack
 
-RADSharp targets NativeAOT: `dotnet publish` should produce a small, fast-starting native executable with no
+RadSharp targets NativeAOT: `dotnet publish` should produce a small, fast-starting native executable with no
 reflection surprises at runtime. This page is the short version of what keeps that true, and how to catch a
 regression before `publish` does.
 
-## Why RADSharp is AOT-safe by construction
+## Why RadSharp is AOT-safe by construction
 
 - **No reflection for form loading.** A `.radform.json` file is read and written by hand-rolled code
   (`FormJsonReader`/`FormJsonWriter` in `RadSharp.Core`), not `System.Text.Json`'s reflection-based
@@ -50,7 +50,7 @@ these were added, or wrote a `.csproj` by hand, add the two lines above.
 dotnet publish --use-current-runtime
 ```
 
-Don't add `-p:PublishAot=true` on the command line — every RADSharp app project already sets `PublishAot` in
+Don't add `-p:PublishAot=true` on the command line — every RadSharp app project already sets `PublishAot` in
 its `.csproj`; passing it again is redundant and, on some setups, triggers a spurious `NETSDK1207`. If
 `vswhere.exe` isn't on `PATH` on Windows, the link step fails with `'vswhere.exe' is not recognized` even
 though the C++ workload is installed — see `getting-started.md`.

@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Opens a form in a plain WPF window through RadSharp.VisualStudio.Client, to test and screenshot the out-of-process
+       designer without Visual Studio. A console exe on purpose: host and client diagnostics go to stderr. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>RadSharpDesignHostHarness</AssemblyName>
+    <RootNamespace>RadSharp.DesignHost.Harness</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <StartupObject>RadSharp.DesignHost.Harness.Program</StartupObject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\RadSharp.VisualStudio.Client\RadSharp.VisualStudio.Client.csproj" />
+  </ItemGroup>
+
+</Project>

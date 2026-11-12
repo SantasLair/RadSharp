@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <Description>RADSharp designer code integration: handler stubs, renames, live run (Roslyn) and builds.</Description>
+    <Description>RadSharp designer code integration: handler stubs, renames, live run (Roslyn) and builds.</Description>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
 

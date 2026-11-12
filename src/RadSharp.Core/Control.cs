@@ -51,7 +51,34 @@ public partial class Control
 
     [Published(Category = "Behavior")] public bool TabStop { get; set; }
     [Published(Category = "Behavior")] public int TabOrder { get; set; } = -1;
+    /// <summary>Anything the application wants to remember about this control (Delphi's <c>Tag</c>); never read or saved by the framework.</summary>
+    public object? Tag { get; set; }
+
+    /// <summary>The tooltip text shown after the pointer rests on the control (see <see cref="GetHintAt"/>). Newlines make multi-line tooltips.</summary>
     [Published(Category = "Behavior")] public string Hint { get; set; } = "";
+
+    /// <summary>
+    /// The tooltip for the point (<paramref name="x"/>, <paramref name="y"/>) in this control's own coordinates, or
+    /// null/empty for none. <paramref name="region"/> is the part of the control (also in its coordinates) the text
+    /// applies to: moving the pointer out of it, or to a point whose text differs, hides the tooltip and shows the
+    /// new one. The default returns <see cref="Hint"/> for the whole control. Override it in a custom-drawn control
+    /// whose parts have their own hints (a grid cell, a chart bar, a toolbar of drawn icons).
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// public override string? GetHintAt(int x, int y, out Rect region)
+    /// {
+    ///     var cell = CellAt(x, y);                       // your own hit test
+    ///     region = CellRect(cell);                       // local coordinates
+    ///     return cell.IsValid ? $"{cell.Title}\n{cell.Detail}" : null;
+    /// }
+    /// </code>
+    /// </example>
+    public virtual string? GetHintAt(int x, int y, out Rect region)
+    {
+        region = new Rect(0, 0, _width, _height);
+        return Hint;
+    }
 
     Font? _font;
 
@@ -254,10 +281,11 @@ public partial class Control
     // ---- Scaling ----
 
     /// <summary>
-    /// Multiplies every stored length by <paramref name="scale"/> and rounds (spec, Appendix B,
-    /// "Scaling"). Runs on a freshly loaded tree, before its first layout.
+    /// Multiplies every stored length in this subtree by <paramref name="scale"/> and rounds (spec, Appendix B,
+    /// "Scaling"). Runs once on a freshly built tree, before its first layout; for a whole code-built form
+    /// use <see cref="Form.ApplyScale"/>, which also records the scale. Calling it twice scales twice.
     /// </summary>
-    internal void ScaleLengths(double scale)
+    public void ScaleLengths(double scale)
     {
         static int S(int v, double k) => LayoutMath.Round(v * k);
         static Thickness T(Thickness t, double k) => new(S(t.L, k), S(t.T, k), S(t.R, k), S(t.B, k));
@@ -299,7 +327,14 @@ public partial class Control
     /// <summary>Lays out this subtree: arranges dirty containers top-down and refreshes absolute positions.</summary>
     public void PerformLayout()
     {
-        if (Parent == null) { AbsoluteLeft = _left; AbsoluteTop = _top; }
+        // A root's absolute position is where it is drawn in form coordinates: a popup sits at its Left/Top, but a
+        // form is the coordinate space itself (its Left/Top are the window's screen position, not an offset).
+        if (Parent == null)
+        {
+            bool isForm = this is Form;
+            AbsoluteLeft = isForm ? 0 : _left;
+            AbsoluteTop = isForm ? 0 : _top;
+        }
         for (int pass = 0; _needsArrange && pass < 3; pass++)
         {
             _needsArrange = false;
@@ -352,8 +387,8 @@ public partial class Control
     /// <summary>The owning form's UI scale factor.</summary>
     protected double UiScale => OwningForm?.Scale ?? 1;
 
-    /// <summary>Scales a length given at 100 % to whole pixels at the form's scale.</summary>
-    protected int Px(int length) => LayoutMath.Round(length * UiScale);
+    /// <summary>Scales a length given at 100 % to whole pixels at the owning form's scale (1 when not on a form).</summary>
+    public int Px(int length) => LayoutMath.Round(length * UiScale);
 
     /// <summary>True if this control and all its ancestors are visible.</summary>
     public bool IsEffectivelyVisible

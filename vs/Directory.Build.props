@@ -1,0 +1,12 @@
+<Project>
+  <!-- Standalone on purpose: the repository root's Directory.Build.props targets net10.0, and everything under vs/
+       runs inside Visual Studio (devenv.exe is .NET Framework 4.8). -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <Authors>RadSharp contributors</Authors>
+  </PropertyGroup>
+</Project>

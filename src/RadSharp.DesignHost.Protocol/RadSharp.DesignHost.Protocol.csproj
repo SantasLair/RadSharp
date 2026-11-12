@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Shared by the .NET 10 design host and the .NET Framework 4.8 Visual Studio extension, so no dependencies. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>RadSharp.DesignHost.Protocol</RootNamespace>
+  </PropertyGroup>
+
+</Project>

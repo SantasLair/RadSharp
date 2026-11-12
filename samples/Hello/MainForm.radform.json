@@ -5,7 +5,7 @@
   "root": {
     "class": "Form",
     "name": "frmMain",
-    "caption": "Hello RADSharp",
+    "caption": "Hello RadSharp",
     "height": 300,
     "width": 480,
     "children": [

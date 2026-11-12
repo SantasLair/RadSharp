@@ -26,6 +26,17 @@ public readonly record struct Color(byte R, byte G, byte B, byte A = 255)
         return true;
     }
 
+    /// <summary>
+    /// This colour moved <paramref name="amount"/> (0 to 1) of the way towards <paramref name="other"/>, channel by
+    /// channel (alpha too); used to derive hover and pressed shades from a base colour.
+    /// </summary>
+    public Color Blend(Color other, double amount)
+    {
+        amount = Math.Clamp(amount, 0, 1);
+        static byte Mix(byte a, byte b, double t) => (byte)Math.Round(a + (b - a) * t);
+        return new Color(Mix(R, other.R, amount), Mix(G, other.G, amount), Mix(B, other.B, amount), Mix(A, other.A, amount));
+    }
+
     public string ToHex() => A == 255 ? $"#{R:X2}{G:X2}{B:X2}" : $"#{R:X2}{G:X2}{B:X2}{A:X2}";
 
     public override string ToString() => ToHex();

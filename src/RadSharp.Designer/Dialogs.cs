@@ -25,7 +25,7 @@ internal static class DialogLayout
     }
 }
 
-/// <summary>File › New Application: the project's name, where it goes, and where RADSharp packages come from.</summary>
+/// <summary>File › New Application: the project's name, where it goes, and where RadSharp packages come from.</summary>
 public sealed class NewApplicationDialog : Form
 {
     readonly Edit _name, _location, _packages;
@@ -128,7 +128,7 @@ public sealed class OptionsDialog : Form
         _custom = DialogLayout.Put(this, new Edit { Name = "edtCustom", Text = settings.CustomEditorCommand, Placeholder = "\"C:\\\\Tools\\\\editor.exe\" \"{file}\" -n{line}" }, 16, 106, 568, 26);
         DialogLayout.Put(this, new Label { Caption = "New projects go in" }, 16, 146, 180, 24);
         _folder = DialogLayout.Put(this, new Edit { Name = "edtFolder", Text = settings.ProjectsFolder }, 200, 144, 384, 26);
-        DialogLayout.Put(this, new Label { Caption = "RADSharp packages" }, 16, 182, 180, 24);
+        DialogLayout.Put(this, new Label { Caption = "RadSharp packages" }, 16, 182, 180, 24);
         _packages = DialogLayout.Put(this, new Edit { Name = "edtPackages", Text = settings.PackageSource, Placeholder = "auto-detect, then nuget.org" }, 200, 180, 384, 26);
         DialogLayout.Put(this, new Label
         {

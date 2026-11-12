@@ -1,4 +1,4 @@
-# Brainstorm: RADSharp, a light, Delphi-like cross-platform RAD tool for C#
+# Brainstorm: RadSharp, a light, Delphi-like cross-platform RAD tool for C#
 
 > **What this is:** a self-contained brainstorm for a *new* project, started 2026-09-26. It grew out of
 > **GMForms**, a Delphi-style form system and visual designer built for GameMaker (a game engine with its
@@ -7,12 +7,12 @@
 > in full in [docs/spec.md](docs/spec.md) (formerly Appendices A–D), and the tests also exist as machine-readable vectors in `spec/vectors/`.
 > The GMForms source is at `D:\dev\gamemaker\GMForms` for deeper reference (Appendix E).
 >
-> **Name:** *RADSharp* is the **working title** (earlier placeholder: DamonForms). The released product
-> name must be vetted before release (NuGet, GitHub, domain, trademark; note Telerik's "Rad" control
-> prefix). Until then, nothing durable carries the name: the form format ID is the neutral `"radform"`.
+> **Name:** *RadSharp* (chosen 2026-11-11; earlier placeholders: DamonForms, RadSharp as a working title).
+> No NuGet packages use the name; domain and trademark checks are still open (note Telerik's "Rad" control
+> prefix). The form format ID stays the neutral `"radform"`.
 >
 > **Status:** the direction was chosen (C#, custom-drawn controls, pixel-perfect Skia rendering; section 4) and
-> built: milestones M0–M9 in `RADSharp-roadmap.md` are implemented. See `README.md` and `docs/`.
+> built: milestones M0–M9 in `RadSharp-roadmap.md` are implemented. See `README.md` and `docs/`.
 
 ## 1. What we're after
 
@@ -108,7 +108,7 @@ classes map directly onto Delphi's component model.
 | Form files | JSON (Appendix A), embedded as a resource and **streamed at runtime**, like Delphi's `.dfm` |
 | Code-behind | A **source generator reads the form JSON** and emits the other half of a `partial class`: typed fields (`btnSave`) and a `Bind()` method wiring `onClick` → `btnSave_Click`. A missing handler is a **compile error**. The user owns only `MainForm.cs`, like the `.pas` next to a `.dfm` |
 | Non-visual components | Timer, dialogs, ImageList etc. sit in a component tray under the form, as in Delphi |
-| Designer | Built with RADSharp itself; runs on JIT (not AOT) so it can load user code |
+| Designer | Built with RadSharp itself; runs on JIT (not AOT) so it can load user code |
 | F9 | Compile in-process with **Roslyn**, load into a collectible `AssemblyLoadContext`, run the form live with real handlers, unload on close |
 | Code editor | **External**: VS Code, Rider or Visual Studio. Double-click inserts the stub with Roslyn and runs e.g. `code -g MainForm.cs:42`. IntelliSense and debugging come for free |
 | Build | `dotnet publish -p:PublishAot=true`: a native executable, no IL to decompile |
@@ -141,7 +141,7 @@ it → only dirty rectangles are redrawn, which keeps CPU drawing fast enough fo
 **Payoff: golden-image tests.** Render a form headlessly to PNG, compare against a stored image, and fail
 CI on any changed pixel on any OS. Together with simulated input, that makes UI regressions visible.
 
-**Trade-offs:** apps look like RADSharp everywhere rather than native on each OS (FMX's trade-off too),
+**Trade-offs:** apps look like RadSharp everywhere rather than native on each OS (FMX's trade-off too),
 and CPU rendering isn't meant for heavy animation or huge canvases.
 
 ## 6. Technical realities
@@ -201,7 +201,7 @@ binds the form to handlers without reflection.
 
 ## 9. Open questions
 
-- **Released product name:** to be vetted before release (RADSharp is the working title).
+- **Released product name:** RadSharp (chosen 2026-11-11; domain and trademark checks still open).
 - **Form file extension:** `.radform.json` (editors recognise JSON) or `.radform`.
 - **Target .NET version** and minimum OS versions.
 - **Default theme:** neutral/modern or classic Delphi.

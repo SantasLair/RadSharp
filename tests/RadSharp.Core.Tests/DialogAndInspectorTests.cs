@@ -12,6 +12,9 @@ public class DialogAndInspectorTests
         public string[]? DialogResult;
         public FileDialogKind? LastDialog;
         public readonly List<Form> Open = [];
+        public string? LastUrl;
+
+        public bool OpenUrl(string url) { LastUrl = url; return true; }
 
         public void ShowForm(Form form) { Open.Add(form); form.NotifyShown(); }
 
@@ -42,6 +45,18 @@ public class DialogAndInspectorTests
     }
 
     static FakePlatform Install() => (FakePlatform)(PlatformHost.Current = new FakePlatform());
+
+    [Fact]
+    public void OpenUrl_hands_an_allowed_url_to_the_host()
+    {
+        var host = Install();
+        Assert.True(Application.OpenUrl("https://example.com/help?x=1"));
+        Assert.Equal("https://example.com/help?x=1", host.LastUrl);
+        Assert.True(Application.OpenUrl("mailto:someone@example.com"));
+        host.LastUrl = null;
+        Assert.False(Application.OpenUrl("file:///c:/x.exe"));
+        Assert.Null(host.LastUrl);
+    }
 
     [Fact]
     public void Modal_form_returns_the_result_of_the_button_pressed()

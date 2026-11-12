@@ -89,7 +89,7 @@ public enum MessageType { Information, Warning, Error, Confirmation }
 [Flags]
 public enum MessageButtons { Ok = 1, Cancel = 2, Yes = 4, No = 8, Abort = 16, Retry = 32, Ignore = 64, OkCancel = Ok | Cancel, YesNo = Yes | No, YesNoCancel = Yes | No | Cancel }
 
-/// <summary>Delphi-style message boxes, drawn by RADSharp (so they look the same everywhere).</summary>
+/// <summary>Delphi-style message boxes, drawn by RadSharp (so they look the same everywhere).</summary>
 public static class Dialogs
 {
     public static void ShowMessage(string message, Form? owner = null) =>
