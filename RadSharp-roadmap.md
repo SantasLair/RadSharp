@@ -26,7 +26,9 @@
 ## Guiding principles
 
 1. **The spec is the product.** Form format, layout rules and conformance vectors are versioned in the repo and tested on all three OSes.
-2. **Same pixels everywhere.** Golden-image tests run in CI on Windows, macOS and Linux and must match exactly.
+2. **Same pixels everywhere.** Golden-image tests run in CI on Windows, macOS and Linux against one set of images.
+   x64 matches exactly; Apple Silicon differs by at most 2/255 on anti-aliased edges (Skia's ARM raster rounding),
+   so the comparison allows that much per channel and no more.
 3. **AOT from day one.** Every milestone ends with a NativeAOT publish of a sample; nothing may depend on runtime reflection.
 4. **Tests through real input.** `Simulate.Click/Drag/Key` feed the same code paths as SDL events (the GMForms approach).
 5. **Dogfood.** The designer is a RadSharp app; if the designer is hard to build, the framework is missing something.

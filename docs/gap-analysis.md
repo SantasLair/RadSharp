@@ -118,9 +118,9 @@ without a workaround; **P1** = painful but workable; **P2** = polish.
 
 1. ~~**Robustness (S)**~~ — **done**: UI-thread marshalling (`SynchronizationContext`), `Application.ThreadException`
    with a default dialog, tooltips, Edit/Memo context menu.
-2. **Get CI green on macOS and Linux (S–M):** push the repo, look at the golden diffs, decide whether ARM needs
-   its own goldens or a tolerance of 0. Everything else depends on trusting this. **Still open** — no evidence the
-   matrix has actually run since this was written; verify before assuming otherwise.
+2. ~~**Get CI green on macOS and Linux (S–M)**~~ — **done (2026-11-11)**: Windows and Linux (x64) match the goldens
+   exactly. macOS on Apple Silicon differed only on anti-aliased edges, by at most 2/255 per channel, so the golden
+   comparison now allows that much (see `docs/gap-plan.md`, M10) instead of keeping a second set of images.
 3. ~~**Canvas completeness (S)**~~ — **done**: lines, polylines, paths, arcs, gradients, offscreen bitmaps
    (`Bitmap`); per-control `Font` (`EffectiveFont`).
 4. **Window model (M):** `WindowState`, border style, position, icon, min/max size, and per-monitor scale change.

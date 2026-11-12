@@ -145,6 +145,11 @@ CI matrix remains desirable but is no longer the gate for calling this milestone
   checked, out of scope per the decision above.
 - Golden policy: one set for all OSes, confirmed viable for Windows+Linux; still the default policy on the
   (deferred) macOS question too, until evidence says otherwise.
+- **macOS (2026-11-11):** CI's macOS runner (Apple Silicon) failed all 7 golden tests. Every differing pixel was on an
+  anti-aliased edge (text, rounded corners) and off by at most 2/255 per channel, while Linux x64 matched Windows
+  exactly. So the cause is Skia's ARM raster rounding, not fonts or layout, and it can't be fixed from our side.
+  Decision: keep one set of goldens and allow a per-channel difference of 2 (`GoldenImageTests.ChannelTolerance`).
+  Checked both ways: Windows output passes against the macOS images, and a golden with pixels off by 3 still fails.
 - README/roadmap "run in CI" vs "not yet run" contradiction: still open (`RadSharp-roadmap.md:46` says "not yet
   run: no remote", which is now stale since a remote exists) — small copy fix, not blocking.
 - `dotnet test` result upload / NativeAOT publish artifacts in CI: still open, but not required for the reduced

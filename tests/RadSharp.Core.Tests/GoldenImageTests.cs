@@ -191,6 +191,13 @@ public class GoldenImageTests
         }
     }
 
+    /// <summary>
+    /// How far one colour channel may be from the golden image. Skia's raster code rounds anti-aliased edges
+    /// (text, rounded corners) slightly differently on ARM (Apple Silicon) than on x64: by at most 2 of 255, which
+    /// nobody can see. A real change (a moved edge, a different glyph or colour) differs by far more.
+    /// </summary>
+    const int ChannelTolerance = 2;
+
     static int CountDifferentPixels(SKBitmap a, SKBitmap b)
     {
         if (a.Width != b.Width || a.Height != b.Height) return int.MaxValue;
@@ -198,7 +205,8 @@ public class GoldenImageTests
         var pb = b.GetPixelSpan();
         int diff = 0;
         for (int i = 0; i < pa.Length; i += 4)
-            if (!pa.Slice(i, 4).SequenceEqual(pb.Slice(i, 4))) diff++;
+            for (int c = 0; c < 4; c++)
+                if (Math.Abs(pa[i + c] - pb[i + c]) > ChannelTolerance) { diff++; break; }
         return diff;
     }
 }
