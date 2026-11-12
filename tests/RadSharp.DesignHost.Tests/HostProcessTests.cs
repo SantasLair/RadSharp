@@ -13,7 +13,9 @@ public class HostProcessTests
     {
         var exe = Path.Combine(AppContext.BaseDirectory, OperatingSystem.IsWindows() ? "RadSharpDesignHost.exe" : "RadSharpDesignHost");
         Assert.True(File.Exists(exe), $"{exe} was built next to the tests");
-        var pipeName = "radsharp-host-test-" + Guid.NewGuid().ToString("N");
+        // Short: on macOS and Linux a pipe is a Unix socket under the temp folder, and socket paths are limited to
+        // 104 characters (macOS's temp folder alone is about 50).
+        var pipeName = "rsh-" + Guid.NewGuid().ToString("N")[..12];
         var psi = new ProcessStartInfo(exe)
         {
             UseShellExecute = false,
