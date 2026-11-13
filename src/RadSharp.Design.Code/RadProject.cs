@@ -147,13 +147,41 @@ public sealed class RadProject
     }
 
     /// <summary>
-    /// The project's solution file (for Visual Studio and Rider), written next to the project if there is
-    /// none yet, as Unity does for "Open C# Project".
+    /// The nearest solution (.sln or .slnx) in a folder above the project that lists this project, or null. Looks up
+    /// to six folders up and stops at the repository root (a folder with .git).
+    /// </summary>
+    public string? FindListingSolution()
+    {
+        var dir = new DirectoryInfo(Directory).Parent;
+        for (int depth = 0; dir != null && depth < 6; depth++, dir = dir.Parent)
+        {
+            foreach (var sln in dir.EnumerateFiles("*.sln").Concat(dir.EnumerateFiles("*.slnx")))
+                if (Lists(sln.FullName)) return sln.FullName;
+            if (System.IO.Directory.Exists(Path.Combine(dir.FullName, ".git")) || File.Exists(Path.Combine(dir.FullName, ".git"))) break;
+        }
+        return null;
+    }
+
+    /// <summary>Whether a solution file names this project (its path relative to the solution, either slash).</summary>
+    bool Lists(string solutionFile)
+    {
+        string rel = Path.GetRelativePath(Path.GetDirectoryName(solutionFile)!, ProjectFile).Replace('\\', '/');
+        string text;
+        try { text = File.ReadAllText(solutionFile).Replace('\\', '/'); }
+        catch (IOException) { return false; }
+        return text.Contains("\"" + rel + "\"", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>
+    /// The project's solution file (for Visual Studio and Rider): one next to the project, else one in a folder
+    /// above that already lists it (a repository with several projects keeps its solution at the top), else a new
+    /// one written next to the project, as Unity does for "Open C# Project".
     /// </summary>
     public string EnsureSolution()
     {
         var existing = System.IO.Directory.EnumerateFiles(Directory, "*.sln").Concat(System.IO.Directory.EnumerateFiles(Directory, "*.slnx")).FirstOrDefault();
         if (existing != null) return existing;
+        if (FindListingSolution() is { } above) return above;
         var path = Path.Combine(Directory, Name + ".sln");
         var id = "{" + Guid.NewGuid().ToString().ToUpperInvariant() + "}";
         const string csharp = "{9A19103F-16F7-4668-BE54-9A1E7A4F7556}";
