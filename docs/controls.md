@@ -57,6 +57,7 @@ Defaults are the class defaults at 100 % scale; only values that differ are writ
 | `imageIndex` | int | `-1` | Appearance |
 | `images` | string | "" | Appearance |
 | `modalResult` | enum: none, ok, cancel, abort, retry, ignore, yes, no, close | `none` | Behavior |
+| `primary` | bool | `false` | Appearance |
 
 ## CheckBox
 
@@ -107,8 +108,11 @@ Inherits from [EditBase](#editbase).
 
 | Property | Type | Default | Category |
 |---|---|---|---|
+| `alignment` | enum: left, center, right | `left` | Appearance |
 | `autoSelect` | bool | `true` | Behavior |
 | `borderStyle` | enum: none, single | `single` | Appearance |
+| `color` | color | "" | Appearance |
+| `fontColor` | color | "" | Appearance |
 | `hideSelection` | bool | `true` | Behavior |
 | `maxLength` | int | `0` | Behavior |
 | `passwordChar` | string | "" | Behavior |
@@ -138,6 +142,7 @@ Inherits from [FileDialog](#filedialog).
 |---|---|---|---|
 | `caption` | string | "" | Appearance |
 | `color` | color | "" | Appearance |
+| `darkTitleBar` | bool | `false` | Window |
 | `keyPreview` | bool | `false` | Behavior |
 | `resizable` | bool | `true` | Window |
 | `startPosition` | enum: default, centerScreen, centerOwner, manual | `default` | Window |
@@ -184,6 +189,7 @@ Inherits from [Component](#component).
 | `fontColor` | color | "" | Appearance |
 | `fontSize` | int | `0` | Appearance |
 | `layout` | enum: top, center, bottom | `top` | Appearance |
+| `muted` | bool | `false` | Appearance |
 | `wordWrap` | bool | `false` | Appearance |
 
 ## ListBox
@@ -225,6 +231,8 @@ Inherits from [EditBase](#editbase).
 | Property | Type | Default | Category |
 |---|---|---|---|
 | `borderStyle` | enum: none, single | `single` | Appearance |
+| `color` | color | "" | Appearance |
+| `fontColor` | color | "" | Appearance |
 | `hideSelection` | bool | `true` | Behavior |
 | `maxLength` | int | `0` | Behavior |
 | `placeholder` | string | "" | Appearance |
@@ -377,8 +385,11 @@ Inherits from [Edit](#edit).
 
 | Property | Type | Default | Category |
 |---|---|---|---|
+| `alignment` | enum: left, center, right | `left` | Appearance |
 | `autoSelect` | bool | `true` | Behavior |
 | `borderStyle` | enum: none, single | `single` | Appearance |
+| `color` | color | "" | Appearance |
+| `fontColor` | color | "" | Appearance |
 | `hideSelection` | bool | `true` | Behavior |
 | `increment` | int | `1` | Behavior |
 | `maxLength` | int | `0` | Behavior |
@@ -454,6 +465,7 @@ Inherits from [Button](#button).
 | `imageIndex` | int | `-1` | Appearance |
 | `images` | string | "" | Appearance |
 | `modalResult` | enum: none, ok, cancel, abort, retry, ignore, yes, no, close | `none` | Behavior |
+| `primary` | bool | `false` | Appearance |
 
 ## ToolSeparator
 
