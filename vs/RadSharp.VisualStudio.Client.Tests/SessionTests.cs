@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows;
+using Grid = System.Windows.Controls.Grid;
 using System.Windows.Input;
 using System.Windows.Media;
 using RadSharp.DesignHost.Protocol;
@@ -96,6 +97,41 @@ public class SessionTests
         Assert.Equal(SurfaceId, rig.View.WindowId);
         Assert.Same(rig.View, rig.Session.GetView(SurfaceId));
         Assert.Equal(SurfaceId, rig.Doc.GetWindow(WindowRole.Surface)!.Id);
+    });
+
+    [Fact]
+    public void A_view_hidden_while_its_next_window_loads_sends_that_window_a_size() => Ui.RunSta(() =>
+    {
+        // The RadSharp Properties tool window: one view in a grid that it fills. When a second form opens, the view is
+        // detached and collapsed ("Loading…") until that form's inspector is announced, then attached to it and shown.
+        using var rig = new Rig(scale: 1);
+        var view = new RemoteWindowView { DpiScaleOverride = 1 };
+        var grid = new Grid();
+        grid.Children.Add(view);
+        var win = new Window { Content = grid, Width = 240, Height = 160, WindowStyle = WindowStyle.None, ShowInTaskbar = false, ShowActivated = false, Left = -20000, Top = -20000 };
+        win.Show();
+        try
+        {
+            const int First = 21, Second = 31;
+            rig.Host.Send(new WindowOpened { WindowId = First, DocId = rig.Doc.Id, Role = WindowRole.Inspector });
+            Ui.WaitUntil(() => rig.Doc.GetWindow(WindowRole.Inspector) != null, what: "first inspector");
+            view.Attach(rig.Session, First);
+            rig.Host.WaitFor<ResizeWindow>(r => r.WindowId == First && r.Width > 0);
+
+            view.Detach();
+            view.Visibility = Visibility.Collapsed;
+            Ui.DoEvents();
+
+            var second = rig.Session.OpenDocument(@"C:\forms\Second.radform.json");
+            rig.Host.Send(new WindowOpened { WindowId = Second, DocId = second.Id, Role = WindowRole.Inspector });
+            Ui.WaitUntil(() => second.GetWindow(WindowRole.Inspector) != null, what: "second inspector");
+            view.Attach(rig.Session, Second);
+            view.Visibility = Visibility.Visible;
+
+            var resize = rig.Host.WaitFor<ResizeWindow>(r => r.WindowId == Second);
+            Assert.True(resize.Width > 0 && resize.Height > 0);
+        }
+        finally { win.Close(); }
     });
 
     [Fact]

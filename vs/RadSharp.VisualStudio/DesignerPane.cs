@@ -457,6 +457,9 @@ namespace RadSharp.VisualStudio
 
         // ---- commands --------------------------------------------------------------------------------------------------
 
+        private static bool IsViewCode(Guid group, uint id) =>
+            group == s_std97 && id == (uint)VSConstants.VSStd97CmdID.ViewCode;
+
         private static string? MapCommand(Guid group, uint id)
         {
             if (group != s_std97)
@@ -482,6 +485,15 @@ namespace RadSharp.VisualStudio
 
             for (var i = 0; i < cCmds && i < prgCmds.Length; i++)
             {
+                if (IsViewCode(pguidCmdGroup, prgCmds[i].cmdID))
+                {
+                    // View Code (F7) opens X.cs, as in the WinForms designer; with no code-behind VS opens the JSON text.
+                    if (FormFiles.ExistingCodeFileFor(_path) == null)
+                        return (int)Constants.OLECMDERR_E_NOTSUPPORTED;
+                    prgCmds[i].cmdf = (uint)(OLECMDF.OLECMDF_SUPPORTED | OLECMDF.OLECMDF_ENABLED);
+                    continue;
+                }
+
                 var name = MapCommand(pguidCmdGroup, prgCmds[i].cmdID);
                 if (name == null)
                     return (int)Constants.OLECMDERR_E_NOTSUPPORTED;
@@ -494,12 +506,20 @@ namespace RadSharp.VisualStudio
         int IOleCommandTarget.Exec(ref Guid pguidCmdGroup, uint nCmdID, uint nCmdexecopt, IntPtr pvaIn, IntPtr pvaOut)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+            // Help queries on the command ("show help for this command") are not executions.
+            const uint VSCmdOptQueryParameterList = 1;
+
+            if (IsViewCode(pguidCmdGroup, nCmdID) && FormFiles.ExistingCodeFileFor(_path) is { } code)
+            {
+                if ((nCmdexecopt >> 16) != VSCmdOptQueryParameterList)
+                    CodeNavigator.Open(_package, code);
+                return VSConstants.S_OK;
+            }
+
             var name = MapCommand(pguidCmdGroup, nCmdID);
             if (_view == null || name == null)
                 return (int)Constants.OLECMDERR_E_NOTSUPPORTED;
 
-            // Help queries on the command ("show help for this command") are not executions.
-            const uint VSCmdOptQueryParameterList = 1;
             if ((nCmdexecopt >> 16) == VSCmdOptQueryParameterList)
                 return VSConstants.S_OK;
 

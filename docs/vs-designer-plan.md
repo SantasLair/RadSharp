@@ -222,6 +222,22 @@ from `...\Microsoft Visual Studio\18\Community\Common7\IDE`, then `/updateconfig
 tool windows open. Click-select, arrow nudge (`*` appears), Ctrl+Z back to clean, and double-click → `btnOk_Click` in
 the C# editor with the caret in the body all work.
 
+**WinForms-style navigation (2026-11-13, VS 2026 18.10, live on Biweekly Cash Flow's three forms, then installed in the
+main hive):**
+
+- **Nesting:** `RadSharp.Core.targets` gives each form file `DependentUpon="X.cs"`, so Solution Explorer nests
+  `X.radform.json` under `X.cs` as it nests `Form1.Designer.cs`. `LogicalName` keeps the resource name unchanged.
+- **F7** in a designer tab opens `X.cs` (View Code). Without a code-behind, VS opens the JSON text as before.
+- **Shift+F7 / View Designer** on `X.cs` opens `X.radform.json` in the designer. This works from the C# editor and from
+  the item's Solution Explorer context menu, where "View Designer Shift+F7" now appears. `ViewDesignerCommand` is a
+  priority command target and claims the command only when a form file sits next to the selected `.cs`, so other
+  designers keep theirs. The package now also loads (in the background) when a `.cs` file is selected, so this works
+  before any form has been opened.
+- **Fixed:** opening a second form left RadSharp Properties showing the previous form. The tool window collapses its
+  view while the new form loads. When WPF showed the view again it didn't raise `SizeChanged`, so the new inspector
+  never got a `ResizeWindow`. `RemoteWindowView` now retries after layout until it has a size (client test
+  `A_view_hidden_while_its_next_window_loads_sends_that_window_a_size`).
+
 **Not yet checked live:** switching the VS colour theme while running, the dirty-tab close prompt, and a DPI change
 between monitors.
 

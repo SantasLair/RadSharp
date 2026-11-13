@@ -11,7 +11,8 @@ namespace RadSharp.VisualStudio
 {
     /// <summary>
     /// The RadSharp Form Designer package. VS loads it (in the background) the first time it needs the editor factory,
-    /// i.e. when a *.json file is opened; there is no auto-load.
+    /// i.e. when a *.json file is opened, or when a .cs file is selected or active (see <see cref="CsFileContext"/>), so
+    /// View Designer (Shift+F7) on a form's code file works before any form has been opened.
     /// </summary>
     /// <remarks>
     /// Editor registration, and why these values:
@@ -44,6 +45,8 @@ namespace RadSharp.VisualStudio
     // Tabbed with VS's own Toolbox (left) and Properties window (right), as for the WinForms designer.
     [ProvideToolWindow(typeof(ToolboxToolWindow), Style = VsDockStyle.Tabbed, Window = ToolWindowGuids80.Toolbox, Orientation = ToolWindowOrientation.Left)]
     [ProvideToolWindow(typeof(PropertiesToolWindow), Style = VsDockStyle.Tabbed, Window = ToolWindowGuids80.PropertiesWindow, Orientation = ToolWindowOrientation.Right)]
+    [ProvideUIContextRule(CsFileContext, "RadSharp: a C# file is selected", "CsFile", new[] { "CsFile" }, new[] { @"HierSingleSelectionName:\.cs$" })]
+    [ProvideAutoLoad(CsFileContext, PackageAutoLoadFlags.BackgroundLoad)]
     public sealed class RadSharpPackage : AsyncPackage, IVsSelectionEvents
     {
         public const string PackageGuidString = "5d0adadb-2d8e-4660-b721-fa0512f83271";
@@ -51,7 +54,11 @@ namespace RadSharp.VisualStudio
         public const int CmdIdShowToolbox = 0x0100;
         public const int CmdIdShowProperties = 0x0101;
 
+        /// <summary>UI context that is active while the single selected item (or the active document) is a .cs file.</summary>
+        public const string CsFileContext = "0f8c0e6f-41c4-4a3b-9e7e-5b1a3d0c2f71";
+
         private uint _selectionCookie;
+        private uint _priorityCommandCookie;
         private DesignerOutput? _output;
         private DesignHostService? _hostService;
         private bool _toolWindowsShown;
@@ -103,7 +110,13 @@ namespace RadSharp.VisualStudio
 
             // Tell the designer tab when it becomes the active document, so the inspector and palette follow it.
             if (await GetServiceAsync(typeof(SVsShellMonitorSelection)) is IVsMonitorSelection monitor)
+            {
                 monitor.AdviseSelectionEvents(this, out _selectionCookie);
+
+                // View Designer (Shift+F7) on a form's code file.
+                if (await GetServiceAsync(typeof(SVsRegisterPriorityCommandTarget)) is IVsRegisterPriorityCommandTarget priority)
+                    priority.RegisterPriorityCommandTarget(0, new ViewDesignerCommand(this, monitor), out _priorityCommandCookie);
+            }
         }
 
         private void ShowToolWindow(Type type) =>
@@ -117,6 +130,8 @@ namespace RadSharp.VisualStudio
 #pragma warning disable VSTHRD010
             if (disposing && _selectionCookie != 0 && ThreadHelper.CheckAccess())
                 UnadviseSelectionEvents();
+            if (disposing && _priorityCommandCookie != 0 && ThreadHelper.CheckAccess())
+                UnregisterPriorityCommandTarget();
 #pragma warning restore VSTHRD010
             if (disposing)
             {
@@ -125,6 +140,14 @@ namespace RadSharp.VisualStudio
             }
 
             base.Dispose(disposing);
+        }
+
+        private void UnregisterPriorityCommandTarget()
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            if (GetService(typeof(SVsRegisterPriorityCommandTarget)) is IVsRegisterPriorityCommandTarget priority)
+                priority.UnregisterPriorityCommandTarget(_priorityCommandCookie);
+            _priorityCommandCookie = 0;
         }
 
         private void UnadviseSelectionEvents()
