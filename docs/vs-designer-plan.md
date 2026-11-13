@@ -225,8 +225,10 @@ the C# editor with the caret in the body all work.
 **WinForms-style navigation (2026-11-13, VS 2026 18.10, live on Biweekly Cash Flow's three forms, then installed in the
 main hive):**
 
-- **Nesting:** `RadSharp.Core.targets` gives each form file `DependentUpon="X.cs"`, so Solution Explorer nests
-  `X.radform.json` under `X.cs` as it nests `Form1.Designer.cs`. `LogicalName` keeps the resource name unchanged.
+- **Nesting:** `RadSharp.Core.targets` gives each code-behind `DependentUpon="X.radform.json"`, so Solution Explorer
+  shows `X.radform.json` with `X.cs` under it, as WPF shows `MainWindow.xaml` over `MainWindow.xaml.cs`. The form file
+  is the one you double-click to design, so it stays visible. (The first try nested the form under the `.cs`, as
+  WinForms nests `Form1.Designer.cs`. That hid the forms: every `.cs` has an expand arrow, so nothing marked them.)
 - **F7** in a designer tab opens `X.cs` (View Code). Without a code-behind, VS opens the JSON text as before.
 - **Shift+F7 / View Designer** on `X.cs` opens `X.radform.json` in the designer. This works from the C# editor and from
   the item's Solution Explorer context menu, where "View Designer Shift+F7" now appears. `ViewDesignerCommand` is a
