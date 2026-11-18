@@ -775,6 +775,23 @@ internal static class ViewDrawing
             : [new(x, y + h), new(x + w, y + h), new(x + w / 2, y)];
         canvas.FillPolygon(arrow, canvas.Theme.TextMuted);
     }
+
+    /// <summary>
+    /// The expand/collapse triangle of a tree node (or any expandable row), centred in <paramref name="cell"/>: pointing
+    /// down when <paramref name="expanded"/>, right otherwise. A path, not a "▾"/"▸" glyph: the bundled font has neither,
+    /// so text would come from a system fallback font and look different on every OS (and be a missing-glyph box on a
+    /// Linux machine without one).
+    /// </summary>
+    public static void DrawExpander(Canvas canvas, Rect cell, bool expanded, Color color)
+    {
+        float length = canvas.Px(8), depth = canvas.Px(4);
+        // Whole-pixel centre, so the triangle's straight edges are crisp at any scale.
+        float cx = MathF.Round(cell.X + cell.Width / 2f), cy = MathF.Round(cell.Y + cell.Height / 2f);
+        PointF[] triangle = expanded
+            ? [new(cx - length / 2, cy - depth / 2), new(cx + length / 2, cy - depth / 2), new(cx, cy + depth / 2)]
+            : [new(cx - depth / 2, cy - length / 2), new(cx + depth / 2, cy), new(cx - depth / 2, cy + length / 2)];
+        canvas.FillPolygon(triangle, color);
+    }
 }
 
 /// <summary>
@@ -2084,7 +2101,7 @@ public class TreeView : ScrollView, ICollectionOwner, IFormCollections
             var row = new Rect(visible.X, y, visible.Width, rh);
             if (Selection.IsSelected(i)) canvas.FillRect(row, Focused || _editor is { Focused: true } ? t.Selection : t.SelectionInactive);
             if (node.HasChildren)
-                canvas.DrawText(node.Expanded ? "▾" : "▸", canvas.DefaultFont, t.TextDisabled, new Rect(x, y, Indent, rh), TextAlign.Center, VerticalAlign.Center);
+                ViewDrawing.DrawExpander(canvas, new Rect(x, y, Indent, rh), node.Expanded, t.TextDisabled);
             int textX = x + Indent;
             if (_checkboxes)
             {

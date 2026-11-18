@@ -1,8 +1,15 @@
 namespace RadSharp.Tests;
 
 /// <summary>Regression tests from the M13 review (mnemonics, message boxes, stuck Alt).</summary>
-public class MnemonicReviewTests
+[Collection("Mnemonics")]   // turns the process-wide Mnemonics.Enabled on (it's off by default on macOS); see MnemonicTests
+public class MnemonicReviewTests : IDisposable
 {
+    readonly bool _wasEnabled = Mnemonics.Enabled;
+
+    public MnemonicReviewTests() => Mnemonics.Enabled = true;
+
+    public void Dispose() => Mnemonics.Enabled = _wasEnabled;
+
     static Form NewForm()
     {
         var f = new Form { Caption = "Review" };
