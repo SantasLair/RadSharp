@@ -154,6 +154,10 @@ CI matrix remains desirable but is no longer the gate for calling this milestone
   run: no remote", which is now stale since a remote exists) — small copy fix, not blocking.
 - `dotnet test` result upload / NativeAOT publish artifacts in CI: still open, but not required for the reduced
   local-verification bar.
+- **Build (2026-11-17):** NuGet flagged `Microsoft.DotNet.ILCompiler` 10.0.12 (NU1903), which the SDK 10.0.401 pulls in
+  implicitly for NativeAOT, and warnings-as-errors failed the samples and `RadSharp.Design.Tests`. `global.json` now asks for
+  SDK 10.0.404 (.NET 10.0.15, ILCompiler 10.0.15), so CI's `setup-dotnet` gets it too; the `-p:NuGetAudit=false` workaround
+  is gone.
 
 **Done when (reduced bar):** tests + golden images pass on native Windows and on Linux via WSL2. **Met
 (2026-09-28)** — see Linux verification above and the native Windows run in the same session (`dotnet build`/
@@ -276,9 +280,22 @@ monitors of different scale, opens dialogs centered on their owner, activates bu
 dropped file.
 
 **Status:** items 4's two halves (in-app drag-and-drop, files dropped) are done, pulled forward 2026-09-28 ahead of
-the rest of the milestone — see the addenda near the top of this document. Items 1–3, 5 and 6 (window model,
-runtime scale change, mnemonics, application basics, pointer kind) are untouched; this milestone is not close to
-its own "done when" yet.
+the rest of the milestone — see the addenda near the top of this document.
+
+**Status (corrected 2026-11-17):** the note above was written on 2026-09-28 and missed later work. Since then, these
+landed (commits of 2026-11-10 and 2026-11-13):
+- Item 1, in part: `Form.WindowState` (Normal/Maximized/Minimized; no FullScreen yet), `Form.StartPosition`
+  (Default/CenterScreen/CenterOwner/Manual), `Form.Resizable`, the minimum size passed to the OS from
+  `MinWidth`/`MinHeight`, `Form.RestoredBounds` (the normal rect, also while maximized), and `Form.DarkTitleBar`.
+- Item 2, in part: `Form.ApplyScale` and `Form.ChangeScale` for code-built forms and dialogs that match their owner,
+  plus public `Control.ScaleLengths`/`Px`. `ChangeScale` multiplies by new/old scale, so a round trip can drift by a
+  pixel; it does not meet item 2's test, and display-scale changes are not handled.
+- Item 3, menus only: access keys, Alt / F10 menu mode and keyboard navigation of the menu bar.
+- Item 5, in part: `Application.ExitCode` exists (no `Terminate`, `Title` or `OnIdle`).
+
+Still open: `&` mnemonics on Label (`FocusControl`)/Button/CheckBox/RadioButton/GroupBox/TabSheet; drift-free rescale and
+`SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED`; `Screen`, starting on a chosen monitor, saving/restoring placement;
+FullScreen, `BorderStyle`, `TopMost`, `Icon`; `Application.Title`/`OnIdle`/`Terminate`; `PointerKind` (item 6).
 
 ## M14: Data controls (L; the largest single piece)
 
@@ -383,6 +400,13 @@ controls don't need yet.
 **Status (2026-11-17): merge review of stages 5 and 6.** Two issues the tracks left open are fixed. Virtual-mode type-ahead no longer asks for every row (100 000 rows stalled a key): a new `onFindItem` event (Delphi's OnDataFind) answers it, and without a handler at most 1000 rows after the current one are scanned. `TreeView.Change` for a code-made change (rows rebuild lazily) used to fire inside layout or paint; it is now held until a safe point: the next call from outside that reads the tree, or the UI-thread queue (`Application.Queue`) when a platform host is running, once per change. Seams between the branches checked and tested: `CheckListBox` and a variable-height `ListBox` run in `RowViewSuiteTests`; an editable `ComboBox`'s edit and a TreeView's rename editor are both transient, so the designer's structure tree and `DesignSurface.ControlAt` skip them; every new control has a palette picture, category and `onChange` default event.
 
 **M14 status:** items 1–6 done; item 7 (DateTimePicker, Calendar, MaskEdit) deferred to the reference app as the plan says. Done-when met: see `GridTests` (100 000-row virtual grid) and `RowViewSuiteTests`.
+
+**Status (2026-11-17): a saved `itemIndex` now loads.** `ListBox`, `CheckListBox` and `ComboBox` lost a saved `itemIndex`,
+because the writer puts it before `items` and the reader clamped it against an empty list; `PageControl.activePageIndex`
+was lost the same way (its pages are children, read after it). Fixed in the reader without a format change: new
+`Control.Loading` (true while the reader applies a node) and `Control.Loaded()` (after its members and children,
+Delphi's `Loaded`); the index properties hold their value while loading and apply it, clamped, in `Loaded`. Files saved
+earlier now load correctly. Spec: "Index members apply after what they index". Tests: `LoadOrderTests`.
 
 ## M15: Reuse and data (L)
 

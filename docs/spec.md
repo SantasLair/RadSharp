@@ -45,6 +45,12 @@ A form file is UTF-8 JSON:
 - Only properties the class **publishes** are read or written. Anything else is ignored with a warning.
 - **Property names are camelCase** throughout (`minWidth`, `tabStop`, `popupMenu`, `onMouseDown`).
 - **An unknown class** logs a warning and that node (with its subtree) is skipped; siblings still load.
+- **Index members apply after what they index.** `itemIndex` (`ListBox`, `CheckListBox`, `ComboBox`) and
+  `activePageIndex` (`PageControl`) are written before `items` and `children` (alphabetical order puts them first), so a
+  reader holds them until the node's other members and children are read, then applies them, clamped to the items or
+  pages there are. Their position in the file never matters. In an editable `ComboBox` (`style: dropDown`) a `text` in the
+  file wins over an `itemIndex` that disagrees with it. (In this implementation: `Control.Loading` is true while a
+  node is read, and `Control.Loaded()` runs afterwards, children before their parent.)
 
 **Events**
 - Events are properties whose name starts with `on` (`"onClick": "btnSave_Click"`). The value is a handler *name*.
