@@ -1,0 +1,176 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "hand-written",
+  "root": {
+    "class": "Form",
+    "name": "frmMain",
+    "caption": "Windows, displays and scale",
+    "width": 560,
+    "height": 470,
+    "minWidth": 460,
+    "minHeight": 400,
+    "keyPreview": true,
+    "children": [
+      {
+        "class": "Label",
+        "name": "lblCurrent",
+        "caption": "",
+        "fontBold": true,
+        "left": 16,
+        "top": 14,
+        "width": 528,
+        "height": 22,
+        "anchors": ["left", "top", "right"]
+      },
+      {
+        "class": "Label",
+        "name": "lblState",
+        "caption": "",
+        "left": 16,
+        "top": 38,
+        "width": 528,
+        "height": 22,
+        "anchors": ["left", "top", "right"]
+      },
+      {
+        "class": "Label",
+        "name": "lblDisplays",
+        "focusControl": "lstDisplays",
+        "caption": "&Displays",
+        "left": 16,
+        "top": 70,
+        "width": 200,
+        "height": 20
+      },
+      {
+        "class": "ListBox",
+        "name": "lstDisplays",
+        "left": 16,
+        "top": 92,
+        "width": 528,
+        "height": 110,
+        "anchors": ["left", "top", "right", "bottom"]
+      },
+      {
+        "class": "Panel",
+        "name": "pnlControls",
+        "borderStyle": "none",
+        "align": "bottom",
+        "height": 252,
+        "children": [
+          {
+            "class": "Button",
+            "name": "btnMove",
+            "caption": "&Move to display",
+            "left": 16,
+            "top": 8,
+            "width": 140,
+            "onClick": "btnMove_Click"
+          },
+          {
+            "class": "Button",
+            "name": "btnMaximize",
+            "caption": "Ma&ximize on display",
+            "left": 164,
+            "top": 8,
+            "width": 160,
+            "onClick": "btnMaximize_Click"
+          },
+          {
+            "class": "Button",
+            "name": "btnRefresh",
+            "caption": "&Refresh list",
+            "left": 332,
+            "top": 8,
+            "width": 110,
+            "onClick": "btnRefresh_Click"
+          },
+          {
+            "class": "CheckBox",
+            "name": "chkFullScreen",
+            "caption": "&Full screen (Esc leaves it)",
+            "left": 16,
+            "top": 50,
+            "width": 220,
+            "height": 24,
+            "onChange": "chkFullScreen_Change"
+          },
+          {
+            "class": "CheckBox",
+            "name": "chkTopMost",
+            "caption": "Always on &top",
+            "left": 250,
+            "top": 50,
+            "width": 160,
+            "height": 24,
+            "onChange": "chkTopMost_Change"
+          },
+          {
+            "class": "Label",
+            "name": "lblBorder",
+            "focusControl": "cboBorder",
+            "caption": "&Border style",
+            "left": 16,
+            "top": 88,
+            "width": 100,
+            "height": 24
+          },
+          {
+            "class": "ComboBox",
+            "name": "cboBorder",
+            "items": ["Sizable", "Single", "Dialog", "Tool (applies to new windows)", "None"],
+            "itemIndex": 0,
+            "left": 120,
+            "top": 86,
+            "width": 240,
+            "onChange": "cboBorder_Change"
+          },
+          {
+            "class": "Button",
+            "name": "btnDialog",
+            "caption": "Open a d&ialog",
+            "left": 16,
+            "top": 128,
+            "width": 140,
+            "onClick": "btnDialog_Click"
+          },
+          {
+            "class": "Label",
+            "name": "lblDialog",
+            "caption": "It opens centred on this window, as a dialog.",
+            "left": 164,
+            "top": 130,
+            "width": 380,
+            "height": 24,
+            "anchors": ["left", "top", "right"]
+          },
+          {
+            "class": "Label",
+            "name": "lblHint",
+            "caption": "Drag the window to a display with another scale: the form rescales to it. Hold Alt to see the access keys.",
+            "wordWrap": true,
+            "left": 16,
+            "top": 170,
+            "width": 528,
+            "height": 22,
+            "anchors": ["left", "top", "right"]
+          },
+          {
+            "class": "Label",
+            "name": "lblPlacement",
+            "caption": "",
+            "muted": true,
+            "ellipsis": true,
+            "left": 16,
+            "top": 196,
+            "width": 528,
+            "height": 44,
+            "wordWrap": true,
+            "anchors": ["left", "top", "right"]
+          }
+        ]
+      }
+    ]
+  }
+}

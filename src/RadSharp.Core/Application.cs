@@ -20,7 +20,16 @@ public static class Application
     /// boxes and as <see cref="Form.WindowTitle"/> (the OS window / taskbar title) of a form whose
     /// <see cref="Form.Caption"/> is empty. Empty by default.
     /// </summary>
-    public static string Title { get; set; } = "";
+    public static string Title
+    {
+        get => _title;
+        set { value ??= ""; if (value == _title) return; _title = value; TitleChanged?.Invoke(); }
+    }
+
+    static string _title = "";
+
+    /// <summary>Raised when <see cref="Title"/> changes, so hosts can retitle windows whose caption is empty.</summary>
+    public static event Action? TitleChanged;
 
     /// <summary>
     /// Raised when the host has drained its input queue and is about to wait (Delphi's <c>OnIdle</c>). Each handler may set

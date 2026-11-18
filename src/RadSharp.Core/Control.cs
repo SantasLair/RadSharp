@@ -192,6 +192,7 @@ public partial class Control
         _aL = _left; _aT = _top; _aW = _width; _aH = _height;
         _pw0 = p._width; _ph0 = p._height;
         _captured = true;
+        RecordCaptureDesign(p);
     }
 
     /// <summary>Sets a class default size without triggering layout; for constructors.</summary>
@@ -288,27 +289,107 @@ public partial class Control
 
     // ---- Scaling ----
 
+    // Lengths are stored in form pixels. _design remembers, per length, the 100 % value it was scaled from (see
+    // ScaleChange.Apply): it is trusted only while the pixel value is still what it gives at _lengthScale, so a length
+    // changed since (from code, or by layout) is converted back from its pixels instead. Allocated the first time the
+    // control is scaled; slots: left, top, width, height, margin l/t/r/b, padding l/t/r/b, min width/height,
+    // max width/height, then the anchor capture: left, top, width, height, parent width, parent height.
+    double[]? _design;
+    double _lengthScale = 1;
+    const int DesignSlots = 22, CaptureSlot = 16;
+
     /// <summary>
     /// Multiplies every stored length in this subtree by <paramref name="scale"/> and rounds (spec, Appendix B,
     /// "Scaling"). Runs once on a freshly built tree, before its first layout; for a whole code-built form
     /// use <see cref="Form.ApplyScale"/>, which also records the scale. Calling it twice scales twice.
+    /// Each control remembers the 100 % lengths it was scaled from, so a later <see cref="Form.ChangeScale"/>
+    /// recomputes them instead of rounding the rounded values again.
     /// </summary>
     public void ScaleLengths(double scale)
     {
-        static int S(int v, double k) => LayoutMath.Round(v * k);
-        static Thickness T(Thickness t, double k) => new(S(t.L, k), S(t.T, k), S(t.R, k), S(t.B, k));
-        _left = S(_left, scale); _top = S(_top, scale);
-        _width = S(_width, scale); _height = S(_height, scale);
-        _margin = T(_margin, scale); _padding = T(_padding, scale);
-        _minWidth = S(_minWidth, scale); _minHeight = S(_minHeight, scale);
-        _maxWidth = S(_maxWidth, scale); _maxHeight = S(_maxHeight, scale);
-        _captured = false;
-        _needsArrange = true;
-        ScaleOwnLengths(scale);
+        if (!(scale > 0) || !double.IsFinite(scale)) throw new ArgumentOutOfRangeException(nameof(scale), "Scale must be positive.");
+        var change = new ScaleChange(_lengthScale, _lengthScale * scale);
+        RescaleSelf(change, keepCapture: false);
         foreach (var c in _children) c.ScaleLengths(scale);
     }
 
-    /// <summary>Scales lengths a subclass adds (e.g. a splitter's minimum size).</summary>
+    /// <summary>
+    /// Moves every length in this subtree from <paramref name="from"/> to <paramref name="to"/> (the form's old and
+    /// new scale) through the remembered 100 % values. Anchor captures are converted rather than dropped, so an
+    /// anchored control keeps its designed distances whatever size the parent has now.
+    /// </summary>
+    internal void RescaleTree(double from, double to)
+    {
+        RescaleSelf(new ScaleChange(from, to), keepCapture: true);
+        foreach (var c in _children) c.RescaleTree(from, to);
+    }
+
+    /// <summary>Marks this subtree's lengths as being at 100 %, forgetting what earlier scaling remembered.</summary>
+    internal void ResetLengthScale()
+    {
+        _design = null;
+        _lengthScale = 1;
+        foreach (var c in _children) c.ResetLengthScale();
+    }
+
+    void RescaleSelf(ScaleChange change, bool keepCapture)
+    {
+        var d = _design ??= NewDesign();
+        int S(int v, int slot) => change.Apply(v, ref d[slot]);
+        Thickness T(Thickness t, int slot) => new(S(t.L, slot), S(t.T, slot + 1), S(t.R, slot + 2), S(t.B, slot + 3));
+        _left = S(_left, 0); _top = S(_top, 1);
+        _width = S(_width, 2); _height = S(_height, 3);
+        _margin = T(_margin, 4); _padding = T(_padding, 8);
+        _minWidth = S(_minWidth, 12); _minHeight = S(_minHeight, 13);
+        _maxWidth = S(_maxWidth, 14); _maxHeight = S(_maxHeight, 15);
+        if (keepCapture && _captured)
+        {
+            _aL = S(_aL, CaptureSlot); _aT = S(_aT, CaptureSlot + 1);
+            _aW = S(_aW, CaptureSlot + 2); _aH = S(_aH, CaptureSlot + 3);
+            _pw0 = S(_pw0, CaptureSlot + 4); _ph0 = S(_ph0, CaptureSlot + 5);
+        }
+        else _captured = false;
+        _lengthScale = change.To;
+        _needsArrange = true;
+        RescaleOwnLengths(change);
+    }
+
+    static double[] NewDesign()
+    {
+        var d = new double[DesignSlots];
+        Array.Fill(d, double.NaN);
+        return d;
+    }
+
+    /// <summary>
+    /// Records the anchor capture's 100 % values from this control's (and its parent's) remembered lengths, while those
+    /// still match, so converting the capture at a later scale change is as exact as the lengths themselves.
+    /// </summary>
+    void RecordCaptureDesign(Control parent)
+    {
+        if (_design is not { } d) return;
+        double s = _lengthScale;
+        d[CaptureSlot] = ScaleChange.DesignOf(_aL, d[0], s);
+        d[CaptureSlot + 1] = ScaleChange.DesignOf(_aT, d[1], s);
+        d[CaptureSlot + 2] = ScaleChange.DesignOf(_aW, d[2], s);
+        d[CaptureSlot + 3] = ScaleChange.DesignOf(_aH, d[3], s);
+        var pd = parent._design;
+        d[CaptureSlot + 4] = pd != null ? ScaleChange.DesignOf(_pw0, pd[2], parent._lengthScale) : double.NaN;
+        d[CaptureSlot + 5] = pd != null ? ScaleChange.DesignOf(_ph0, pd[3], parent._lengthScale) : double.NaN;
+    }
+
+    /// <summary>
+    /// Scales lengths a subclass adds (e.g. a splitter's minimum size) when the control moves to another scale. Use
+    /// <see cref="ScaleChange.Apply"/> with a field per length that starts at <see cref="double.NaN"/>, so the length
+    /// comes back exactly after 100 % → 150 % → 100 %. The default calls <see cref="ScaleOwnLengths"/> with
+    /// <see cref="ScaleChange.Ratio"/>.
+    /// </summary>
+    protected virtual void RescaleOwnLengths(ScaleChange change) => ScaleOwnLengths(change.Ratio);
+
+    /// <summary>
+    /// Scales lengths a subclass adds by <paramref name="scale"/> (a ratio). Kept for existing subclasses; prefer
+    /// <see cref="RescaleOwnLengths"/>, which doesn't drift when the scale changes back and forth at run time.
+    /// </summary>
     protected virtual void ScaleOwnLengths(double scale) { }
 
     // ---- Layout ----

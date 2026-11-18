@@ -144,6 +144,120 @@ public class Form : Control
     /// </summary>
     [Published(Category = "Window")] public bool DarkTitleBar { get; set; }
 
+    FormBorderStyle _borderStyle;
+    string _iconSource = "";
+    Picture? _icon;
+    bool _iconLoaded;
+
+    /// <summary>
+    /// The window's frame (Delphi's <c>BorderStyle</c>): <see cref="FormBorderStyle.Sizable"/> (the default),
+    /// <c>Single</c>, <c>Dialog</c>, <c>Tool</c> or <c>None</c>. Only Sizable and Tool windows can be resized, and
+    /// only while <see cref="Resizable"/> is true (see <see cref="IsUserResizable"/>). A modal form left at Sizable
+    /// shows as a dialog (see <see cref="EffectiveBorderStyle"/>). The host applies later changes to an open window,
+    /// except to and from <c>Tool</c>, which is read when the window is created.
+    /// </summary>
+    [Published(Category = "Window")]
+    public FormBorderStyle BorderStyle { get => _borderStyle; set => _borderStyle = value; }
+
+    /// <summary>
+    /// The frame the host gives the window: <see cref="BorderStyle"/>, except that a modal form (<see cref="ShowModal"/>)
+    /// left at <see cref="FormBorderStyle.Sizable"/> gets a dialog frame (no minimise or maximise button). Its
+    /// resizing still follows <see cref="IsUserResizable"/>, so existing resizable dialogs stay resizable.
+    /// </summary>
+    public FormBorderStyle EffectiveBorderStyle =>
+        IsModal && _borderStyle == FormBorderStyle.Sizable ? FormBorderStyle.Dialog : _borderStyle;
+
+    /// <summary>Whether the user can resize the window by its border: <see cref="Resizable"/>, with a <c>Sizable</c> or <c>Tool</c> <see cref="BorderStyle"/>.</summary>
+    public bool IsUserResizable => _resizable && _borderStyle is FormBorderStyle.Sizable or FormBorderStyle.Tool;
+
+    /// <summary>
+    /// Where the host places the window: <see cref="StartPosition"/>, except that a modal form left at
+    /// <see cref="FormStartPosition.Default"/> is centred on its owner (<see cref="FormStartPosition.CenterOwner"/>).
+    /// </summary>
+    public FormStartPosition EffectiveStartPosition =>
+        IsModal && _startPosition == FormStartPosition.Default ? FormStartPosition.CenterOwner : _startPosition;
+
+    /// <summary>Keeps the window above all other (non-topmost) windows. The host applies later changes to an open window.</summary>
+    [Published(Category = "Window")] public bool TopMost { get; set; }
+
+    /// <summary>
+    /// The window icon: a data URI, an embedded resource name or a file path, like <see cref="Image.PictureSource"/>.
+    /// Empty uses the host's default icon.
+    /// </summary>
+    [Published("icon", Category = "Window")]
+    public string IconSource
+    {
+        get => _iconSource;
+        set { _iconSource = value ?? ""; _icon = null; _iconLoaded = false; }
+    }
+
+    /// <summary>The window icon: loaded from <see cref="IconSource"/>, or set from code. The host applies changes to an open window.</summary>
+    public Picture? Icon
+    {
+        get
+        {
+            if (!_iconLoaded) { _icon = Picture.FromSource(_iconSource, GetType().Assembly); _iconLoaded = true; }
+            return _icon;
+        }
+        set { _icon = value; _iconLoaded = true; }
+    }
+
+    /// <summary>
+    /// The display the window opens on, for <see cref="FormStartPosition.Default"/> and
+    /// <see cref="FormStartPosition.CenterScreen"/> (and <see cref="FormStartPosition.CenterOwner"/> without an owner):
+    /// the window is centred on it, and maximised or full screen there if <see cref="WindowState"/> says so.
+    /// <see cref="FormStartPosition.Manual"/> windows go where <see cref="Control.Left"/>/<see cref="Control.Top"/> say.
+    /// Null (the default) leaves it to the host. Read when the window is created; ignored if the display is gone.
+    /// </summary>
+    public Display? StartDisplay { get; set; }
+
+    /// <summary>
+    /// The display the window is on now (the one with most of it); before the window opens, or after it closed, the one
+    /// with most of <see cref="RestoredBounds"/>. Null if the host reports no displays.
+    /// </summary>
+    public Display? Display
+    {
+        get
+        {
+            var host = PlatformHost.Current;
+            if (host == null) return null;
+            return host.GetDisplayOf(this) ?? Screen.Nearest(host.GetDisplays(), RestoredBounds);
+        }
+    }
+
+    /// <summary>
+    /// Moves the window to <paramref name="display"/>, centred in its work area. A maximised or full-screen window
+    /// stays so, on the new display. When the display has another scale the size is converted, so the window keeps its
+    /// size in design units. If the window isn't open, it opens there (<see cref="StartDisplay"/>). Returns true if an
+    /// open window was moved.
+    /// </summary>
+    public bool MoveToDisplay(Display display)
+    {
+        ArgumentNullException.ThrowIfNull(display);
+        var r = RestoredBounds;
+        double k = FollowsDisplayScale ? display.Scale / Scale : 1;
+        var target = Screen.CenterIn(display.WorkArea, LayoutMath.Round(r.Width * k), LayoutMath.Round(r.Height * k));
+        if (PlatformHost.Current?.MoveForm(this, target) == true) return true;
+        StartDisplay = display;
+        return false;
+    }
+
+    /// <summary>
+    /// Whether the host rescales the form (<see cref="ChangeScale"/>) when its window moves to a display with another
+    /// scale. On by default; it applies to forms that have a scale (loaded from a form file, <see cref="ApplyScale"/>,
+    /// or <see cref="Scale"/> set by hand), not to code-built forms that were never scaled.
+    /// </summary>
+    public bool ScaleWithDisplay { get; set; } = true;
+
+    /// <summary>True if the host should follow display scale changes for this form (see <see cref="ScaleWithDisplay"/>).</summary>
+    public bool FollowsDisplayScale => ScaleWithDisplay && (_scaleApplied || Scale != 1);
+
+    /// <summary>Raised when the host reports that the window moved to another display (see <see cref="Display"/>).</summary>
+    public event Action<Form>? DisplayChanged;
+
+    /// <summary>Host callback: the window is now mostly on another display.</summary>
+    public void NotifyDisplayChanged() => DisplayChanged?.Invoke(this);
+
     /// <summary>Caption colour for the OS title bar (Windows 11), instead of the form colour. Read when the window is created.</summary>
     public Color? TitleBarColor { get; set; }
 
@@ -176,23 +290,45 @@ public class Form : Control
     }
 
     /// <summary>
-    /// Gives the form the scale <paramref name="scale"/> whether or not it is scaled yet (Delphi's <c>ChangeScale</c>).
-    /// A designed form is scaled to <see cref="DefaultScale"/> as it loads; a dialog that should match its owner
-    /// window calls <c>ChangeScale(owner.Scale)</c>, which multiplies every length by <c>scale / Scale</c> (a length
-    /// can end up a pixel off what loading at that scale would give). A form not scaled yet is scaled as by
-    /// <see cref="ApplyScale"/>. Lengths set from code after loading are in the old scale's pixels and are
-    /// rescaled with the rest. <paramref name="scale"/> 0 uses <see cref="DefaultScale"/>.
+    /// Gives the form the scale <paramref name="scale"/> whether or not it is scaled yet (Delphi's <c>ChangeScale</c>):
+    /// a dialog that should match its owner window calls <c>ChangeScale(owner.Scale)</c>, and the SDL host calls it
+    /// when the window moves to a display with another scale. Every length (bounds, margins, padding, min/max sizes,
+    /// anchor distances, a subclass's own lengths) is recomputed from the 100 % value it was scaled from, so the
+    /// layout is the same as loading at <paramref name="scale"/> in the first place and 100 % → 150 % → 100 % gives
+    /// back exactly the original layout. A length set from code since is in the old scale's pixels: it is converted
+    /// to 100 % (<c>pixels / Scale</c>) and scaled from there, so it comes back exactly when the old scale returns.
+    /// Open popups are closed. A form not scaled yet is scaled as by <see cref="ApplyScale"/>.
+    /// <paramref name="scale"/> 0 uses <see cref="DefaultScale"/>. Raises <see cref="ScaleChanged"/> when the scale
+    /// changes.
     /// </summary>
     public void ChangeScale(double scale = 0)
     {
         if (scale == 0) scale = DefaultScale;
-        if (scale <= 0) throw new ArgumentOutOfRangeException(nameof(scale), "Scale must be positive.");
-        if (!_scaleApplied) { ApplyScale(scale); return; }
+        if (!(scale > 0) || !double.IsFinite(scale)) throw new ArgumentOutOfRangeException(nameof(scale), "Scale must be positive.");
+        if (!_scaleApplied)
+        {
+            // A form whose Scale was set by hand (built in pixels at that scale, like a message box) is at that scale.
+            if (Scale == 1) { ApplyScale(scale); return; }
+            _scaleApplied = true;
+            DesignWidth = DesignWidth > 0 ? DesignWidth : LayoutMath.Round(Width / Scale);
+            DesignHeight = DesignHeight > 0 ? DesignHeight : LayoutMath.Round(Height / Scale);
+        }
         if (scale == Scale) return;
-        ScaleLengths(scale / Scale);
+        var change = new ScaleChange(Scale, scale);
+        CloseAllPopups();   // sized and placed at the old scale
+        RescaleTree(change.From, change.To);
         Scale = scale;
         PerformLayout();
+        InvalidateAll();
+        ScaleChanged?.Invoke(this, change);
     }
+
+    /// <summary>
+    /// Raised after <see cref="ChangeScale"/> moved the form to another scale (for example because its window was
+    /// dragged to a display with another scale), once the form was laid out again. <see cref="ScaleChange.Apply"/>
+    /// rescales lengths the application keeps itself.
+    /// </summary>
+    public event Action<Form, ScaleChange>? ScaleChanged;
 
     /// <summary>True once the form has a scale (<see cref="ApplyScale"/>, <see cref="ChangeScale"/> or loading a form file).</summary>
     public bool IsScaled => _scaleApplied;
@@ -203,6 +339,7 @@ public class Form : Control
         _scaleApplied = true;
         DesignWidth = Width;
         DesignHeight = Height;
+        ResetLengthScale();   // the tree is at 100 % now (a reload into the same form starts over)
         if (scale != 1) ScaleLengths(scale);
         Scale = scale;
     }
