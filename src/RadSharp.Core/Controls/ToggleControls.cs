@@ -75,7 +75,15 @@ public abstract class ToggleControl : Control
             x += s + canvas.Px(4);
         }
         var color = IsEffectivelyEnabled ? canvas.Theme.Text : canvas.Theme.TextDisabled;
-        canvas.DrawText(Caption, EffectiveFont, color, new Rect(x, 0, Width - x, Height), TextAlign.Left, VerticalAlign.Center);
+        Mnemonics.Draw(canvas, Caption, EffectiveFont, color, new Rect(x, 0, Width - x, Height), TextAlign.Left, VerticalAlign.Center, ShowMnemonics);
+    }
+
+    protected internal override string? MnemonicCaption => Caption;
+
+    protected internal override void ActivateMnemonic()
+    {
+        Focus();
+        OnClick();
     }
 
 }
@@ -150,6 +158,14 @@ public class GroupBox : Control
 
     [Published(Category = "Appearance")] public string Caption { get => _caption; set { _caption = value; Invalidate(); } }
 
+    protected internal override string? MnemonicCaption => Caption;
+
+    protected internal override bool CanTakeMnemonic => FirstFocusableChild() != null;
+
+    protected internal override void FocusMnemonic() => FirstFocusableChild()?.Focus();
+
+    protected internal override bool HoldsMnemonicFocus(Control focused) => focused.IsSelfOrDescendantOf(this);
+
     int HeaderHeight => LayoutMath.Round(CurrentTheme.FontSize * 1.6 * UiScale);
 
     protected override Rect GetClientRect()
@@ -165,8 +181,8 @@ public class GroupBox : Control
         int header = HeaderHeight;
         var frame = new Rect(0, header, Width, Height - header);
         canvas.DrawRoundBorder(frame, canvas.Px(4), t.PanelBorder, canvas.Px(1));
-        canvas.DrawText(Caption, EffectiveFont with { Bold = true }, IsEffectivelyEnabled ? t.Text : t.TextDisabled,
-            new Rect(canvas.Px(2), 0, Width - canvas.Px(4), header), TextAlign.Left, VerticalAlign.Center);
+        Mnemonics.Draw(canvas, Caption, EffectiveFont with { Bold = true }, IsEffectivelyEnabled ? t.Text : t.TextDisabled,
+            new Rect(canvas.Px(2), 0, Width - canvas.Px(4), header), TextAlign.Left, VerticalAlign.Center, ShowMnemonics);
     }
 
 }

@@ -92,8 +92,13 @@ public enum MessageButtons { Ok = 1, Cancel = 2, Yes = 4, No = 8, Abort = 16, Re
 /// <summary>Delphi-style message boxes, drawn by RadSharp (so they look the same everywhere).</summary>
 public static class Dialogs
 {
-    public static void ShowMessage(string message, Form? owner = null) =>
-        MessageDlg(message, MessageType.Information, MessageButtons.Ok, owner);
+    /// <summary>Shows a simple message box. Its caption is <see cref="Application.Title"/> when that is set (Delphi's rule), else "Information".</summary>
+    public static void ShowMessage(string message, Form? owner = null)
+    {
+        var form = CreateMessageForm(message, MessageType.Information, MessageButtons.Ok, owner);
+        if (Application.Title.Length > 0) form.Caption = Application.Title;
+        form.ShowModal();
+    }
 
     /// <summary>Shows a modal message box synchronously and returns the button pressed (Cancel if closed another way). Desktop-only.</summary>
     public static ModalResult MessageDlg(string message, MessageType type = MessageType.Information,
@@ -149,7 +154,7 @@ public static class Dialogs
         form.Add(badge);
         for (int i = 0; i < lines.Length; i++)
         {
-            var label = new Label { Caption = lines[i], Name = $"lblLine{i}" };
+            var label = new Label { Caption = lines[i], Name = $"lblLine{i}", ShowAccelChar = false };
             label.SetBounds(margin + icon + S(16), margin + i * lineHeight + (lines.Length == 1 ? (icon - lineHeight) / 2 : 0), textWidth + S(4), lineHeight);
             form.Add(label);
         }

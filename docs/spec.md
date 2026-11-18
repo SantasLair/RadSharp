@@ -45,11 +45,20 @@ A form file is UTF-8 JSON:
 - Only properties the class **publishes** are read or written. Anything else is ignored with a warning.
 - **Property names are camelCase** throughout (`minWidth`, `tabStop`, `popupMenu`, `onMouseDown`).
 - **An unknown class** logs a warning and that node (with its subtree) is skipped; siblings still load.
+- **Index members apply after what they index.** `itemIndex` (`ListBox`, `CheckListBox`, `ComboBox`) and
+  `activePageIndex` (`PageControl`) are written before `items` and `children` (alphabetical order puts them first), so a
+  reader holds them until the node's other members and children are read, then applies them, clamped to the items or
+  pages there are. Their position in the file never matters. In an editable `ComboBox` (`style: dropDown`) a `text` in the
+  file wins over an `itemIndex` that disagrees with it. (In this implementation: `Control.Loading` is true while a
+  node is read, and `Control.Loaded()` runs afterwards, children before their parent.)
 
 **Events**
 - Events are properties whose name starts with `on` (`"onClick": "btnSave_Click"`). The value is a handler *name*.
 - In an app, the source generator binds names to methods **at compile time**; a missing method is a compile error
   (RAD1001, reported at the handler name in the form file, with the method signature to add).
+- A control (or named menu item) whose `name` equals a member the form inherits (`Monitor`, `Icon`, `Close`, `Caption`,
+  or a member of the form's own base class) is error RAD1006, reported at the `name` value; its field is not generated.
+  Rename the control, as the generated field would hide the member. The designer refuses such names too.
 - When a form is loaded without generated bindings (as the designer does), names are kept on the control
   so re-saving doesn't lose them.
 - Handler convention: the **first argument is always the sender**, e.g.
@@ -127,6 +136,31 @@ like `anchors`: `[0, 3]` on one line, `[]` when empty (a default-valued property
 | `font` | `{family, size, bold, italic, underline}` or absent | absent (*ParentFont*: inherit) |
 | `onClick`, `onMouseDown`, `onMouseUp`, `onMouseMove`, `onMouseEnter`, `onMouseLeave`, `onMouseWheel`, `onKeyDown`, `onKeyUp`, `onFocus`, `onBlur`, `onChange`, `onResize` | event | none |
 
+**Form properties** (the root node; besides the base properties, `caption` and `color`):
+
+| Property | Type | Default |
+|---|---|---|
+| `windowState` | enum `normal, maximized, minimized, fullScreen` | `normal` |
+| `startPosition` | enum `default, centerScreen, centerOwner, manual` | `default` (a modal form then centres on its owner) |
+| `borderStyle` | enum `sizable, single, dialog, tool, none` | `sizable` (a modal form then gets a dialog frame) |
+| `resizable` | bool | true; the user can resize only a `sizable` or `tool` frame, and only while this is true |
+| `topMost` | bool | false |
+| `icon` | picture source (data URI, resource name or path, as `Image`'s `picture`) | "" |
+| `darkTitleBar`, `keyPreview` | bool | false |
+| `onCloseQuery`, `onShow`, `onClose` | event | none |
+
+**Label mnemonic properties:** `focusControl` (the name of a control on the form whose focus an Alt+letter mnemonic on
+the label moves to; default "") and `showAccelChar` (bool, default true; false draws the caption literally and
+disables its mnemonic).
+
+**Dates.** A `date` property is a calendar date written as an ISO 8601 `"yyyy-MM-dd"` string in the invariant
+culture (`"2026-11-17"`). A property may be nullable: absent means its default (null for a nullable one), and an explicit
+`null` is accepted on read. An invalid string is a warning and leaves the default. `Calendar` publishes `date` (the
+selected date; absent = none), `minDate` (default `"0001-01-01"`), `maxDate` (default `"9999-12-31"`) and
+`firstDayOfWeek` (`default`, `sunday` … `saturday`); events `onChange`, `onDateClick`. `DateTimePicker` publishes the
+same date members plus `showCheckbox` (false), `checked` (true; with `showCheckbox`, false means "no date") and `format`
+(a .NET-style date pattern, "" = the culture's short date); event `onChange`. Vector: `serialization/dates`.
+
 **Fonts** (Delphi's `TFont`/*ParentFont*). A control's `font` is optional; when absent the control
 inherits its parent's *effective* font, and the root form falls back to the theme's default (family
 `"Inter"`, the bundled Regular/Bold/Italic/Bold-Italic faces). Setting `font` on a container does not
@@ -143,7 +177,7 @@ family falls back to the theme's default face. Like every struct, `font` is writ
 ordered by name; a subclass entry with the same name overrides the inherited one; defaults are read from a
 freshly constructed prototype of the class, so constructor defaults need no annotation):
 `{ name, type, defaultValue, values?, labels?, min?, max?, step?, category?, readOnly? }`.
-Types: `string, int, real, bool, enum, color, image, font, anchors, struct, array, event, menus`.
+Types: `string, int, real, bool, enum, color, image, font, anchors, struct, array, event, menus, date`.
 Enum values are written camelCased (`Align.Client` → `"client"`, `Cursor.SizeWE` → `"sizeWE"`).
 
 **Generated form classes.** For `MainForm.radform.json` the generator emits `partial class MainForm : Form` with
@@ -162,6 +196,13 @@ is placed. Divisions are real divisions (`aW / 2` of `241` is `120.5`).
 **Scaling.** The runtime multiplies every stored length (`left`, `top`, `width`, `height`, margins,
 padding, constraints) by the scale factor and rounds it **before** layout; layout then runs in physical
 pixels. Conformance vectors are at scale 1.
+
+**Changing the scale at run time** (`Form.ChangeScale`, and a window moved to a display with another scale). Every
+length is recomputed from its 100 % value: the value it was scaled from while the stored pixel value still equals
+`round(design × oldScale)`, otherwise `pixels / oldScale` (a length set from code since). Anchor captures (`aL, aT, aW,
+aH, PW0, PH0`) are converted the same way rather than captured again; when the parent's size comes from layout (it is
+aligned), the next layout takes `PW0`/`PH0` from the parent's laid-out size. Scroll positions keep the same content in
+view. So a change from s1 to s2 gives the layout of loading at s2, and s1 → s2 → s1 restores the s1 layout exactly.
 
 **Constraints.** A control's size is constrained by `max*` (only when > 0), then `min*`, so `min` wins
 if they conflict. Sizes are never negative.
@@ -250,6 +291,23 @@ Absolute positions are refreshed for the whole tree every pass.
   control had its chance. Shortcut text uses **`Mod`** for the platform command key (Ctrl on
   Windows/Linux, ⌘ on macOS): `"Mod+Shift+Z"`. `Ctrl` means the Control key on every OS; `Alt` is
   Option on macOS. A menu bar matches its items' `shortcut` text.
+- **Mnemonics:** in the `caption` of a label, button, check box, radio button, group box or tab sheet, `&` marks
+  the next character as an access key and `&&` is a literal `&` (the same syntax as menu items). **Alt+letter**
+  (or digit; plain Alt only, so AltGr never matches) is offered after the menu bar: a menu item's access key or
+  shortcut wins over a control with the same letter. Then, on the form that has the key, the shown, enabled
+  controls with that letter are collected in tab order (only the active page of a page control, plus the page
+  control's tabs).
+  - One match is activated: a button clicks, a check box toggles, a radio button checks (each also takes
+    focus), a label moves focus to its `focusControl`, a group box focuses its first focusable child, a tab sheet
+    becomes the active page and focuses its first focusable control.
+  - Several matches take focus in turn (the next after the one holding focus, wrapping) without activating.
+  - A label needs a visible, enabled `focusControl`, and a group box a focusable child, to count as a match.
+  - The letter is underlined only while Alt is held or the menu bar is in keyboard mode; losing window focus
+    clears that state. An app may turn control mnemonics off (the default on macOS, where Option types
+    characters): captions then still hide the `&`, but nothing is underlined or activated. Menu bars are
+    unaffected.
+- **Pointer kind:** mouse events carry the device that produced them (`mouse`, `touch`, `pen`). Touch and pen taps
+  arrive as ordinary left-button press/move/release, so no control needs special handling.
 - **Popup layer** (menus, dropdown lists, colour pickers):
   - Open popups are hit-tested before the form and drawn after it, above everything.
   - A press **outside every popup closes all of them and is consumed** (nothing underneath receives it).

@@ -34,6 +34,9 @@ public class Form : Control
     /// <summary>Raised when <see cref="Caption"/> changes, so a host can retitle its window.</summary>
     public event Action<Form>? CaptionChanged;
 
+    /// <summary>The title a host gives the OS window (and taskbar button): <see cref="Caption"/>, or <see cref="Application.Title"/> when the caption is empty.</summary>
+    public string WindowTitle => Caption.Length > 0 ? Caption : Application.Title;
+
     /// <summary>Background colour; null uses the theme's.</summary>
     [Published(Category = "Appearance")] public Color? Color { get; set; }
 
@@ -42,13 +45,20 @@ public class Form : Control
     public int DesignHeight { get; set; }
 
     /// <summary>The UI scale factor lengths were multiplied by when the form was loaded (or <see cref="ApplyScale"/> was called).</summary>
-    public double Scale { get; set; } = 1;
+    public double Scale
+    {
+        get => _scale;
+        set { _scale = value; _scaleSet = true; }
+    }
+
+    double _scale = 1;
+    bool _scaleSet;   // Scale was given (by hand, as a message box built at DefaultScale does, or by scaling): the form is at it
 
     public Theme Theme { get; set; }
 
     /// <summary>
     /// The scale generated <c>InitializeComponent()</c> code loads forms at. Hosts set it at startup
-    /// (the SDL host uses the display's content scale).
+    /// (the SDL host uses the monitor's content scale).
     /// </summary>
     public static double DefaultScale { get; set; } = 1;
 
@@ -141,6 +151,125 @@ public class Form : Control
     /// </summary>
     [Published(Category = "Window")] public bool DarkTitleBar { get; set; }
 
+    FormBorderStyle _borderStyle;
+    string _iconSource = "";
+    Picture? _icon;
+    bool _iconLoaded;
+
+    /// <summary>
+    /// The window's frame (Delphi's <c>BorderStyle</c>): <see cref="FormBorderStyle.Sizable"/> (the default),
+    /// <c>Single</c>, <c>Dialog</c>, <c>Tool</c> or <c>None</c>. Only Sizable and Tool windows can be resized, and
+    /// only while <see cref="Resizable"/> is true (see <see cref="IsUserResizable"/>). A modal form left at Sizable
+    /// shows as a dialog (see <see cref="EffectiveBorderStyle"/>). The host applies later changes to an open window,
+    /// except to and from <c>Tool</c>, which is read when the window is created.
+    /// </summary>
+    [Published(Category = "Window")]
+    public FormBorderStyle BorderStyle { get => _borderStyle; set => _borderStyle = value; }
+
+    /// <summary>
+    /// The frame the host gives the window: <see cref="BorderStyle"/>, except that a modal form (<see cref="ShowModal"/>)
+    /// left at <see cref="FormBorderStyle.Sizable"/> gets a dialog frame (no minimise or maximise button). Its
+    /// resizing still follows <see cref="IsUserResizable"/>, so existing resizable dialogs stay resizable.
+    /// </summary>
+    public FormBorderStyle EffectiveBorderStyle =>
+        IsModal && _borderStyle == FormBorderStyle.Sizable ? FormBorderStyle.Dialog : _borderStyle;
+
+    /// <summary>Whether the user can resize the window by its border: <see cref="Resizable"/>, with a <c>Sizable</c> or <c>Tool</c> <see cref="BorderStyle"/>.</summary>
+    public bool IsUserResizable => _resizable && _borderStyle is FormBorderStyle.Sizable or FormBorderStyle.Tool;
+
+    /// <summary>
+    /// Where the host places the window: <see cref="StartPosition"/>, except that a modal form left at
+    /// <see cref="FormStartPosition.Default"/> is centred on its owner (<see cref="FormStartPosition.CenterOwner"/>).
+    /// </summary>
+    public FormStartPosition EffectiveStartPosition =>
+        IsModal && _startPosition == FormStartPosition.Default ? FormStartPosition.CenterOwner : _startPosition;
+
+    /// <summary>Keeps the window above all other (non-topmost) windows. The host applies later changes to an open window.</summary>
+    [Published(Category = "Window")] public bool TopMost { get; set; }
+
+    /// <summary>
+    /// The window icon: a data URI, an embedded resource name or a file path, like <see cref="Image.PictureSource"/>.
+    /// Empty uses the host's default icon.
+    /// </summary>
+    [Published("icon", Category = "Window")]
+    public string IconSource
+    {
+        get => _iconSource;
+        set { _iconSource = value ?? ""; _icon = null; _iconLoaded = false; }
+    }
+
+    /// <summary>The window icon: loaded from <see cref="IconSource"/>, or set from code. The host applies changes to an open window.</summary>
+    public Picture? Icon
+    {
+        get
+        {
+            if (!_iconLoaded) { _icon = Picture.FromSource(_iconSource, GetType().Assembly); _iconLoaded = true; }
+            return _icon;
+        }
+        set { _icon = value; _iconLoaded = true; }
+    }
+
+    /// <summary>
+    /// The monitor the window opens on, for <see cref="FormStartPosition.Default"/> and
+    /// <see cref="FormStartPosition.CenterScreen"/> (and <see cref="FormStartPosition.CenterOwner"/> without an owner):
+    /// the window is centred on it, and maximised or full screen there if <see cref="WindowState"/> says so.
+    /// <see cref="FormStartPosition.Manual"/> windows go where <see cref="Control.Left"/>/<see cref="Control.Top"/> say.
+    /// Null (the default) leaves it to the host. Read when the window is created; ignored if the monitor is gone.
+    /// </summary>
+    public MonitorInfo? StartMonitor { get; set; }
+
+    /// <summary>
+    /// The monitor the window is on now (the one with most of it); before the window opens, or after it closed, the one
+    /// with most of <see cref="RestoredBounds"/>. Null if the host reports no monitors.
+    /// </summary>
+    /// <remarks>
+    /// Inside a form's code this member hides <see cref="System.Threading.Monitor"/>: write
+    /// <c>System.Threading.Monitor.Enter(...)</c> in full there (or use <c>lock</c>). A control cannot be named
+    /// <c>Monitor</c> either (generator error RAD1006).
+    /// </remarks>
+    public MonitorInfo? Monitor
+    {
+        get
+        {
+            var host = PlatformHost.Current;
+            if (host == null) return null;
+            return host.GetMonitorOf(this) ?? Screen.Nearest(host.GetMonitors(), RestoredBounds);
+        }
+    }
+
+    /// <summary>
+    /// Moves the window to <paramref name="monitor"/>, centred in its work area. A maximised or full-screen window
+    /// stays so, on the new monitor. When the monitor has another scale the size is converted, so the window keeps its
+    /// size in design units. If the window isn't open, it opens there (<see cref="StartMonitor"/>). Returns true if an
+    /// open window was moved.
+    /// </summary>
+    public bool MoveToMonitor(MonitorInfo monitor)
+    {
+        ArgumentNullException.ThrowIfNull(monitor);
+        var r = RestoredBounds;
+        double k = FollowsMonitorScale ? monitor.Scale / Scale : 1;
+        var target = Screen.CenterIn(monitor.WorkArea, LayoutMath.Round(r.Width * k), LayoutMath.Round(r.Height * k));
+        if (PlatformHost.Current?.MoveForm(this, target) == true) return true;
+        StartMonitor = monitor;
+        return false;
+    }
+
+    /// <summary>
+    /// Whether the host rescales the form (<see cref="ChangeScale"/>) when its window moves to a monitor with another
+    /// scale. On by default; it applies to forms that have a scale (loaded from a form file, <see cref="ApplyScale"/>,
+    /// or <see cref="Scale"/> set by hand), not to code-built forms that were never scaled.
+    /// </summary>
+    public bool ScaleWithMonitor { get; set; } = true;
+
+    /// <summary>True if the host should follow monitor scale changes for this form (see <see cref="ScaleWithMonitor"/>).</summary>
+    public bool FollowsMonitorScale => ScaleWithMonitor && (_scaleApplied || _scaleSet);
+
+    /// <summary>Raised when the host reports that the window moved to another monitor (see <see cref="Monitor"/>).</summary>
+    public event Action<Form>? MonitorChanged;
+
+    /// <summary>Host callback: the window is now mostly on another monitor.</summary>
+    public void NotifyMonitorChanged() => MonitorChanged?.Invoke(this);
+
     /// <summary>Caption colour for the OS title bar (Windows 11), instead of the form colour. Read when the window is created.</summary>
     public Color? TitleBarColor { get; set; }
 
@@ -173,23 +302,54 @@ public class Form : Control
     }
 
     /// <summary>
-    /// Gives the form the scale <paramref name="scale"/> whether or not it is scaled yet (Delphi's <c>ChangeScale</c>).
-    /// A designed form is scaled to <see cref="DefaultScale"/> as it loads; a dialog that should match its owner
-    /// window calls <c>ChangeScale(owner.Scale)</c>, which multiplies every length by <c>scale / Scale</c> (a length
-    /// can end up a pixel off what loading at that scale would give). A form not scaled yet is scaled as by
-    /// <see cref="ApplyScale"/>. Lengths set from code after loading are in the old scale's pixels and are
-    /// rescaled with the rest. <paramref name="scale"/> 0 uses <see cref="DefaultScale"/>.
+    /// Gives the form the scale <paramref name="scale"/> whether or not it is scaled yet (Delphi's <c>ChangeScale</c>):
+    /// a dialog that should match its owner window calls <c>ChangeScale(owner.Scale)</c>, and the SDL host calls it
+    /// when the window moves to a monitor with another scale. Every length (bounds, margins, padding, min/max sizes,
+    /// anchor distances, a subclass's own lengths) is recomputed from the 100 % value it was scaled from, so the
+    /// layout is the same as loading at <paramref name="scale"/> in the first place and 100 % → 150 % → 100 % gives
+    /// back exactly the original layout. A length set from code since is in the old scale's pixels: it is converted
+    /// to 100 % (<c>pixels / Scale</c>) and scaled from there, so it comes back exactly when the old scale returns.
+    /// Open popups are closed. A form not scaled yet is scaled as by <see cref="ApplyScale"/>.
+    /// <paramref name="scale"/> 0 uses <see cref="DefaultScale"/>. Raises <see cref="ScaleChanged"/> when the scale
+    /// changes.
     /// </summary>
     public void ChangeScale(double scale = 0)
     {
         if (scale == 0) scale = DefaultScale;
-        if (scale <= 0) throw new ArgumentOutOfRangeException(nameof(scale), "Scale must be positive.");
-        if (!_scaleApplied) { ApplyScale(scale); return; }
+        if (!(scale > 0) || !double.IsFinite(scale)) throw new ArgumentOutOfRangeException(nameof(scale), "Scale must be positive.");
+        if (!_scaleApplied)
+        {
+            // A form whose Scale was set by hand (built in pixels at that scale, like a message box) is at that scale.
+            if (!_scaleSet)
+            {
+                if (scale != 1) CloseAllPopups();   // sized and placed at 100 %
+                ApplyScale(scale);
+                if (scale == 1) return;
+                InvalidateAll();
+                ScaleChanged?.Invoke(this, new ScaleChange(1, scale));
+                return;
+            }
+            _scaleApplied = true;
+            DesignWidth = DesignWidth > 0 ? DesignWidth : LayoutMath.Round(Width / Scale);
+            DesignHeight = DesignHeight > 0 ? DesignHeight : LayoutMath.Round(Height / Scale);
+        }
         if (scale == Scale) return;
-        ScaleLengths(scale / Scale);
+        var change = new ScaleChange(Scale, scale);
+        CloseAllPopups();   // sized and placed at the old scale
+        RescaleTree(change.From, change.To);
         Scale = scale;
         PerformLayout();
+        ResolveRescaledCaptures();   // controls the layout skipped (invisible) keep the parent size they have now
+        InvalidateAll();
+        ScaleChanged?.Invoke(this, change);
     }
+
+    /// <summary>
+    /// Raised after <see cref="ChangeScale"/> moved the form to another scale (for example because its window was
+    /// dragged to a monitor with another scale), once the form was laid out again. <see cref="ScaleChange.Apply"/>
+    /// rescales lengths the application keeps itself.
+    /// </summary>
+    public event Action<Form, ScaleChange>? ScaleChanged;
 
     /// <summary>True once the form has a scale (<see cref="ApplyScale"/>, <see cref="ChangeScale"/> or loading a form file).</summary>
     public bool IsScaled => _scaleApplied;
@@ -200,6 +360,7 @@ public class Form : Control
         _scaleApplied = true;
         DesignWidth = Width;
         DesignHeight = Height;
+        ResetLengthScale();   // the tree is at 100 % now (a reload into the same form starts over)
         if (scale != 1) ScaleLengths(scale);
         Scale = scale;
     }
@@ -416,18 +577,34 @@ public class Form : Control
         return tcs.Task;
     }
 
-    /// <summary>Asks <see cref="CloseQuery"/> handlers, then closes the window. Returns false if a handler refused.</summary>
+    /// <summary>
+    /// Asks <see cref="CloseQuery"/> handlers, then closes the window. Returns false if a handler refused (a modal
+    /// form's <see cref="ModalResult"/> then goes back to None, as in Delphi) or a close is already in progress
+    /// (e.g. a CloseQuery handler set <see cref="ModalResult"/>: the close under way uses it).
+    /// </summary>
     public bool Close()
     {
-        var e = new CloseQueryEventArgs();
-        CloseQuery?.Invoke(this, e);
-        if (!e.CanClose) return false;
-        if (IsModal && _modalResult == ModalResult.None) _modalResult = ModalResult.Cancel;
-        CloseAllPopups();
-        PlatformHost.Current?.CloseForm(this);
-        Closed?.Invoke(this);
-        return true;
+        if (_closing) return false;
+        _closing = true;
+        try
+        {
+            var e = new CloseQueryEventArgs();
+            CloseQuery?.Invoke(this, e);
+            if (!e.CanClose)
+            {
+                if (IsModal) _modalResult = ModalResult.None;
+                return false;
+            }
+            if (IsModal && _modalResult == ModalResult.None) _modalResult = ModalResult.Cancel;
+            CloseAllPopups();
+            PlatformHost.Current?.CloseForm(this);
+            Closed?.Invoke(this);
+            return true;
+        }
+        finally { _closing = false; }
     }
+
+    bool _closing;
 
     /// <summary>Called by the host once the form's window is visible.</summary>
     public void NotifyShown() => Shown?.Invoke(this);
@@ -644,8 +821,8 @@ public class Form : Control
 
     bool InAnyPopup(Control c) => _popups.Any(p => p != _tooltipPopup && c.IsSelfOrDescendantOf(p));
 
-    static MouseEventArgs Local(Control c, int x, int y, MouseButton b, KeyModifiers m, int clicks = 1) =>
-        new(x - c.AbsoluteLeft, y - c.AbsoluteTop, b, m, clicks);
+    static MouseEventArgs Local(Control c, int x, int y, MouseButton b, KeyModifiers m, int clicks = 1, PointerKind pointer = PointerKind.Mouse) =>
+        new(x - c.AbsoluteLeft, y - c.AbsoluteTop, b, m, clicks, pointer);
 
     void UpdateHover(int x, int y)
     {
@@ -660,7 +837,13 @@ public class Form : Control
         hover?.SetHovered(true);
     }
 
-    public void ProcessMouseMove(int x, int y, KeyModifiers modifiers = KeyModifiers.None)
+    public void ProcessMouseMove(int x, int y, KeyModifiers modifiers = KeyModifiers.None, PointerKind pointer = PointerKind.Mouse)
+    {
+        SyncAlt(modifiers);
+        ProcessMouseMoveCore(x, y, modifiers, pointer);
+    }
+
+    void ProcessMouseMoveCore(int x, int y, KeyModifiers modifiers, PointerKind pointer)
     {
         PerformLayout();
         if (_dragSource != null) { _dragAcceptedTarget = BubbleDragOver(_dragSource, x, y); return; }
@@ -677,7 +860,7 @@ public class Form : Control
             _dragAcceptedTarget = BubbleDragOver(_dragSource!, x, y);
             return;
         }
-        target.OnMouseMove(Local(target, x, y, MouseButton.Left, modifiers));
+        target.OnMouseMove(Local(target, x, y, MouseButton.Left, modifiers, 1, pointer));
     }
 
     /// <summary>Starts an in-app drag from <paramref name="source"/> (Delphi's <c>BeginDrag</c>): further
@@ -710,7 +893,14 @@ public class Form : Control
         return null;
     }
 
-    public void ProcessMouseDown(int x, int y, MouseButton button, KeyModifiers modifiers = KeyModifiers.None, int clicks = 1)
+    public void ProcessMouseDown(int x, int y, MouseButton button, KeyModifiers modifiers = KeyModifiers.None, int clicks = 1, PointerKind pointer = PointerKind.Mouse)
+    {
+        _altHeld = (modifiers & KeyModifiers.Alt) != 0;   // the host reports the real modifier state: heals a missed Alt release
+        ProcessMouseDownCore(x, y, button, modifiers, clicks, pointer);
+        UpdateAccelerators();
+    }
+
+    void ProcessMouseDownCore(int x, int y, MouseButton button, KeyModifiers modifiers, int clicks, PointerKind pointer)
     {
         _altAlone = false;
         PerformLayout();
@@ -734,7 +924,7 @@ public class Form : Control
         _captureButton = button;
         _pressX = x; _pressY = y;
         UpdateHover(x, y);
-        hit.OnMouseDown(Local(hit, x, y, button, modifiers, clicks));
+        hit.OnMouseDown(Local(hit, x, y, button, modifiers, clicks, pointer));
 
         // Context menus open after the press was delivered (so a list selects the row first).
         if (button == MouseButton.Right)
@@ -749,7 +939,7 @@ public class Form : Control
         }
     }
 
-    public void ProcessMouseUp(int x, int y, MouseButton button, KeyModifiers modifiers = KeyModifiers.None)
+    public void ProcessMouseUp(int x, int y, MouseButton button, KeyModifiers modifiers = KeyModifiers.None, PointerKind pointer = PointerKind.Mouse)
     {
         PerformLayout();
         if (_dragSource != null)
@@ -767,7 +957,7 @@ public class Form : Control
         if (_capture == null || button != _captureButton) return;
         var target = _capture;
         _capture = null;
-        target.OnMouseUp(Local(target, x, y, button, modifiers));
+        target.OnMouseUp(Local(target, x, y, button, modifiers, 1, pointer));
         // A click fires on a left release only if the pointer is still over the captured control.
         if (button == MouseButton.Left && target.OwningForm == this && target.IsEffectivelyEnabled
             && HitTestForm(x, y).IsSelfOrDescendantOf(target))
@@ -789,6 +979,83 @@ public class Form : Control
         }
     }
 
+    // ---- Mnemonics (spec, Appendix C) ----
+
+    bool _altHeld, _accelShown;
+
+    /// <summary>
+    /// True while mnemonic letters are drawn underlined: Alt is held, or the menu bar is in keyboard mode
+    /// (after a lone Alt or F10). Only meaningful while <see cref="Mnemonics.Enabled"/>.
+    /// </summary>
+    public bool ShowAccelerators => _altHeld || FindMainMenu(this) is { InMenuMode: true };
+
+    /// <summary>A pointer event carries the real modifier state: if Alt is no longer down (its key-up went to another window), forget it.</summary>
+    void SyncAlt(KeyModifiers modifiers)
+    {
+        if (!_altHeld || (modifiers & KeyModifiers.Alt) != 0) return;
+        _altHeld = false;
+        _altAlone = false;
+        UpdateAccelerators();
+    }
+
+    /// <summary>
+    /// The host's window lost keyboard focus (Alt+Tab, a modal window opened by a mnemonic): its key-ups will go elsewhere,
+    /// so forget Alt (stops stuck underlines and a stale lone-Alt menu toggle).
+    /// </summary>
+    public void ProcessFocusLost()
+    {
+        _altHeld = false;
+        _altAlone = false;
+        UpdateAccelerators();
+    }
+
+    void UpdateAccelerators()
+    {
+        bool now = ShowAccelerators;
+        if (now == _accelShown) return;
+        _accelShown = now;
+        InvalidateAll();
+    }
+
+    /// <summary>
+    /// Alt+<paramref name="key"/> (a letter or digit): finds the shown, enabled controls on this form (only the
+    /// active page of a page control) whose caption has that mnemonic, in tab order. One match is activated; several
+    /// take focus in turn without activating (the next after the one holding focus). Menu bar access keys are tried
+    /// first (<see cref="ProcessKeyDown"/> offers them as shortcuts before this runs), as in Windows Forms and the VCL.
+    /// Returns true if a control took the key.
+    /// </summary>
+    public bool ProcessMnemonic(Key key)
+    {
+        if (!Mnemonics.Enabled || MainMenu.LetterOf(key) is not { } letter) return false;
+        PerformLayout();
+        var matches = new List<Control>();
+        CollectMnemonics(this, letter, matches);
+        if (matches.Count == 0) return false;
+        ShowFocusCues = true;
+        if (matches.Count == 1) { matches[0].ActivateMnemonic(); return true; }
+        int at = _focused == null ? -1 : matches.FindIndex(c => c.HoldsMnemonicFocus(_focused));
+        matches[(at + 1) % matches.Count].FocusMnemonic();
+        return true;
+    }
+
+    static void CollectMnemonics(Control parent, char letter, List<Control> list)
+    {
+        var ordered = parent.Children
+            .Select((c, i) => (c, i))
+            .OrderBy(t => t.c.TabOrder < 0 ? 1 : 0)
+            .ThenBy(t => t.c.TabOrder < 0 ? t.i : t.c.TabOrder)
+            .ThenBy(t => t.i);
+        foreach (var (c, _) in ordered)
+        {
+            if (!c.Visible || !c.Enabled) continue;
+            // A page-control tab is reachable while its sheet is not the shown one; everything else must be shown.
+            bool shown = c.IsShown;
+            if (!shown && c is not TabSheet) continue;
+            if (c.MnemonicCaption is { } caption && Mnemonics.KeyOf(caption) == letter && c.CanTakeMnemonic) list.Add(c);
+            if (shown) CollectMnemonics(c, letter, list);
+        }
+    }
+
     // Alt pressed and released with nothing in between toggles the menu bar's keyboard mode.
     bool _altAlone;
 
@@ -805,6 +1072,13 @@ public class Form : Control
     }
 
     public void ProcessKeyDown(Key key, KeyModifiers modifiers = KeyModifiers.None, bool repeat = false)
+    {
+        _altHeld = key == Key.Alt || (modifiers & KeyModifiers.Alt) != 0;
+        ProcessKeyDownCore(key, modifiers, repeat);
+        UpdateAccelerators();
+    }
+
+    void ProcessKeyDownCore(Key key, KeyModifiers modifiers, bool repeat)
     {
         if (key == Key.Alt) _altAlone = !repeat || _altAlone;
         else _altAlone = false;
@@ -841,11 +1115,20 @@ public class Form : Control
         if (focusTarget.IsEffectivelyEnabled) focusTarget.OnKeyDown(e);
         if (e.Handled) return;
 
+        // Menu bar access keys and shortcuts come first (see ProcessMnemonic for the precedence), then control mnemonics.
         if (IsShortcutCandidate(e) && OfferShortcut(this, e)) return;
+        if (modifiers == KeyModifiers.Alt && ProcessMnemonic(key)) { e.Handled = true; return; }
         if (key is Key.Enter or Key.Escape && modifiers == KeyModifiers.None) OfferDialogKey(this, e);
     }
 
     public void ProcessKeyUp(Key key, KeyModifiers modifiers = KeyModifiers.None)
+    {
+        _altHeld = key != Key.Alt && (modifiers & KeyModifiers.Alt) != 0;
+        ProcessKeyUpCore(key, modifiers);
+        UpdateAccelerators();
+    }
+
+    void ProcessKeyUpCore(Key key, KeyModifiers modifiers)
     {
         DismissTooltip();
         if (key == Key.Alt && _altAlone)
@@ -934,13 +1217,18 @@ public class Form : Control
 /// <summary>Synthetic input for tests; it goes through exactly the same routines as real input.</summary>
 public sealed class InputSimulator(Form form)
 {
-    public void MoveTo(int x, int y, KeyModifiers modifiers = KeyModifiers.None) => form.ProcessMouseMove(x, y, modifiers);
+    public void MoveTo(int x, int y, KeyModifiers modifiers = KeyModifiers.None, PointerKind pointer = PointerKind.Mouse) =>
+        form.ProcessMouseMove(x, y, modifiers, pointer);
 
-    public void Press(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None, int clicks = 1)
+    public void Press(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None, int clicks = 1,
+        PointerKind pointer = PointerKind.Mouse)
     {
-        form.ProcessMouseMove(x, y, modifiers);
-        form.ProcessMouseDown(x, y, button, modifiers, clicks);
+        form.ProcessMouseMove(x, y, modifiers, pointer);
+        form.ProcessMouseDown(x, y, button, modifiers, clicks, pointer);
     }
+
+    /// <summary>A finger tap: what the host delivers for a touch (move, left press, left release), flagged <see cref="PointerKind.Touch"/>.</summary>
+    public void Tap(int x, int y, PointerKind pointer = PointerKind.Touch) => Click(x, y, pointer: pointer);
 
     /// <summary>A double click: two press/release pairs, the second reporting two clicks.</summary>
     public void DoubleClick(int x, int y)
@@ -953,31 +1241,39 @@ public sealed class InputSimulator(Form form)
     /// <summary>An IME composition update, e.g. <c>Compose("にほ", 2)</c>; <c>Compose("", 0)</c> ends it.</summary>
     public void Compose(string text, int cursor) => form.ProcessTextComposition(text, cursor);
 
-    public void Release(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None) =>
-        form.ProcessMouseUp(x, y, button, modifiers);
+    public void Release(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None,
+        PointerKind pointer = PointerKind.Mouse) =>
+        form.ProcessMouseUp(x, y, button, modifiers, pointer);
 
-    public void Click(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None)
+    public void Click(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None,
+        PointerKind pointer = PointerKind.Mouse)
     {
-        Press(x, y, button, modifiers);
-        Release(x, y, button, modifiers);
+        Press(x, y, button, modifiers, pointer: pointer);
+        Release(x, y, button, modifiers, pointer);
     }
 
     /// <summary>Clicks the centre of a control.</summary>
-    public void Click(Control control, MouseButton button = MouseButton.Left)
+    public void Click(Control control, MouseButton button = MouseButton.Left, PointerKind pointer = PointerKind.Mouse)
     {
         form.PerformLayout();
-        Click(control.AbsoluteLeft + control.Width / 2, control.AbsoluteTop + control.Height / 2, button);
+        Click(control.AbsoluteLeft + control.Width / 2, control.AbsoluteTop + control.Height / 2, button, pointer: pointer);
     }
 
-    public void Drag(int x1, int y1, int x2, int y2, int steps = 4, MouseButton button = MouseButton.Left)
+    public void Drag(int x1, int y1, int x2, int y2, int steps = 4, MouseButton button = MouseButton.Left, PointerKind pointer = PointerKind.Mouse)
     {
-        Press(x1, y1, button);
+        Press(x1, y1, button, pointer: pointer);
         for (int i = 1; i <= steps; i++)
-            form.ProcessMouseMove(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps);
-        Release(x2, y2, button);
+            form.ProcessMouseMove(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps, KeyModifiers.None, pointer);
+        Release(x2, y2, button, pointer: pointer);
     }
 
     public void Wheel(int x, int y, float deltaY, float deltaX = 0) => form.ProcessMouseWheel(x, y, deltaX, deltaY);
+
+    /// <summary>Presses a key and keeps it down (see <see cref="KeyUp"/>); e.g. <c>KeyDown(Key.Alt, KeyModifiers.Alt)</c> shows mnemonic underlines.</summary>
+    public void KeyDown(Key key, KeyModifiers modifiers = KeyModifiers.None) => form.ProcessKeyDown(key, modifiers);
+
+    /// <summary>Releases a key pressed with <see cref="KeyDown"/>.</summary>
+    public void KeyUp(Key key, KeyModifiers modifiers = KeyModifiers.None) => form.ProcessKeyUp(key, modifiers);
 
     public void Key(Key key, KeyModifiers modifiers = KeyModifiers.None)
     {

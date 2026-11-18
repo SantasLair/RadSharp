@@ -33,6 +33,8 @@ public static class Converters
     public static readonly ValueConverter<string[]> Strings = new StringsConverter();
     public static readonly ValueConverter<int[]> Ints = new IntsConverter();
     public static readonly ValueConverter<Font?> NullableFont = new NullableFontConverter();
+    public static readonly ValueConverter<DateOnly> Date = new DateConverter();
+    public static readonly ValueConverter<DateOnly?> NullableDate = new NullableDateConverter();
 
     public static ValueConverter<T> Enum<T>() where T : struct, System.Enum => EnumConverter<T>.Instance;
 
@@ -109,6 +111,42 @@ public static class Converters
             return true;
         }
     }
+
+    /// <summary>A calendar date, written as an ISO 8601 string: <c>"2026-11-17"</c> (invariant culture, always four-digit year).</summary>
+    sealed class DateConverter : ValueConverter<DateOnly>
+    {
+        public override PropertyType Type => PropertyType.Date;
+        public override DateOnly Read(JsonElement v) =>
+            v.ValueKind == JsonValueKind.String && TryParseIso(v.GetString()!, out var d) ? d : throw Wrong(v, "a date \"yyyy-MM-dd\"");
+        public override void Write(FormJsonWriter w, DateOnly value) => w.WriteString(Iso(value));
+        public override string Format(DateOnly value) => Iso(value);
+        public override bool TryParse(string text, out DateOnly value) => TryParseIso(text.Trim(), out value);
+    }
+
+    /// <summary>A date that may be absent (<c>null</c>): written as an ISO string, or not at all when it is the default.</summary>
+    sealed class NullableDateConverter : ValueConverter<DateOnly?>
+    {
+        public override PropertyType Type => PropertyType.Date;
+        public override DateOnly? Read(JsonElement v) => v.ValueKind == JsonValueKind.Null ? null : Date.Read(v);
+        public override void Write(FormJsonWriter w, DateOnly? value)
+        {
+            if (value is { } d) w.WriteString(Iso(d)); else w.WriteNull();
+        }
+        public override string Format(DateOnly? value) => value is { } d ? Iso(d) : "";
+        public override bool TryParse(string text, out DateOnly? value)
+        {
+            value = null;
+            if (text.Trim().Length == 0) return true;
+            if (!TryParseIso(text.Trim(), out var d)) return false;
+            value = d;
+            return true;
+        }
+    }
+
+    static string Iso(DateOnly d) => d.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+
+    static bool TryParseIso(string text, out DateOnly value) =>
+        DateOnly.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out value);
 
     sealed class AnchorsConverter : ValueConverter<Anchors>
     {

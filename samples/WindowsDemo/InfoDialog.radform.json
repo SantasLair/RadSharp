@@ -1,0 +1,35 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "hand-written",
+  "root": {
+    "class": "Form",
+    "name": "frmInfo",
+    "caption": "A dialog",
+    "width": 360,
+    "height": 150,
+    "children": [
+      {
+        "class": "Label",
+        "name": "lblInfo",
+        "caption": "",
+        "wordWrap": true,
+        "left": 16,
+        "top": 16,
+        "width": 328,
+        "height": 64
+      },
+      {
+        "class": "Button",
+        "name": "btnOk",
+        "caption": "OK",
+        "default": true,
+        "cancel": true,
+        "modalResult": "ok",
+        "left": 264,
+        "top": 108,
+        "anchors": ["right", "bottom"]
+      }
+    ]
+  }
+}
