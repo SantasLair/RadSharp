@@ -520,7 +520,13 @@ public class PropertyGrid : Control
             if (selected) canvas.FillRect(nameRect, Focused || IsEditing ? t.Selection : t.SelectionInactive);
             int nameIndent = canvas.Px(8) + (isAnchorFlag ? canvas.Px(14) : 0);
             string nameText = _rows[i].Name;
-            if (isAnchorsParent) nameText = (_expandedAnchors.Contains(nameText) ? "▾ " : "▸ ") + nameText;
+            if (isAnchorsParent)
+            {
+                // Drawn, not a "▾"/"▸" prefix: the bundled font lacks those glyphs (see ViewDrawing.DrawExpander).
+                int slot = canvas.Px(12);
+                ViewDrawing.DrawExpander(canvas, new Rect(nameRect.X + nameIndent, row.Y, slot, row.Height), _expandedAnchors.Contains(nameText), t.Text);
+                nameIndent += slot + canvas.Px(2);
+            }
             else if (isAnchorFlag) nameText = nameText[(nameText.LastIndexOf('.') + 1)..];   // "anchors.left" → "left"
             canvas.DrawText(nameText, font, t.Text, new Rect(nameRect.X + nameIndent, row.Y, nameRect.Width - nameIndent - canvas.Px(2), row.Height), TextAlign.Left, VerticalAlign.Center);
 

@@ -2,9 +2,20 @@ using RadSharp.Drawing;
 
 namespace RadSharp.Tests;
 
-/// <summary>Mnemonics (&amp; in captions, Alt+letter), spec Appendix C. Everything goes through <c>form.Simulate</c>.</summary>
-public class MnemonicTests
+/// <summary>
+/// Mnemonics (&amp; in captions, Alt+letter), spec Appendix C. Everything goes through <c>form.Simulate</c>.
+/// <see cref="Mnemonics.Enabled"/> is process-wide and off by default on macOS, so each test turns it on and puts it
+/// back, and every test class that sets or reads it is in the "Mnemonics" collection (never in parallel).
+/// </summary>
+[Collection("Mnemonics")]
+public class MnemonicTests : IDisposable
 {
+    readonly bool _wasEnabled = Mnemonics.Enabled;
+
+    public MnemonicTests() => Mnemonics.Enabled = true;
+
+    public void Dispose() => Mnemonics.Enabled = _wasEnabled;
+
     static T Put<T>(Control form, T c, int x, int y, int w, int h) where T : Control { c.SetBounds(x, y, w, h); form.Add(c); return c; }
 
     static Form NewForm(int w = 420, int h = 300)
@@ -433,4 +444,12 @@ public class MnemonicTests
         using var actual = FormRenderer.RenderToBitmap(f);
         GoldenImageTests.CompareOrUpdate(actual, $"mnemonics-alt@{scale * 100:0}%-{f.Width}x{f.Height}.png");
     }
+}
+
+/// <summary>The platform default of <see cref="Mnemonics.Enabled"/>; in the "Mnemonics" collection, whose tests put it back.</summary>
+[Collection("Mnemonics")]
+public class MnemonicDefaultTests
+{
+    [Fact]
+    public void Mnemonics_are_off_by_default_only_on_macOS() => Assert.Equal(!OperatingSystem.IsMacOS(), Mnemonics.Enabled);
 }

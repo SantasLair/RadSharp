@@ -154,6 +154,13 @@ CI matrix remains desirable but is no longer the gate for calling this milestone
   run: no remote", which is now stale since a remote exists) — small copy fix, not blocking.
 - `dotnet test` result upload / NativeAOT publish artifacts in CI: still open, but not required for the reduced
   local-verification bar.
+- **CI (2026-11-17):** CI on `main` had been red on Linux and macOS since M14: TreeView drew its expanders as "▾"/"▸",
+  which the bundled Inter font lacks, so each OS drew them from its own fallback font (Linux drew missing-glyph boxes).
+  TreeView expanders and the Object Inspector's anchors disclosure are now drawn as paths (`ViewDrawing.DrawExpander`);
+  the `treeviews` goldens were regenerated once (only the triangles changed) and Linux matches them exactly.
+  `BundledGlyphTests` fails on any character in `src/` or a form file that Inter lacks. Mnemonic tests now turn
+  mnemonics on explicitly (they're off by default on macOS). CI builds the whole solution, samples included, before
+  testing: two samples had stopped compiling after M13 added `Form.Display` and `Form.Icon`, and CI never compiled them.
 - **Build (2026-11-17):** NuGet flagged `Microsoft.DotNet.ILCompiler` 10.0.12 (NU1903), which the SDK 10.0.401 pulls in
   implicitly for NativeAOT, and warnings-as-errors failed the samples and `RadSharp.Design.Tests`. `global.json` now asks for
   SDK 10.0.404 (.NET 10.0.15, ILCompiler 10.0.15), so CI's `setup-dotnet` gets it too; the `-p:NuGetAudit=false` workaround
