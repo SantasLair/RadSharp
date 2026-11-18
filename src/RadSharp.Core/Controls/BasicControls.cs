@@ -157,9 +157,45 @@ public class Button : Control
     /// <summary>The icon to draw, if any. Overridden by <see cref="ToolButton"/> to fall back to its toolbar's image list.</summary>
     protected virtual Picture? ResolveIcon() => ImageList.Resolve(this, ImagesName, ImageIndex);
 
+    Actions.ActionSlot? _actionSlot;
+
+    Actions.ActionSlot Slot => _actionSlot ??= new Actions.ActionSlot(a => new Actions.ButtonActionLink(a, this));
+
+    /// <summary>
+    /// The name of the <see cref="Actions.Action"/> on the form this button runs and takes its caption, hint, enabled and
+    /// visible state and image index from (docs/binding-and-actions.md). Saved as <c>"action"</c>.
+    /// </summary>
+    [Published("action", Category = "Behavior")]
+    public string ActionName
+    {
+        get => _actionSlot?.Name ?? "";
+        set => Slot.SetName(value, OwningForm);
+    }
+
+    /// <summary>The linked action: set from code (it may be on another form), or found by <see cref="ActionName"/>.</summary>
+    public Actions.Action? Action
+    {
+        get
+        {
+            OwningForm?.EnsureActionLinks();
+            return _actionSlot?.Action;
+        }
+        set => Slot.SetAction(value);
+    }
+
+    /// <summary>Whether the button follows its action now (no form walk; for the button's own code paths).</summary>
+    internal Actions.ActionLink? ActionLink => _actionSlot?.Link;
+
+    internal void ResolveAction(Form form, int stamp) => _actionSlot?.Resolve(form, stamp);
+
+    internal override bool IsActionLinked(string publishedName) =>
+        _actionSlot?.Link is { } link && Actions.ButtonActionLink.MemberOf(publishedName) is { } m && link.IsLinked(m);
+
+    /// <summary>Runs the linked action (unless code subscribed to <see cref="Control.Click"/>, which then runs instead), else raises Click.</summary>
     protected internal override void OnClick()
     {
-        base.OnClick();
+        if (_actionSlot?.Link is { } link && !HasClickHandlers) link.Action.Execute(this);
+        else base.OnClick();
         if (ModalResult != ModalResult.None && OwningForm is { } form) form.ModalResult = ModalResult;
     }
 

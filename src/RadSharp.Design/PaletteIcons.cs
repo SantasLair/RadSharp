@@ -127,6 +127,12 @@ public static class PaletteIcons
             // The right-click pointer.
             k.Poly(k.P.Fill, k.P.Outline, 1.5f, 6.5f, 1.5f, 14.5f, 3.5f, 12.6f, 4.9f, 15.5f, 6.3f, 14.9f, 4.9f, 12, 7.6f, 12);
         },
+        ["Action"] = k =>
+        {
+            // A command: a lightning bolt on a key cap.
+            k.Box(1.5f, 1.5f, 13, 13, k.P.Fill, k.P.Outline, 2);
+            k.Poly(k.P.Orange, null, 9.5f, 2.5f, 4, 9, 7.5f, 9, 6.5f, 13.5f, 12, 6.5f, 8.5f, 6.5f);
+        },
 
         // ---- Additional ----
         ["ComboBox"] = k =>

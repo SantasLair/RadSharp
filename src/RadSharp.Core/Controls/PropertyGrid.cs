@@ -311,6 +311,18 @@ public class PropertyGrid : Control
             OpenEditor(memo, x, y, commitOnClose: () => Apply(i, memo.Text));
             return;
         }
+        if (prop is { Type: PropertyType.String } && ReferenceKinds.GetValueOrDefault(prop.Name) is { } isKind && _targets[0].OwningForm is { } designed)
+        {
+            // A component reference (Delphi's Object Inspector does the same): choose one of the form's components by name.
+            var names = designed.Descendants().Where(c => c.Name.Length > 0 && isKind(c)).Select(c => c.Name).Order(StringComparer.Ordinal);
+            var list = new ListBox { Items = [NoReference, .. names], HotTrack = true };
+            var current = RowValue(i);
+            list.ItemIndex = current.Length == 0 ? 0 : Array.IndexOf(list.Items, current);
+            list.SetBounds(0, 0, cell.Width, Math.Min(list.Items.Length, 8) * Px(24) + 2 * Px(1));
+            list.ItemChosen += n => { Apply(i, n == 0 ? "" : list.Items[n]); form.ClosePopup(list); };
+            OpenEditor(list, x, y + cell.Height, commitOnClose: null);
+            return;
+        }
         var edit = new InlineEdit { Text = RowValue(i), BorderStyle = BorderStyle.Single };
         edit.SetBounds(0, 0, cell.Width, cell.Height);
         edit.Commit += () => EndEdit(commit: true);
@@ -320,6 +332,20 @@ public class PropertyGrid : Control
     }
 
     Action? _commitOnClose;
+
+    /// <summary>The first entry of a component-reference list: clears the reference.</summary>
+    public const string NoReference = "(none)";
+
+    /// <summary>
+    /// String properties that name another component on the form, by published name, with the kind of component they name.
+    /// Editing one offers a list of those components' names instead of a text box.
+    /// </summary>
+    static readonly Dictionary<string, Func<Control, bool>> ReferenceKinds = new(StringComparer.Ordinal)
+    {
+        ["action"] = static c => c is Actions.Action,
+        ["popupMenu"] = static c => c is PopupMenu,
+        ["images"] = static c => c is ImageList,
+    };
 
     void OpenEditor(Control editor, int x, int y, Action? commitOnClose)
     {

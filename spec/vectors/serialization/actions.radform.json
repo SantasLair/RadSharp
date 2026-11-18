@@ -1,0 +1,101 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmActions",
+    "height": 320,
+    "width": 480,
+    "children": [
+      {
+        "class": "MainMenu",
+        "name": "mnuMain",
+        "items": [
+          {
+            "caption": "&File",
+            "items": [
+              {
+                "name": "mnuSave",
+                "action": "actSave"
+              },
+              {
+                "caption": "Save &As...",
+                "action": "actSave"
+              },
+              {
+                "action": "actBold"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "class": "ToolBar",
+        "name": "tbMain",
+        "children": [
+          {
+            "class": "ToolButton",
+            "name": "tbSave",
+            "action": "actSave",
+            "left": 4,
+            "top": 4
+          },
+          {
+            "class": "ToolButton",
+            "name": "tbBold",
+            "action": "actBold",
+            "left": 70,
+            "top": 4
+          }
+        ]
+      },
+      {
+        "class": "Button",
+        "name": "btnSave",
+        "action": "actSave",
+        "left": 16,
+        "top": 80
+      },
+      {
+        "class": "Button",
+        "name": "btnKeep",
+        "caption": "Store",
+        "action": "actSave",
+        "hint": "Mine",
+        "left": 110,
+        "top": 80
+      },
+      {
+        "class": "Button",
+        "name": "btnOff",
+        "action": "actSave",
+        "enabled": false,
+        "left": 204,
+        "top": 80
+      },
+      {
+        "class": "Action",
+        "name": "actSave",
+        "caption": "&Save",
+        "hint": "Save the file",
+        "imageIndex": 0,
+        "left": 16,
+        "onExecute": "actSave_Execute",
+        "onUpdate": "actSave_Update",
+        "shortcut": "Mod+S",
+        "top": 260
+      },
+      {
+        "class": "Action",
+        "name": "actBold",
+        "caption": "&Bold",
+        "autoCheck": true,
+        "checked": true,
+        "left": 56,
+        "onExecute": "actBold_Execute",
+        "top": 260
+      }
+    ]
+  }
+}

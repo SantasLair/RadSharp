@@ -6,7 +6,7 @@ namespace RadSharp;
 /// The root of a form: owns input routing, focus, the popup layer and repaint tracking.
 /// Its width/height in the form file are the design size.
 /// </summary>
-public class Form : Control
+public partial class Form : Control
 {
     bool _dirtyAll = true;
     Rect? _dirty;
@@ -26,6 +26,7 @@ public class Form : Control
         SetDefaultSize(640, 480);
         Simulate = new InputSimulator(this);
         Theme = Theme.Current;
+        InitActions();
     }
 
     [Published(Category = "Appearance")]
@@ -222,6 +223,7 @@ public class Form : Control
     /// <summary>Lays out the form and every open popup.</summary>
     public new void PerformLayout()
     {
+        EnsureActionLinks();   // links copy captions and visibility from actions, which layout depends on
         base.PerformLayout();
         foreach (var p in _popups) p.PerformLayout();
     }
@@ -256,7 +258,11 @@ public class Form : Control
     List<Timer>? _timers;
 
     /// <summary>Called when controls are added or removed anywhere on the form.</summary>
-    internal void TreeChanged() => _timers = null;
+    internal void TreeChanged()
+    {
+        _timers = null;
+        ActionTreeChanged();
+    }
 
     /// <summary>Called by the host on every loop iteration with its monotonic clock.</summary>
     public void ProcessTick(double nowMs)
@@ -942,7 +948,7 @@ public class Form : Control
         if (e.Handled) return;
 
         // Menu bar access keys and shortcuts come first (see ProcessMnemonic for the precedence), then control mnemonics.
-        if (IsShortcutCandidate(e) && OfferShortcut(this, e)) return;
+        if (IsShortcutCandidate(e) && (OfferShortcut(this, e) || ProcessActionShortcut(e))) return;
         if (modifiers == KeyModifiers.Alt && ProcessMnemonic(key)) { e.Handled = true; return; }
         if (key is Key.Enter or Key.Escape && modifiers == KeyModifiers.None) OfferDialogKey(this, e);
     }

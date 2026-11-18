@@ -85,7 +85,7 @@ public static class FormWriter
         {
             bool isBound = Array.IndexOf(BoundsKeys, p.Name) >= 0;
             if (isBound && (isRoot || !IsSavedBound(control, p.Name, isRoot))) continue;  // root size is written below
-            if (p.HasDefaultValue(control, prototype)) continue;
+            if (p.HasDefaultValue(control, prototype) || control.IsActionLinked(p.Name)) continue;  // linked values come from the action
             var prop = p;
             Action write = () => { w.Key(prop.Name); prop.Write(w, control); };
             if (p.Name == "caption") caption = write;

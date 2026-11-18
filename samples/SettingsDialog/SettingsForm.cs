@@ -2,19 +2,37 @@ using RadSharp;
 
 namespace SettingsDialog;
 
-/// <summary>A second form in the same project; its OK/Cancel buttons set ModalResult, which closes it.</summary>
+/// <summary>
+/// A second form in the same project; its OK/Cancel buttons set ModalResult, which closes it. The controls are bound to the
+/// settings with a <see cref="Binder{T}"/>: nothing is copied in or out by hand, Cancel writes nothing (the binder is
+/// buffered), and OK commits.
+/// </summary>
 public partial class SettingsForm : Form
 {
-    public SettingsForm() => InitializeComponent();
+    readonly Binder<Settings> _binder = new();
 
-    public void Load(Settings s)
+    public SettingsForm()
     {
-        edtUser.Text = s.User;
-        cboTheme.ItemIndex = Array.IndexOf(cboTheme.Items, s.Theme);
-        chkAutosave.Checked = s.Autosave;
-        trkVolume.Position = s.Volume;
-        spnHistory.Value = s.History;
+        InitializeComponent();
+        _binder.Bind(edtUser, s => s.User, (s, v) => s.User = v.Trim());
+        _binder.Bind(cboTheme, s => s.Theme, (s, v) => s.Theme = v);
+        _binder.Bind(chkAutosave, s => s.Autosave, (s, v) => s.Autosave = v);
+        _binder.Bind(trkVolume, s => s.Volume, (s, v) => s.Volume = v);
+        _binder.Bind(spnHistory, s => s.History, (s, v) => s.History = v);
+        // OK closes the dialog; write the edits then, or stay open if one doesn't validate.
+        CloseQuery += (_, e) =>
+        {
+            if (ModalResult != ModalResult.Ok || _binder.Commit()) return;
+            e.CanClose = false;
+            Dialogs.ShowMessage(_binder.Errors[0].Message, this);
+            _binder.FocusFirstError();
+        };
     }
 
-    public Settings Result => new(edtUser.Text.Trim(), cboTheme.Text, chkAutosave.Checked, trkVolume.Position, spnHistory.Value);
+    /// <summary>Shows the dialog on <paramref name="settings"/>; true if the user pressed OK (and the settings were updated).</summary>
+    public bool Edit(Settings settings)
+    {
+        _binder.Current = settings;
+        return ShowModal() == ModalResult.Ok;
+    }
 }

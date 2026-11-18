@@ -88,6 +88,16 @@ public partial class Control
     // ---- Overridable handlers; the base versions raise the events ----
 
     protected internal virtual void OnClick() => Click?.Invoke(this);
+
+    /// <summary>True if code subscribed to <see cref="Click"/> (a control linked to an action then runs that instead, as in Delphi).</summary>
+    protected internal bool HasClickHandlers => Click != null;
+
+    /// <summary>
+    /// True if the published property <paramref name="publishedName"/> currently shows its linked action's value, so the form
+    /// writer doesn't save it (Delphi's "stored only when it differs from the action").
+    /// </summary>
+    internal virtual bool IsActionLinked(string publishedName) => false;
+
     protected internal virtual void OnMouseDown(MouseEventArgs e) => MouseDown?.Invoke(this, e);
     protected internal virtual void OnMouseUp(MouseEventArgs e) => MouseUp?.Invoke(this, e);
     protected internal virtual void OnMouseMove(MouseEventArgs e) => MouseMove?.Invoke(this, e);
