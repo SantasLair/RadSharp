@@ -304,6 +304,12 @@ public class Splitter : Control
     protected override void Paint(Canvas canvas) =>
         canvas.FillRect(new Rect(0, 0, Width, Height), IsHovered ? canvas.Theme.ScrollThumb : canvas.Theme.SplitterFace);
 
-    protected override void ScaleOwnLengths(double scale) => MinSize = LayoutMath.Round(MinSize * scale);
+    double _minSizeDesign = double.NaN;
+
+    protected override void RescaleOwnLengths(ScaleChange change)
+    {
+        MinSize = change.Apply(MinSize, ref _minSizeDesign);
+        base.RescaleOwnLengths(change);
+    }
 
 }
