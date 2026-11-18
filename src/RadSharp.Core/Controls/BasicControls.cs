@@ -39,6 +39,32 @@ public class Label : Control
     /// <summary>Text colour; null uses the theme's (<see cref="Theme.TextMuted"/> when <see cref="Muted"/>).</summary>
     [Published(Category = "Appearance")] public Color? FontColor { get; set; }
 
+    /// <summary>
+    /// Delphi's ShowAccelChar: when true (the default), <c>&amp;</c> in the caption marks a mnemonic (<c>&amp;&amp;</c> is a literal
+    /// <c>&amp;</c>); Alt+that letter moves focus to <see cref="FocusControl"/>. When false the caption is drawn exactly as written.
+    /// </summary>
+    [Published(Category = "Appearance")] public bool ShowAccelChar { get => _showAccel; set { _showAccel = value; Invalidate(); } }
+
+    /// <summary>The name of the control that takes focus when the caption's mnemonic is pressed (Delphi's FocusControl).</summary>
+    [Published("focusControl", Category = "Behavior")]
+    public string FocusControlName
+    {
+        get => _focusControl?.Name ?? _focusControlName;
+        set { _focusControlName = value ?? ""; _focusControl = null; }
+    }
+
+    string _focusControlName = "";
+
+    Control? _focusControl;
+
+    /// <summary>The control that takes focus on the mnemonic: set from code, or found by <see cref="FocusControlName"/> on the form.</summary>
+    public Control? FocusControl
+    {
+        get => _focusControl ?? (FocusControlName.Length > 0 ? OwningForm?.FindControl(FocusControlName) : null);
+        set { _focusControl = value; _focusControlName = value?.Name ?? ""; }
+    }
+
+    bool _showAccel = true;
     bool _wordWrap, _ellipsis, _muted;
 
     /// <summary>Secondary text (a caption over a field, a hint): drawn in the theme's <see cref="Theme.TextMuted"/>,
@@ -60,9 +86,18 @@ public class Label : Control
             Bold = FontBold || EffectiveFont.Bold,
         };
         var rect = new Rect(0, 0, Width, Height);
-        if (WordWrap) canvas.DrawWrappedText(Caption, font, color, rect, Alignment, Layout);
-        else canvas.DrawText(Caption, font, color, rect, Alignment, Layout, Ellipsis);
+        var text = ShowAccelChar ? Mnemonics.Display(Caption) : Caption;
+        if (WordWrap) canvas.DrawWrappedText(text, font, color, rect, Alignment, Layout);   // wrapped text shows no underline
+        else Mnemonics.Draw(canvas, Caption, font, color, rect, Alignment, Layout, ShowMnemonics && ShowAccelChar, Ellipsis, parse: ShowAccelChar);
     }
+
+    protected internal override string? MnemonicCaption => ShowAccelChar ? Caption : null;
+
+    protected internal override bool CanTakeMnemonic => FocusControl is { } c && c.OwningForm == OwningForm && c.IsEffectivelyVisible && c.IsEffectivelyEnabled;
+
+    protected internal override void FocusMnemonic() => FocusControl?.Focus();
+
+    protected internal override bool HoldsMnemonicFocus(Control focused) => focused == FocusControl;
 
 }
 
@@ -211,8 +246,16 @@ public class Button : Control
             if (Caption.Length > 0) textRect = new Rect(x + s + canvas.Px(6), 0, Width - x - s - canvas.Px(16), Height);
         }
         var text = FontColor ?? (Primary && Color is null ? t.OnAccent : t.Text);
-        canvas.DrawText(Caption, EffectiveFont, enabled ? text : t.TextDisabled, textRect,
-            textRect == r ? TextAlign.Center : TextAlign.Left, VerticalAlign.Center);
+        Mnemonics.Draw(canvas, Caption, EffectiveFont, enabled ? text : t.TextDisabled, textRect,
+            textRect == r ? TextAlign.Center : TextAlign.Left, VerticalAlign.Center, ShowMnemonics);
+    }
+
+    protected internal override string? MnemonicCaption => Caption;
+
+    protected internal override void ActivateMnemonic()
+    {
+        Focus();
+        PerformClick();
     }
 
 }

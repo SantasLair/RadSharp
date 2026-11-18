@@ -71,9 +71,13 @@ public static unsafe class SdlHost
         }
     }
 
-    /// <summary>Shows the main form and runs the event loop until it is closed; then closes everything.</summary>
-    public static void Run(Form mainForm)
+    /// <summary>
+    /// Shows the main form and runs the event loop until it is closed; then closes everything. Returns
+    /// <see cref="Application.ExitCode"/> (also stored in <see cref="Environment.ExitCode"/> when non-zero, so a void <c>Main</c> exits with it).
+    /// </summary>
+    public static int Run(Form mainForm)
     {
+        _mainForm = mainForm;
         Initialize();
         ShowForm(mainForm, owner: null, modal: false);
         var screenshot = Environment.GetEnvironmentVariable("RADSHARP_SCREENSHOT");
@@ -99,6 +103,8 @@ public static unsafe class SdlHost
         if (_liveResize) SDL_RemoveEventWatch(&OnEventWatch, 0);
         SDL_Quit();
         _initialized = false;
+        if (Application.ExitCode != 0) Environment.ExitCode = Application.ExitCode;
+        return Application.ExitCode;
     }
 
     /// <summary>Posts an action to run on the UI thread during the next loop iteration.</summary>
@@ -191,12 +197,35 @@ public static unsafe class SdlHost
         return true;   // watches can't drop events; the event still reaches the queue
     }
 
+    /// <summary>
+    /// Asks every open form to close (each may veto through CloseQuery): modal forms newest first, then the other windows,
+    /// the main form last. Used for the OS quit request and for <see cref="Application.Terminate()"/>.
+    /// </summary>
+    static void CloseAllForms()
+    {
+        var order = new List<Form>(Enumerable.Reverse(ModalStack));
+        foreach (var f in Windows.Keys)
+            if (!order.Contains(f) && f != _mainForm) order.Add(f);
+        if (_mainForm != null) order.Add(_mainForm);
+        foreach (var f in order)
+            if (Windows.ContainsKey(f)) f.Close();
+    }
+
+    static Form? _mainForm;
+
     /// <summary>Processes events for all windows until <paramref name="keepRunning"/> returns false.</summary>
     internal static void RunLoop(Func<bool> keepRunning)
     {
         SDL_Event e;
+        bool idleWantsMore = false;
         while (keepRunning())
         {
+            // Application.Terminate(): ask every form to close, like the OS quit request (CloseQuery may veto).
+            if (Application.ConsumeTerminateRequest())
+            {
+                CloseAllForms();
+                if (!keepRunning()) break;
+            }
             // Compute next wake timeout from form deadlines (timers, tooltips, etc.)
             ulong now = SDL_GetTicks();
             int timeout = 16; // default 60 Hz
@@ -209,6 +238,7 @@ public static unsafe class SdlHost
             }
             if (nearest.HasValue)
                 timeout = Math.Max(1, Math.Min(60000, (int)Math.Ceiling(nearest.Value - now)));
+            if (idleWantsMore) timeout = 0;   // an Idle handler asked to be called again at once (Done = false)
 
             if (SDL_WaitEventTimeout(&e, timeout))
             {
@@ -216,6 +246,8 @@ public static unsafe class SdlHost
                 while (SDL_PollEvent(&e));
             }
             while (MainThread.TryDequeue(out var action)) Guard.Run(action);
+            // Input queue drained: Application.Idle (before painting, so what it changes is drawn in this pass).
+            idleWantsMore = Application.RaiseIdle();
             now = SDL_GetTicks();
             foreach (var w in Windows.Values.ToList())
             {
@@ -232,7 +264,7 @@ public static unsafe class SdlHost
         if (type == SDL_EventType.SDL_EVENT_QUIT)
         {
             // Closing the last window, Cmd+Q...: ask every form, modal ones first.
-            foreach (var f in Windows.Keys.Reverse().ToList()) f.Close();
+            CloseAllForms();
             return;
         }
         if (!HasWindow(type)) return;
@@ -537,18 +569,22 @@ internal sealed unsafe class FormWindow : IDisposable
                     (SDL_GetWindowFlags(_window) & SDL_WindowFlags.SDL_WINDOW_MAXIMIZED) != 0 ? WindowState.Maximized : WindowState.Normal));
                 Guard.Run(RecordRestoredBounds);
                 break;
+            case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_LOST:
+                Guard.Run(_form.ProcessFocusLost);
+                break;
             case SDL_EventType.SDL_EVENT_MOUSE_MOTION:
-                Guard.Run(() => _form.ProcessMouseMove(Px(e.motion.x), Px(e.motion.y), SdlInput.Modifiers(SDL_GetModState())));
+                Guard.Run(() => _form.ProcessMouseMove(Px(e.motion.x), Px(e.motion.y), SdlInput.Modifiers(SDL_GetModState()), SdlInput.Pointer((uint)e.motion.which)));
                 break;
             case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_DOWN:
             case SDL_EventType.SDL_EVENT_MOUSE_BUTTON_UP:
                 if (SdlInput.Button(e.button.button) is { } button)
                 {
                     var mods = SdlInput.Modifiers(SDL_GetModState());
+                    var pointer = SdlInput.Pointer((uint)e.button.which);
                     if (e.button.down)
-                        Guard.Run(() => _form.ProcessMouseDown(Px(e.button.x), Px(e.button.y), button, mods, e.button.clicks));
+                        Guard.Run(() => _form.ProcessMouseDown(Px(e.button.x), Px(e.button.y), button, mods, e.button.clicks, pointer));
                     else
-                        Guard.Run(() => _form.ProcessMouseUp(Px(e.button.x), Px(e.button.y), button, mods));
+                        Guard.Run(() => _form.ProcessMouseUp(Px(e.button.x), Px(e.button.y), button, mods, pointer));
                 }
                 break;
             case SDL_EventType.SDL_EVENT_MOUSE_WHEEL:

@@ -31,7 +31,11 @@ public enum Key
 
 public enum Cursor { Default, IBeam, Hand, SizeWE, SizeNS, SizeNWSE, SizeNESW, SizeAll, Wait, NotAllowed, Crosshair }
 
-public class MouseEventArgs(int x, int y, MouseButton button, KeyModifiers modifiers, int clicks = 1) : EventArgs
+/// <summary>What produced a pointer event. A touch tap or pen tap arrives as an ordinary left-button click
+/// (the host synthesizes it), so controls need no special handling; this only tells them which it was.</summary>
+public enum PointerKind { Mouse, Touch, Pen }
+
+public class MouseEventArgs(int x, int y, MouseButton button, KeyModifiers modifiers, int clicks = 1, PointerKind pointer = PointerKind.Mouse) : EventArgs
 {
     /// <summary>Pointer position relative to the control receiving the event.</summary>
     public int X { get; } = x;
@@ -40,6 +44,8 @@ public class MouseEventArgs(int x, int y, MouseButton button, KeyModifiers modif
     public KeyModifiers Modifiers { get; } = modifiers;
     /// <summary>1 for a single click, 2 for a double click, and so on.</summary>
     public int Clicks { get; } = clicks;
+    /// <summary>The device behind the event: mouse, finger or pen.</summary>
+    public PointerKind Pointer { get; } = pointer;
 }
 
 public sealed class MouseWheelEventArgs(int x, int y, float deltaX, float deltaY, KeyModifiers modifiers) : EventArgs

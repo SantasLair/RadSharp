@@ -3,6 +3,7 @@ using RadSharp.Drawing;
 namespace RadSharp.Tests;
 
 /// <summary>Windows, dialogs, the property grid and the view controls. Uses a fake platform host.</summary>
+[Collection("PlatformHost")]   // shares PlatformHost.Current with ApplicationAndPointerTests
 public class DialogAndInspectorTests
 {
     /// <summary>A platform host whose modal loop runs a script instead of waiting for a user.</summary>

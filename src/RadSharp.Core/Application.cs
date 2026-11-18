@@ -8,8 +8,75 @@ public static class Application
     /// <summary>Fired when an unhandled exception occurs in an event handler, timer tick, or queued callback.</summary>
     public static event EventHandler<ThreadExceptionEventArgs>? ThreadException;
 
-    /// <summary>The process exit code (set by Terminate or before exiting).</summary>
+    /// <summary>
+    /// The process exit code: set by <see cref="Terminate(int)"/> or directly. The SDL host returns it from
+    /// <c>SdlHost.Run</c> and (when non-zero) also stores it in <see cref="Environment.ExitCode"/>, so a <c>Main</c>
+    /// that just calls <c>SdlHost.Run(form)</c> exits with it.
+    /// </summary>
     public static int ExitCode { get; set; }
+
+    /// <summary>
+    /// The application's name (Delphi's <c>Application.Title</c>). Used as the caption of <see cref="Dialogs.ShowMessage"/>
+    /// boxes and as <see cref="Form.WindowTitle"/> (the OS window / taskbar title) of a form whose
+    /// <see cref="Form.Caption"/> is empty. Empty by default.
+    /// </summary>
+    public static string Title { get; set; } = "";
+
+    /// <summary>
+    /// Raised when the host has drained its input queue and is about to wait (Delphi's <c>OnIdle</c>). Each handler may set
+    /// <see cref="IdleEventArgs.Done"/> to false to be called again at once instead of after the next event or timer
+    /// deadline. By default (Done = true) the host sleeps until something happens, as before, so a handler that
+    /// does continuous background work must opt in, and costs a full CPU core while it does. Exceptions go to
+    /// <see cref="ThreadException"/>.
+    /// </summary>
+    public static event IdleEventHandler? Idle;
+
+    /// <summary>For hosts: raises <see cref="Idle"/> once. Returns true if any handler wants to be called again immediately.</summary>
+    public static bool RaiseIdle()
+    {
+        var handlers = Idle;
+        if (handlers == null) return false;
+        bool more = false;
+        foreach (var h in handlers.GetInvocationList().Cast<IdleEventHandler>())
+        {
+            var args = new IdleEventArgs();
+            try { h(null, args); }
+            catch (Exception ex) { ReportException(ex); }
+            more |= !args.Done;
+        }
+        return more;
+    }
+
+    volatile static bool _terminateRequested;
+
+    /// <summary>
+    /// Asks the application to quit at the next opportunity, with <see cref="ExitCode"/> unchanged: the host asks every open form
+    /// to close, modal ones first, exactly as when the user closes the window (so <see cref="Form.CloseQuery"/>
+    /// can still veto, in which case the application keeps running). Safe to call from any thread, and before the loop has started.
+    /// </summary>
+    public static void Terminate()
+    {
+        _terminateRequested = true;
+        PlatformHost.Current?.PostToUiThread(static () => { });   // wake a host that is waiting for events
+    }
+
+    /// <summary>Sets <see cref="ExitCode"/>, then <see cref="Terminate()"/>s.</summary>
+    public static void Terminate(int exitCode)
+    {
+        ExitCode = exitCode;
+        Terminate();
+    }
+
+    /// <summary>True after <see cref="Terminate()"/> until the host has acted on it.</summary>
+    public static bool TerminateRequested => _terminateRequested;
+
+    /// <summary>For hosts: returns true once per <see cref="Terminate()"/> call and clears the request.</summary>
+    public static bool ConsumeTerminateRequest()
+    {
+        if (!_terminateRequested) return false;
+        _terminateRequested = false;
+        return true;
+    }
 
     /// <summary>Queues an action to run on the UI thread.</summary>
     public static void Queue(Action action)
@@ -104,6 +171,16 @@ public static class Application
             Environment.Exit(ExitCode);
         }
     }
+}
+
+/// <summary>Handler for <see cref="Application.Idle"/>.</summary>
+public delegate void IdleEventHandler(object? sender, IdleEventArgs e);
+
+/// <summary>Arguments for <see cref="Application.Idle"/>.</summary>
+public sealed class IdleEventArgs : EventArgs
+{
+    /// <summary>True (the default): nothing more to do, the host may sleep until the next event or timer. False: call Idle again immediately.</summary>
+    public bool Done { get; set; } = true;
 }
 
 /// <summary>Arguments for the ThreadException event.</summary>

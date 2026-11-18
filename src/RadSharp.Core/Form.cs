@@ -34,6 +34,9 @@ public class Form : Control
     /// <summary>Raised when <see cref="Caption"/> changes, so a host can retitle its window.</summary>
     public event Action<Form>? CaptionChanged;
 
+    /// <summary>The title a host gives the OS window (and taskbar button): <see cref="Caption"/>, or <see cref="Application.Title"/> when the caption is empty.</summary>
+    public string WindowTitle => Caption.Length > 0 ? Caption : Application.Title;
+
     /// <summary>Background colour; null uses the theme's.</summary>
     [Published(Category = "Appearance")] public Color? Color { get; set; }
 
@@ -644,8 +647,8 @@ public class Form : Control
 
     bool InAnyPopup(Control c) => _popups.Any(p => p != _tooltipPopup && c.IsSelfOrDescendantOf(p));
 
-    static MouseEventArgs Local(Control c, int x, int y, MouseButton b, KeyModifiers m, int clicks = 1) =>
-        new(x - c.AbsoluteLeft, y - c.AbsoluteTop, b, m, clicks);
+    static MouseEventArgs Local(Control c, int x, int y, MouseButton b, KeyModifiers m, int clicks = 1, PointerKind pointer = PointerKind.Mouse) =>
+        new(x - c.AbsoluteLeft, y - c.AbsoluteTop, b, m, clicks, pointer);
 
     void UpdateHover(int x, int y)
     {
@@ -660,7 +663,13 @@ public class Form : Control
         hover?.SetHovered(true);
     }
 
-    public void ProcessMouseMove(int x, int y, KeyModifiers modifiers = KeyModifiers.None)
+    public void ProcessMouseMove(int x, int y, KeyModifiers modifiers = KeyModifiers.None, PointerKind pointer = PointerKind.Mouse)
+    {
+        SyncAlt(modifiers);
+        ProcessMouseMoveCore(x, y, modifiers, pointer);
+    }
+
+    void ProcessMouseMoveCore(int x, int y, KeyModifiers modifiers, PointerKind pointer)
     {
         PerformLayout();
         if (_dragSource != null) { _dragAcceptedTarget = BubbleDragOver(_dragSource, x, y); return; }
@@ -677,7 +686,7 @@ public class Form : Control
             _dragAcceptedTarget = BubbleDragOver(_dragSource!, x, y);
             return;
         }
-        target.OnMouseMove(Local(target, x, y, MouseButton.Left, modifiers));
+        target.OnMouseMove(Local(target, x, y, MouseButton.Left, modifiers, 1, pointer));
     }
 
     /// <summary>Starts an in-app drag from <paramref name="source"/> (Delphi's <c>BeginDrag</c>): further
@@ -710,7 +719,14 @@ public class Form : Control
         return null;
     }
 
-    public void ProcessMouseDown(int x, int y, MouseButton button, KeyModifiers modifiers = KeyModifiers.None, int clicks = 1)
+    public void ProcessMouseDown(int x, int y, MouseButton button, KeyModifiers modifiers = KeyModifiers.None, int clicks = 1, PointerKind pointer = PointerKind.Mouse)
+    {
+        _altHeld = (modifiers & KeyModifiers.Alt) != 0;   // the host reports the real modifier state: heals a missed Alt release
+        ProcessMouseDownCore(x, y, button, modifiers, clicks, pointer);
+        UpdateAccelerators();
+    }
+
+    void ProcessMouseDownCore(int x, int y, MouseButton button, KeyModifiers modifiers, int clicks, PointerKind pointer)
     {
         _altAlone = false;
         PerformLayout();
@@ -734,7 +750,7 @@ public class Form : Control
         _captureButton = button;
         _pressX = x; _pressY = y;
         UpdateHover(x, y);
-        hit.OnMouseDown(Local(hit, x, y, button, modifiers, clicks));
+        hit.OnMouseDown(Local(hit, x, y, button, modifiers, clicks, pointer));
 
         // Context menus open after the press was delivered (so a list selects the row first).
         if (button == MouseButton.Right)
@@ -749,7 +765,7 @@ public class Form : Control
         }
     }
 
-    public void ProcessMouseUp(int x, int y, MouseButton button, KeyModifiers modifiers = KeyModifiers.None)
+    public void ProcessMouseUp(int x, int y, MouseButton button, KeyModifiers modifiers = KeyModifiers.None, PointerKind pointer = PointerKind.Mouse)
     {
         PerformLayout();
         if (_dragSource != null)
@@ -767,7 +783,7 @@ public class Form : Control
         if (_capture == null || button != _captureButton) return;
         var target = _capture;
         _capture = null;
-        target.OnMouseUp(Local(target, x, y, button, modifiers));
+        target.OnMouseUp(Local(target, x, y, button, modifiers, 1, pointer));
         // A click fires on a left release only if the pointer is still over the captured control.
         if (button == MouseButton.Left && target.OwningForm == this && target.IsEffectivelyEnabled
             && HitTestForm(x, y).IsSelfOrDescendantOf(target))
@@ -789,6 +805,83 @@ public class Form : Control
         }
     }
 
+    // ---- Mnemonics (spec, Appendix C) ----
+
+    bool _altHeld, _accelShown;
+
+    /// <summary>
+    /// True while mnemonic letters are drawn underlined: Alt is held, or the menu bar is in keyboard mode
+    /// (after a lone Alt or F10). Only meaningful while <see cref="Mnemonics.Enabled"/>.
+    /// </summary>
+    public bool ShowAccelerators => _altHeld || FindMainMenu(this) is { InMenuMode: true };
+
+    /// <summary>A pointer event carries the real modifier state: if Alt is no longer down (its key-up went to another window), forget it.</summary>
+    void SyncAlt(KeyModifiers modifiers)
+    {
+        if (!_altHeld || (modifiers & KeyModifiers.Alt) != 0) return;
+        _altHeld = false;
+        _altAlone = false;
+        UpdateAccelerators();
+    }
+
+    /// <summary>
+    /// The host's window lost keyboard focus (Alt+Tab, a modal window opened by a mnemonic): its key-ups will go elsewhere,
+    /// so forget Alt (stops stuck underlines and a stale lone-Alt menu toggle).
+    /// </summary>
+    public void ProcessFocusLost()
+    {
+        _altHeld = false;
+        _altAlone = false;
+        UpdateAccelerators();
+    }
+
+    void UpdateAccelerators()
+    {
+        bool now = ShowAccelerators;
+        if (now == _accelShown) return;
+        _accelShown = now;
+        InvalidateAll();
+    }
+
+    /// <summary>
+    /// Alt+<paramref name="key"/> (a letter or digit): finds the shown, enabled controls on this form (only the
+    /// active page of a page control) whose caption has that mnemonic, in tab order. One match is activated; several
+    /// take focus in turn without activating (the next after the one holding focus). Menu bar access keys are tried
+    /// first (<see cref="ProcessKeyDown"/> offers them as shortcuts before this runs), as in Windows Forms and the VCL.
+    /// Returns true if a control took the key.
+    /// </summary>
+    public bool ProcessMnemonic(Key key)
+    {
+        if (!Mnemonics.Enabled || MainMenu.LetterOf(key) is not { } letter) return false;
+        PerformLayout();
+        var matches = new List<Control>();
+        CollectMnemonics(this, letter, matches);
+        if (matches.Count == 0) return false;
+        ShowFocusCues = true;
+        if (matches.Count == 1) { matches[0].ActivateMnemonic(); return true; }
+        int at = _focused == null ? -1 : matches.FindIndex(c => c.HoldsMnemonicFocus(_focused));
+        matches[(at + 1) % matches.Count].FocusMnemonic();
+        return true;
+    }
+
+    static void CollectMnemonics(Control parent, char letter, List<Control> list)
+    {
+        var ordered = parent.Children
+            .Select((c, i) => (c, i))
+            .OrderBy(t => t.c.TabOrder < 0 ? 1 : 0)
+            .ThenBy(t => t.c.TabOrder < 0 ? t.i : t.c.TabOrder)
+            .ThenBy(t => t.i);
+        foreach (var (c, _) in ordered)
+        {
+            if (!c.Visible || !c.Enabled) continue;
+            // A page-control tab is reachable while its sheet is not the shown one; everything else must be shown.
+            bool shown = c.IsShown;
+            if (!shown && c is not TabSheet) continue;
+            if (c.MnemonicCaption is { } caption && Mnemonics.KeyOf(caption) == letter && c.CanTakeMnemonic) list.Add(c);
+            if (shown) CollectMnemonics(c, letter, list);
+        }
+    }
+
     // Alt pressed and released with nothing in between toggles the menu bar's keyboard mode.
     bool _altAlone;
 
@@ -805,6 +898,13 @@ public class Form : Control
     }
 
     public void ProcessKeyDown(Key key, KeyModifiers modifiers = KeyModifiers.None, bool repeat = false)
+    {
+        _altHeld = key == Key.Alt || (modifiers & KeyModifiers.Alt) != 0;
+        ProcessKeyDownCore(key, modifiers, repeat);
+        UpdateAccelerators();
+    }
+
+    void ProcessKeyDownCore(Key key, KeyModifiers modifiers, bool repeat)
     {
         if (key == Key.Alt) _altAlone = !repeat || _altAlone;
         else _altAlone = false;
@@ -841,11 +941,20 @@ public class Form : Control
         if (focusTarget.IsEffectivelyEnabled) focusTarget.OnKeyDown(e);
         if (e.Handled) return;
 
+        // Menu bar access keys and shortcuts come first (see ProcessMnemonic for the precedence), then control mnemonics.
         if (IsShortcutCandidate(e) && OfferShortcut(this, e)) return;
+        if (modifiers == KeyModifiers.Alt && ProcessMnemonic(key)) { e.Handled = true; return; }
         if (key is Key.Enter or Key.Escape && modifiers == KeyModifiers.None) OfferDialogKey(this, e);
     }
 
     public void ProcessKeyUp(Key key, KeyModifiers modifiers = KeyModifiers.None)
+    {
+        _altHeld = key != Key.Alt && (modifiers & KeyModifiers.Alt) != 0;
+        ProcessKeyUpCore(key, modifiers);
+        UpdateAccelerators();
+    }
+
+    void ProcessKeyUpCore(Key key, KeyModifiers modifiers)
     {
         DismissTooltip();
         if (key == Key.Alt && _altAlone)
@@ -934,13 +1043,18 @@ public class Form : Control
 /// <summary>Synthetic input for tests; it goes through exactly the same routines as real input.</summary>
 public sealed class InputSimulator(Form form)
 {
-    public void MoveTo(int x, int y, KeyModifiers modifiers = KeyModifiers.None) => form.ProcessMouseMove(x, y, modifiers);
+    public void MoveTo(int x, int y, KeyModifiers modifiers = KeyModifiers.None, PointerKind pointer = PointerKind.Mouse) =>
+        form.ProcessMouseMove(x, y, modifiers, pointer);
 
-    public void Press(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None, int clicks = 1)
+    public void Press(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None, int clicks = 1,
+        PointerKind pointer = PointerKind.Mouse)
     {
-        form.ProcessMouseMove(x, y, modifiers);
-        form.ProcessMouseDown(x, y, button, modifiers, clicks);
+        form.ProcessMouseMove(x, y, modifiers, pointer);
+        form.ProcessMouseDown(x, y, button, modifiers, clicks, pointer);
     }
+
+    /// <summary>A finger tap: what the host delivers for a touch (move, left press, left release), flagged <see cref="PointerKind.Touch"/>.</summary>
+    public void Tap(int x, int y, PointerKind pointer = PointerKind.Touch) => Click(x, y, pointer: pointer);
 
     /// <summary>A double click: two press/release pairs, the second reporting two clicks.</summary>
     public void DoubleClick(int x, int y)
@@ -953,31 +1067,39 @@ public sealed class InputSimulator(Form form)
     /// <summary>An IME composition update, e.g. <c>Compose("にほ", 2)</c>; <c>Compose("", 0)</c> ends it.</summary>
     public void Compose(string text, int cursor) => form.ProcessTextComposition(text, cursor);
 
-    public void Release(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None) =>
-        form.ProcessMouseUp(x, y, button, modifiers);
+    public void Release(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None,
+        PointerKind pointer = PointerKind.Mouse) =>
+        form.ProcessMouseUp(x, y, button, modifiers, pointer);
 
-    public void Click(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None)
+    public void Click(int x, int y, MouseButton button = MouseButton.Left, KeyModifiers modifiers = KeyModifiers.None,
+        PointerKind pointer = PointerKind.Mouse)
     {
-        Press(x, y, button, modifiers);
-        Release(x, y, button, modifiers);
+        Press(x, y, button, modifiers, pointer: pointer);
+        Release(x, y, button, modifiers, pointer);
     }
 
     /// <summary>Clicks the centre of a control.</summary>
-    public void Click(Control control, MouseButton button = MouseButton.Left)
+    public void Click(Control control, MouseButton button = MouseButton.Left, PointerKind pointer = PointerKind.Mouse)
     {
         form.PerformLayout();
-        Click(control.AbsoluteLeft + control.Width / 2, control.AbsoluteTop + control.Height / 2, button);
+        Click(control.AbsoluteLeft + control.Width / 2, control.AbsoluteTop + control.Height / 2, button, pointer: pointer);
     }
 
-    public void Drag(int x1, int y1, int x2, int y2, int steps = 4, MouseButton button = MouseButton.Left)
+    public void Drag(int x1, int y1, int x2, int y2, int steps = 4, MouseButton button = MouseButton.Left, PointerKind pointer = PointerKind.Mouse)
     {
-        Press(x1, y1, button);
+        Press(x1, y1, button, pointer: pointer);
         for (int i = 1; i <= steps; i++)
-            form.ProcessMouseMove(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps);
-        Release(x2, y2, button);
+            form.ProcessMouseMove(x1 + (x2 - x1) * i / steps, y1 + (y2 - y1) * i / steps, KeyModifiers.None, pointer);
+        Release(x2, y2, button, pointer: pointer);
     }
 
     public void Wheel(int x, int y, float deltaY, float deltaX = 0) => form.ProcessMouseWheel(x, y, deltaX, deltaY);
+
+    /// <summary>Presses a key and keeps it down (see <see cref="KeyUp"/>); e.g. <c>KeyDown(Key.Alt, KeyModifiers.Alt)</c> shows mnemonic underlines.</summary>
+    public void KeyDown(Key key, KeyModifiers modifiers = KeyModifiers.None) => form.ProcessKeyDown(key, modifiers);
+
+    /// <summary>Releases a key pressed with <see cref="KeyDown"/>.</summary>
+    public void KeyUp(Key key, KeyModifiers modifiers = KeyModifiers.None) => form.ProcessKeyUp(key, modifiers);
 
     public void Key(Key key, KeyModifiers modifiers = KeyModifiers.None)
     {
