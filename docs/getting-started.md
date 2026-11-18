@@ -23,8 +23,7 @@ you always work in a **project**: the designer starts on a welcome page with **N
 1. **New Application…** asks for a name and a location and creates the project: `.csproj`, `.sln`,
    `Program.cs`, `MainForm.radform.json` (the designed form), `MainForm.cs` (your code), a `.gitignore` and a
    GitHub Actions workflow for cross-platform builds. When the designer runs from the RadSharp repository it finds
-   the local packages in `artifacts/packages` (run `dotnet pack` for `src/RadSharp.Core` and
-   `src/RadSharp.Platform.Sdl` first); otherwise projects restore RadSharp from nuget.org.
+   the local packages in `artifacts/packages` (run `./pack.ps1` or `./pack.sh` first); otherwise projects restore RadSharp from nuget.org.
 2. Each open form has a **tab**. **File › New Form** (Ctrl+N) adds `FormN.radform.json` + `FormN.cs`; the
    **Project** tab of the inspector lists every form (double-click to open one). **Project › Set as Main Form**
    changes which form `Program.cs` starts with.
@@ -58,8 +57,10 @@ freely), arrow keys to nudge (**Shift** resizes, **Ctrl** moves by the grid).
 
 ## Without the designer
 
-Until the packages are on nuget.org, build them with `dotnet pack` (they land in `artifacts/packages`) and
-install the template from there:
+Until the packages are on nuget.org, build them with `./pack.ps1` (Windows) or `./pack.sh` (macOS/Linux): one version for all
+packages, landing in `artifacts/packages`. Don't run `dotnet pack` on the projects separately, as two runs can straddle
+a minute and produce a `RadSharp.Platform.Sdl` that needs a `RadSharp.Core` version that was never packed. Install the
+template from there:
 
 ```sh
 dotnet new install artifacts/packages/RadSharp.Templates.*.nupkg
