@@ -572,18 +572,34 @@ public class Form : Control
         return tcs.Task;
     }
 
-    /// <summary>Asks <see cref="CloseQuery"/> handlers, then closes the window. Returns false if a handler refused.</summary>
+    /// <summary>
+    /// Asks <see cref="CloseQuery"/> handlers, then closes the window. Returns false if a handler refused (a modal
+    /// form's <see cref="ModalResult"/> then goes back to None, as in Delphi) or a close is already in progress
+    /// (e.g. a CloseQuery handler set <see cref="ModalResult"/>: the close under way uses it).
+    /// </summary>
     public bool Close()
     {
-        var e = new CloseQueryEventArgs();
-        CloseQuery?.Invoke(this, e);
-        if (!e.CanClose) return false;
-        if (IsModal && _modalResult == ModalResult.None) _modalResult = ModalResult.Cancel;
-        CloseAllPopups();
-        PlatformHost.Current?.CloseForm(this);
-        Closed?.Invoke(this);
-        return true;
+        if (_closing) return false;
+        _closing = true;
+        try
+        {
+            var e = new CloseQueryEventArgs();
+            CloseQuery?.Invoke(this, e);
+            if (!e.CanClose)
+            {
+                if (IsModal) _modalResult = ModalResult.None;
+                return false;
+            }
+            if (IsModal && _modalResult == ModalResult.None) _modalResult = ModalResult.Cancel;
+            CloseAllPopups();
+            PlatformHost.Current?.CloseForm(this);
+            Closed?.Invoke(this);
+            return true;
+        }
+        finally { _closing = false; }
     }
+
+    bool _closing;
 
     /// <summary>Called by the host once the form's window is visible.</summary>
     public void NotifyShown() => Shown?.Invoke(this);
