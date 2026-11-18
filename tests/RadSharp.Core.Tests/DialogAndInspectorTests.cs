@@ -3,7 +3,7 @@ using RadSharp.Drawing;
 namespace RadSharp.Tests;
 
 /// <summary>Windows, dialogs, the property grid and the view controls. Uses a fake platform host.</summary>
-[Collection("PlatformHost")]   // shares PlatformHost.Current with ApplicationAndPointerTests
+[Collection("PlatformHost")]   // installs a fake PlatformHost.Current, like WindowModelTests and ApplicationAndPointerTests
 public class DialogAndInspectorTests
 {
     /// <summary>A platform host whose modal loop runs a script instead of waiting for a user.</summary>
@@ -473,5 +473,39 @@ public class DialogAndInspectorTests
         Assert.NotNull(paintedRect);
         Assert.True(paintedRect!.Value.Width > 0 && paintedRect.Value.Height > 0);
         Assert.Null(plain.Icon);   // a node with no icon set stays that way; Paint didn't invent one
+    }
+
+    [Fact]
+    public void A_close_that_CloseQuery_refuses_leaves_no_ModalResult_behind()
+    {
+        // Delphi resets ModalResult to mrNone when CloseQuery refuses; otherwise a later title-bar close
+        // would report the refused result (e.g. Ok for a dialog that never saved).
+        var host = Install();
+        var form = new Form();
+        bool allow = false;
+        form.CloseQuery += (_, e) => e.CanClose = allow;
+        ModalResult afterRefusal = ModalResult.Ok;
+        host.OnModal = f =>
+        {
+            f.ModalResult = ModalResult.Ok;      // refused
+            afterRefusal = f.ModalResult;
+            allow = true;                        // the host then closes the window (title bar)
+        };
+        Assert.Equal(ModalResult.Cancel, form.ShowModal());
+        Assert.Equal(ModalResult.None, afterRefusal);
+    }
+
+    [Fact]
+    public void Setting_ModalResult_inside_CloseQuery_closes_once()
+    {
+        var host = Install();
+        var form = new Form();
+        int queries = 0, closed = 0;
+        form.CloseQuery += (_, e) => { queries++; if (form.ModalResult == ModalResult.None) form.ModalResult = ModalResult.Ok; };
+        form.Closed += _ => closed++;
+        host.OnModal = f => f.Close();
+        Assert.Equal(ModalResult.Ok, form.ShowModal());
+        Assert.Equal(1, queries);
+        Assert.Equal(1, closed);
     }
 }

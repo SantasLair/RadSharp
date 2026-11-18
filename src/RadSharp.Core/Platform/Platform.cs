@@ -72,10 +72,69 @@ public interface IPlatformServices
 
     /// <summary>Opens a URL in the user's default browser or mail client. Returns false if the host can't. Hosts that don't override it return false.</summary>
     bool OpenUrl(string url) => false;
+
+    /// <summary>
+    /// The displays (monitors) attached now, the primary one first. Coordinates are screen coordinates in the host's
+    /// window units (the same as <see cref="Form.RestoredBounds"/>). Hosts without displays return an empty list,
+    /// which is also what hosts written before this member existed return.
+    /// </summary>
+    IReadOnlyList<Display> GetDisplays() => [];
+
+    /// <summary>The display <paramref name="form"/>'s window is on (the one with most of it), or null if it has no window or the host can't tell.</summary>
+    Display? GetDisplayOf(Form form) => null;
+
+    /// <summary>
+    /// Moves and resizes an open form's window so its normal (restored) client area is <paramref name="bounds"/>, in
+    /// screen coordinates (the units of <see cref="Form.RestoredBounds"/>). A maximised or full-screen window is
+    /// restored, moved and then given its state back, so it ends up maximised on the display it was moved to.
+    /// Returns false if the form has no window or the host can't move windows.
+    /// </summary>
+    bool MoveForm(Form form, Rect bounds) => false;
 }
 
-/// <summary>Whether a form's window is normal, maximised or minimised.</summary>
-public enum WindowState { Normal, Maximized, Minimized }
+/// <summary>Whether a form's window is normal, maximised, minimised or full screen.</summary>
+public enum WindowState
+{
+    Normal,
+    Maximized,
+    Minimized,
+    /// <summary>Covers the whole display it is on, without a frame (the desktop's resolution is kept).</summary>
+    FullScreen,
+}
+
+/// <summary>
+/// A form window's frame (Delphi's <c>BorderStyle</c> for forms). Whether the user can resize the window also
+/// depends on <see cref="Form.Resizable"/>: only <see cref="Sizable"/> and <see cref="Tool"/> windows can be.
+/// </summary>
+public enum FormBorderStyle
+{
+    /// <summary>A normal window frame with minimise and maximise buttons, resizable when <see cref="Form.Resizable"/>.</summary>
+    Sizable,
+    /// <summary>A normal window frame that can't be resized by its border.</summary>
+    Single,
+    /// <summary>A dialog frame: no minimise or maximise button, not resizable.</summary>
+    Dialog,
+    /// <summary>A tool (utility) window: a small frame and no task bar button; resizable when <see cref="Form.Resizable"/>. Read when the window is created.</summary>
+    Tool,
+    /// <summary>No frame or title bar at all.</summary>
+    None,
+}
+
+/// <summary>
+/// A display (monitor), as the host reports it (see <see cref="Screen"/>). <see cref="Bounds"/> and
+/// <see cref="WorkArea"/> are screen coordinates in the host's window units, the units of
+/// <see cref="Form.RestoredBounds"/>; <see cref="Scale"/> is the UI scale forms on it load at.
+/// </summary>
+/// <param name="Id">The host's id for the display; stable only while the application runs.</param>
+/// <param name="Name">The display's name (e.g. its model); use it, with <see cref="Bounds"/>, to find a display again in a later run.</param>
+/// <param name="Bounds">The whole display.</param>
+/// <param name="WorkArea">The part not covered by task bars, docks and menu bars.</param>
+/// <param name="Scale">The display's UI scale (1 = 100 %).</param>
+/// <param name="IsPrimary">Whether this is the primary display.</param>
+public sealed record Display(uint Id, string Name, Rect Bounds, Rect WorkArea, double Scale, bool IsPrimary)
+{
+    public override string ToString() => $"{Name} ({Bounds.Width} x {Bounds.Height} at {Bounds.X}, {Bounds.Y}, {Scale * 100:0} %)";
+}
 
 /// <summary>Where a form's window first appears.</summary>
 public enum FormStartPosition

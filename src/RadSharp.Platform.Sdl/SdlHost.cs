@@ -157,6 +157,75 @@ public static unsafe class SdlHost
 
     internal static bool OpenUrl(string url) => SDL_OpenURL(url);
 
+    // ---- Displays ----
+
+    /// <summary>True when RADSHARP_SCALE forces the scale: forms then keep it on every display.</summary>
+    internal static bool ScaleForced =>
+        double.TryParse(Environment.GetEnvironmentVariable("RADSHARP_SCALE"), System.Globalization.CultureInfo.InvariantCulture, out var forced) && forced > 0;
+
+    /// <summary>
+    /// The displays attached now, the primary one first. Bounds are SDL's (points) times the display's pixel density,
+    /// so they are in the units of <see cref="Form.RestoredBounds"/> (on Windows both are pixels).
+    /// </summary>
+    internal static List<Display> GetDisplays()
+    {
+        var list = new List<Display>();
+        if (!_initialized) return list;
+        var primary = SDL_GetPrimaryDisplay();
+        using var ids = SDL_GetDisplays();
+        for (int i = 0; ids != null && i < ids.Count; i++)
+            if (DisplayFor(ids[i], primary) is { } d) list.Add(d);
+        list.Sort((a, b) => b.IsPrimary.CompareTo(a.IsPrimary));   // stable enough: at most one primary
+        return list;
+    }
+
+    internal static Display? DisplayFor(SDL_DisplayID id, SDL_DisplayID primary)
+    {
+        if (id == 0) return null;
+        SDL_Rect bounds, usable;
+        if (!SDL_GetDisplayBounds(id, &bounds)) return null;
+        if (!SDL_GetDisplayUsableBounds(id, &usable)) usable = bounds;
+        float density = DensityOf(id);
+        float scale = SDL_GetDisplayContentScale(id);
+        static Rect R(SDL_Rect r, float k) => new((int)MathF.Round(r.x * k), (int)MathF.Round(r.y * k), (int)MathF.Round(r.w * k), (int)MathF.Round(r.h * k));
+        return new Display((uint)id, SDL_GetDisplayName(id) ?? $"Display {(uint)id}", R(bounds, density), R(usable, density),
+            scale > 0 && float.IsFinite(scale) ? scale : 1, id == primary);
+    }
+
+    static float DensityOf(SDL_DisplayID id)
+    {
+        var mode = SDL_GetCurrentDisplayMode(id);
+        return mode != null && mode->pixel_density > 0 ? mode->pixel_density : 1;
+    }
+
+    /// <summary>The usable bounds (points) of the display with this id, if it is still attached.</summary>
+    internal static bool UsableBounds(uint id, out SDL_Rect area)
+    {
+        area = default;
+        if (!_initialized) return false;
+        SDL_Rect r;
+        if (!SDL_GetDisplayUsableBounds((SDL_DisplayID)id, &r)) return false;
+        area = r;
+        return true;
+    }
+
+    /// <summary>The pixel density of the display a screen rect (in <see cref="GetDisplays"/> units) is on, to convert it to points.</summary>
+    internal static float DensityAt(Rect rect)
+    {
+        var displays = GetDisplays();
+        return Screen.FromRectIn(displays, rect) is { } d ? DensityOf((SDL_DisplayID)d.Id) : 1;
+    }
+
+    internal static Display? DisplayOf(Form form) =>
+        WindowOf(form) is { } w ? DisplayFor(w.DisplayId, SDL_GetPrimaryDisplay()) : null;
+
+    internal static bool MoveForm(Form form, Rect bounds)
+    {
+        if (WindowOf(form) is not { } w) return false;
+        w.MoveTo(bounds);
+        return true;
+    }
+
     // ---- Live resizing ----
 
     static bool _inWatch, _liveResize;
@@ -379,6 +448,9 @@ internal sealed class SdlPlatform : IPlatformServices
     public void PostToUiThread(Action action) => SdlHost.PostToUiThread(action);
     public void ShowModal(Form form, Action onClosed) => SdlHost.ShowModalNonBlocking(form, onClosed);
     public bool OpenUrl(string url) => SdlHost.OpenUrl(url);
+    public IReadOnlyList<Display> GetDisplays() => SdlHost.GetDisplays();
+    public Display? GetDisplayOf(Form form) => SdlHost.DisplayOf(form);
+    public bool MoveForm(Form form, Rect bounds) => SdlHost.MoveForm(form, bounds);
 }
 
 /// <summary>One SDL window showing one form.</summary>
@@ -397,8 +469,12 @@ internal sealed unsafe class FormWindow : IDisposable
         _form = form;
         // Window sizes are in points; with high pixel density a point can be several pixels.
         var flags = SDL_WindowFlags.SDL_WINDOW_HIGH_PIXEL_DENSITY | SDL_WindowFlags.SDL_WINDOW_HIDDEN;
-        if (form.Resizable) flags |= SDL_WindowFlags.SDL_WINDOW_RESIZABLE;
-        _window = SDL_CreateWindow(form.Caption, form.Width, form.Height, flags);
+        var style = form.EffectiveBorderStyle;
+        if (form.IsUserResizable) flags |= SDL_WindowFlags.SDL_WINDOW_RESIZABLE;
+        if (style == FormBorderStyle.None) flags |= SDL_WindowFlags.SDL_WINDOW_BORDERLESS;
+        if (style == FormBorderStyle.Tool) flags |= SDL_WindowFlags.SDL_WINDOW_UTILITY;
+        if (form.TopMost) flags |= SDL_WindowFlags.SDL_WINDOW_ALWAYS_ON_TOP;
+        _window = SDL_CreateWindow(form.WindowTitle, form.Width, form.Height, flags);
         if (_window == null) throw new InvalidOperationException($"SDL_CreateWindow failed: {SDL_GetError()}");
         float density = SDL_GetWindowPixelDensity(_window);
         if (density > 1) SDL_SetWindowSize(_window, (int)MathF.Round(form.Width / density), (int)MathF.Round(form.Height / density));
@@ -408,15 +484,21 @@ internal sealed unsafe class FormWindow : IDisposable
             if (modal) SDL_SetWindowModal(_window, true);
         }
         Id = SDL_GetWindowID(_window);
-        _appliedResizable = form.Resizable;
+        _appliedResizable = form.IsUserResizable;
+        _appliedStyle = style;
+        _appliedTopMost = form.TopMost;
+        ApplyDialogFrame();
+        ApplyIcon();
         ApplyMinSize();
+        _logicalW = form.Width / form.Scale;
+        _logicalH = form.Height / form.Scale;
         PlaceWindow(owner);
+        // On a display with another scale than the form was loaded at (a second monitor, a remembered placement),
+        // rescale now, before the first frame, and centre again at the new size.
+        if (SyncScaleToDisplay() && _form.EffectiveStartPosition != FormStartPosition.Manual) PlaceWindow(owner);
         RecordRestoredBounds();   // before ApplyWindowState maximises the window
         if (form.DarkTitleBar && OperatingSystem.IsWindows())
-        {
-            nint hwnd = (nint)SDL_GetPointerProperty(SDL_GetWindowProperties(_window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, 0);
-            Win32Chrome.ApplyDarkTitleBar(hwnd, form.TitleBarColor ?? form.Color ?? form.Theme.FormBackground, form.TitleBarTextColor ?? form.Theme.Text);
-        }
+            Win32Chrome.ApplyDarkTitleBar(Hwnd, form.TitleBarColor ?? form.Color ?? form.Theme.FormBackground, form.TitleBarTextColor ?? form.Theme.Text);
         ApplyWindowState();
 
         _renderer = SDL_CreateRenderer(_window, (string?)null);
@@ -424,6 +506,7 @@ internal sealed unsafe class FormWindow : IDisposable
         SDL_SetRenderVSync(_renderer, 1);
 
         form.CaptionChanged += OnCaptionChanged;
+        Application.TitleChanged += OnTitleChanged;
         SDL_StartTextInput(_window);
         SyncSizeToWindow();
     }
@@ -432,7 +515,12 @@ internal sealed unsafe class FormWindow : IDisposable
     public Form Form => _form;
     internal SDL_Window* Handle => _window;
 
-    void OnCaptionChanged(Form f) => SDL_SetWindowTitle(_window, f.Caption);
+    nint Hwnd => OperatingSystem.IsWindows()
+        ? (nint)SDL_GetPointerProperty(SDL_GetWindowProperties(_window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, 0)
+        : 0;
+
+    void OnCaptionChanged(Form f) => SDL_SetWindowTitle(_window, f.WindowTitle);
+    void OnTitleChanged() { if (!_disposed) SDL_SetWindowTitle(_window, _form.WindowTitle); }
 
     readonly Dictionary<Cursor, nint> _cursors = [];
     Cursor _currentCursor = Cursor.Default;
@@ -440,11 +528,15 @@ internal sealed unsafe class FormWindow : IDisposable
     float Density => Math.Max(1f, SDL_GetWindowPixelDensity(_window));
     int Px(float points) => (int)MathF.Floor(points * Density);
 
-    // ---- Window state, minimum size, start position ----
+    // ---- Window state, minimum size, start position, frame, scale ----
 
     WindowState _appliedState;
-    bool _appliedResizable;
+    bool _appliedResizable, _appliedTopMost;
+    FormBorderStyle _appliedStyle;
+    Picture? _appliedIcon;
     int _appliedMinW = -1, _appliedMinH = -1;
+    // The normal window's client size in design units (pixels / form scale): what it keeps when the scale changes.
+    double _logicalW, _logicalH;
 
     /// <summary>Form pixels to window points.</summary>
     int Points(int pixels) => (int)MathF.Round(pixels / Density);
@@ -462,76 +554,221 @@ internal sealed unsafe class FormWindow : IDisposable
     {
         var wanted = _form.WindowState;
         if (wanted == _appliedState) return;
+        var previous = _appliedState;
         _appliedState = wanted;
+        if (previous == WindowState.FullScreen)
+        {
+            SDL_SetWindowFullscreen(_window, false);
+            SDL_SyncWindow(_window);   // let it finish before asking for anything else
+        }
         switch (wanted)
         {
+            case WindowState.FullScreen: SDL_SetWindowFullscreen(_window, true); break;
             case WindowState.Maximized: SDL_MaximizeWindow(_window); break;
             case WindowState.Minimized: SDL_MinimizeWindow(_window); break;
-            default: SDL_RestoreWindow(_window); break;
+            default:
+                // Leaving full screen already gives the normal window back; restoring on top of that can make SDL
+                // go back to full screen while it is still leaving it. Restore only a maximised or minimised window.
+                if (previous != WindowState.FullScreen
+                    || (SDL_GetWindowFlags(_window) & (SDL_WindowFlags.SDL_WINDOW_MAXIMIZED | SDL_WindowFlags.SDL_WINDOW_MINIMIZED)) != 0)
+                    SDL_RestoreWindow(_window);
+                break;
+        }
+    }
+
+    /// <summary>A dialog frame has no minimise or maximise button (Windows only; SDL resets the style when it changes the frame).</summary>
+    void ApplyDialogFrame()
+    {
+        if (_appliedStyle == FormBorderStyle.Dialog && OperatingSystem.IsWindows()) Win32Chrome.RemoveMinMaxButtons(Hwnd);
+    }
+
+    void ApplyIcon()
+    {
+        var icon = _form.Icon;
+        if (ReferenceEquals(icon, _appliedIcon)) return;
+        _appliedIcon = icon;
+        if (icon == null || icon.Width == 0 || icon.Height == 0) return;   // SDL has no "back to the default icon"
+        var rgba = icon.ToRgba();
+        var format = BitConverter.IsLittleEndian ? SDL_PixelFormat.SDL_PIXELFORMAT_ABGR8888 : SDL_PixelFormat.SDL_PIXELFORMAT_RGBA8888;
+        fixed (byte* p = rgba)
+        {
+            var surface = SDL_CreateSurfaceFrom(icon.Width, icon.Height, format, (nint)p, icon.Width * 4);
+            if (surface == null) return;
+            SDL_SetWindowIcon(_window, surface);   // SDL copies the pixels
+            SDL_DestroySurface(surface);
         }
     }
 
     /// <summary>Applies the form's window properties that may change while the window is open.</summary>
     void SyncWindowProperties()
     {
+        SyncScaleToDisplay();
+        if (_disposed) return;
         ApplyMinSize();
         ApplyWindowState();
-        if (_form.Resizable != _appliedResizable)
+        if (_form.IsUserResizable != _appliedResizable)
         {
-            _appliedResizable = _form.Resizable;
+            _appliedResizable = _form.IsUserResizable;
             SDL_SetWindowResizable(_window, _appliedResizable);
         }
+        var style = _form.EffectiveBorderStyle;
+        if (style != _appliedStyle)
+        {
+            if ((style == FormBorderStyle.None) != (_appliedStyle == FormBorderStyle.None))
+                SDL_SetWindowBordered(_window, style != FormBorderStyle.None);
+            _appliedStyle = style;   // Tool is read when the window is created
+        }
+        ApplyDialogFrame();   // also after SDL rebuilt the style itself (resizable, bordered, full screen); cheap when unchanged
+        if (_form.TopMost != _appliedTopMost)
+        {
+            _appliedTopMost = _form.TopMost;
+            SDL_SetWindowAlwaysOnTop(_window, _appliedTopMost);
+        }
+        ApplyIcon();
     }
 
-    /// <summary>The OS reported a state change (user maximised, restored or minimised the window).</summary>
+    bool IsFullScreenNow => (SDL_GetWindowFlags(_window) & SDL_WindowFlags.SDL_WINDOW_FULLSCREEN) != 0;
+
+    /// <summary>The window's state as SDL's flags say now (full screen wins over maximised).</summary>
+    WindowState OsState()
+    {
+        var flags = SDL_GetWindowFlags(_window);
+        if ((flags & SDL_WindowFlags.SDL_WINDOW_FULLSCREEN) != 0) return WindowState.FullScreen;
+        if ((flags & SDL_WindowFlags.SDL_WINDOW_MINIMIZED) != 0) return WindowState.Minimized;
+        return (flags & SDL_WindowFlags.SDL_WINDOW_MAXIMIZED) != 0 ? WindowState.Maximized : WindowState.Normal;
+    }
+
+    /// <summary>
+    /// The OS reported a state change (user maximised, restored or minimised the window). If code asked for another
+    /// state that isn't applied yet, the event is older than that request (it can arrive late, e.g. from entering full
+    /// screen): the request wins and the next tick applies it.
+    /// </summary>
     void OnWindowStateEvent(WindowState state)
     {
+        bool requestPending = _form.WindowState != _appliedState;
         _appliedState = state;   // already in effect; don't ask the OS again
-        _form.NotifyWindowStateChanged(state);
+        ApplyDialogFrame();      // SDL rebuilds the window style when it leaves full screen
+        if (!requestPending) _form.NotifyWindowStateChanged(state);
+    }
+
+    /// <summary>
+    /// Whether the window is neither maximised, minimised nor full screen. On Windows the real OS state decides, because
+    /// SDL's flags can lag behind the move/resize events sent while the window is being maximised.
+    /// </summary>
+    bool IsNormalState()
+    {
+        if (Hwnd is var hwnd and not 0)
+            return !Win32Chrome.IsMaximizedOrMinimized(hwnd)
+                && (SDL_GetWindowFlags(_window) & SDL_WindowFlags.SDL_WINDOW_FULLSCREEN) == 0;
+        return (SDL_GetWindowFlags(_window) & (SDL_WindowFlags.SDL_WINDOW_MAXIMIZED | SDL_WindowFlags.SDL_WINDOW_MINIMIZED | SDL_WindowFlags.SDL_WINDOW_FULLSCREEN)) == 0;
     }
 
     /// <summary>
     /// Tells the form the window's normal rect (client-area origin and size, in form pixels) while the window is
-    /// neither maximised, minimised nor full screen. On Windows the real OS state decides, because SDL's flags can lag
-    /// behind the move/resize events sent while the window is being maximised.
+    /// neither maximised, minimised nor full screen.
     /// </summary>
     void RecordRestoredBounds()
     {
-        bool normal;
-        if (OperatingSystem.IsWindows()
-            && (nint)SDL_GetPointerProperty(SDL_GetWindowProperties(_window), SDL_PROP_WINDOW_WIN32_HWND_POINTER, 0) is var hwnd and not 0)
-            normal = !Win32Chrome.IsMaximizedOrMinimized(hwnd)
-                && (SDL_GetWindowFlags(_window) & SDL_WindowFlags.SDL_WINDOW_FULLSCREEN) == 0;
-        else
-            normal = (SDL_GetWindowFlags(_window) & (SDL_WindowFlags.SDL_WINDOW_MAXIMIZED | SDL_WindowFlags.SDL_WINDOW_MINIMIZED | SDL_WindowFlags.SDL_WINDOW_FULLSCREEN)) == 0;
-        if (!normal) return;
+        if (!IsNormalState()) return;
         int x, y, w, h;
         SDL_GetWindowPosition(_window, &x, &y);
         SDL_GetWindowSize(_window, &w, &h);
         _form.NotifyRestoredBounds(new Rect(Px(x), Px(y), Px(w), Px(h)));
     }
 
-    /// <summary>Positions the (still hidden) window per <see cref="Form.StartPosition"/>.</summary>
+    /// <summary>The UI scale of the display the window is on: what the form should be at (the host loads forms at the display's content scale).</summary>
+    double DisplayScale
+    {
+        get
+        {
+            float s = SDL_GetDisplayContentScale(SDL_GetDisplayForWindow(_window));
+            return s > 0 && float.IsFinite(s) ? s : _form.Scale;
+        }
+    }
+
+    /// <summary>
+    /// If the window is now on a display with another scale than the form's, rescales the form there
+    /// (<see cref="Form.ChangeScale"/>, drift-free) and, for a normal window, resizes it so it keeps its size in design
+    /// units: Windows already does that while the user drags a resizable window across, so usually nothing is left to
+    /// do; a fixed-size window, or one moved from code, is resized here. Returns true if the scale changed.
+    /// </summary>
+    bool SyncScaleToDisplay()
+    {
+        if (!_form.FollowsDisplayScale || SdlHost.ScaleForced) return false;
+        double scale = DisplayScale;
+        if (Math.Abs(scale - _form.Scale) < 1e-6) return false;
+        bool normal = IsNormalState();
+        _form.ChangeScale(scale);
+        if (_disposed) return true;   // a ScaleChanged handler closed the form: the window is gone
+        if (normal && _logicalW > 0 && _logicalH > 0)
+        {
+            int wantW = Math.Max(1, (int)Math.Round(_logicalW * scale)), wantH = Math.Max(1, (int)Math.Round(_logicalH * scale));
+            int w, h;
+            SDL_GetWindowSizeInPixels(_window, &w, &h);
+            if (Math.Abs(w - wantW) > 1 || Math.Abs(h - wantH) > 1) SDL_SetWindowSize(_window, Points(wantW), Points(wantH));
+        }
+        _appliedMinW = _appliedMinH = -1;   // the minimum size is in form pixels: apply it at the new scale
+        ApplyMinSize();
+        if (_renderer != null) SyncSizeToWindow();   // (null while the constructor runs; it syncs at its end)
+        _form.InvalidateAll();
+        return true;
+    }
+
+    /// <summary>Moves and resizes the window's normal rect to <paramref name="bounds"/> (screen coordinates, form pixels).</summary>
+    public void MoveTo(Rect bounds)
+    {
+        var wanted = _form.WindowState;
+        if (_appliedState != WindowState.Normal || !IsNormalState())
+        {
+            if ((SDL_GetWindowFlags(_window) & SDL_WindowFlags.SDL_WINDOW_FULLSCREEN) != 0) SDL_SetWindowFullscreen(_window, false);
+            SDL_RestoreWindow(_window);
+            _appliedState = WindowState.Normal;   // Tick gives the form its state back, on the new display
+        }
+        float density = SdlHost.DensityAt(bounds);
+        SDL_SetWindowPosition(_window, (int)MathF.Round(bounds.X / density), (int)MathF.Round(bounds.Y / density));
+        // The size is meant for the display the window lands on.
+        double scale = _form.FollowsDisplayScale && !SdlHost.ScaleForced ? DisplayScale : _form.Scale;
+        _logicalW = bounds.Width / scale;
+        _logicalH = bounds.Height / scale;
+        if (!SyncScaleToDisplay())
+            SDL_SetWindowSize(_window, (int)MathF.Round(bounds.Width / density), (int)MathF.Round(bounds.Height / density));
+        if (_disposed) return;
+        SyncSizeToWindow();
+        RecordRestoredBounds();
+        // Maximise (or go full screen) again, now on the new display. The RESTORED event queued above is read after
+        // this, when SDL's flags already say maximised, so it doesn't overwrite the form's state.
+        if (wanted is WindowState.Maximized or WindowState.FullScreen && _form.WindowState != wanted) _form.WindowState = wanted;
+        ApplyWindowState();
+    }
+
+    /// <summary>The display the window is on.</summary>
+    public SDL_DisplayID DisplayId => SDL_GetDisplayForWindow(_window);
+
+    /// <summary>Positions the (still hidden) window per <see cref="Form.EffectiveStartPosition"/> and <see cref="Form.StartDisplay"/>.</summary>
     void PlaceWindow(FormWindow? owner)
     {
         int w, h;
         SDL_GetWindowSize(_window, &w, &h);
-        switch (_form.StartPosition)
+        SDL_Rect area = default;
+        bool onDisplay = _form.StartDisplay is { } start && SdlHost.UsableBounds(start.Id, out area);
+        switch (_form.EffectiveStartPosition)
         {
-            case FormStartPosition.CenterScreen:
-                SDL_SetWindowPosition(_window, unchecked((int)SDL_WINDOWPOS_CENTERED), unchecked((int)SDL_WINDOWPOS_CENTERED));
-                break;
             case FormStartPosition.CenterOwner when owner != null:
                 int ox, oy, ow, oh;
                 SDL_GetWindowPosition(owner._window, &ox, &oy);
                 SDL_GetWindowSize(owner._window, &ow, &oh);
                 SDL_SetWindowPosition(_window, ox + (ow - w) / 2, oy + (oh - h) / 2);
                 break;
-            case FormStartPosition.CenterOwner:
-                SDL_SetWindowPosition(_window, unchecked((int)SDL_WINDOWPOS_CENTERED), unchecked((int)SDL_WINDOWPOS_CENTERED));
-                break;
             case FormStartPosition.Manual:
                 SDL_SetWindowPosition(_window, Points(_form.Left), Points(_form.Top));
+                break;
+            case FormStartPosition.CenterScreen:
+            case FormStartPosition.CenterOwner:
+                if (onDisplay) SDL_SetWindowPosition(_window, area.x + (area.w - w) / 2, area.y + Math.Max(0, (area.h - h) / 2));
+                else SDL_SetWindowPosition(_window, unchecked((int)SDL_WINDOWPOS_CENTERED), unchecked((int)SDL_WINDOWPOS_CENTERED));
+                break;
+            default:
+                if (onDisplay) SDL_SetWindowPosition(_window, area.x + (area.w - w) / 2, area.y + Math.Max(0, (area.h - h) / 2));
                 break;
         }
     }
@@ -559,18 +796,33 @@ internal sealed unsafe class FormWindow : IDisposable
                 Guard.Run(RecordRestoredBounds);
                 break;
             case SDL_EventType.SDL_EVENT_WINDOW_MAXIMIZED:
-                Guard.Run(() => OnWindowStateEvent(WindowState.Maximized));
+                Guard.Run(() => OnWindowStateEvent(IsFullScreenNow ? WindowState.FullScreen : WindowState.Maximized));
                 break;
             case SDL_EventType.SDL_EVENT_WINDOW_MINIMIZED:
                 Guard.Run(() => OnWindowStateEvent(WindowState.Minimized));
                 break;
             case SDL_EventType.SDL_EVENT_WINDOW_RESTORED:
-                Guard.Run(() => OnWindowStateEvent(
-                    (SDL_GetWindowFlags(_window) & SDL_WindowFlags.SDL_WINDOW_MAXIMIZED) != 0 ? WindowState.Maximized : WindowState.Normal));
+                // Read the state now: this event may be older than a later change (e.g. maximised -> full screen).
+                Guard.Run(() => OnWindowStateEvent(OsState()));
                 Guard.Run(RecordRestoredBounds);
                 break;
             case SDL_EventType.SDL_EVENT_WINDOW_FOCUS_LOST:
                 Guard.Run(_form.ProcessFocusLost);
+                break;
+            case SDL_EventType.SDL_EVENT_WINDOW_ENTER_FULLSCREEN:
+                Guard.Run(() => OnWindowStateEvent(OsState()));
+                break;
+            case SDL_EventType.SDL_EVENT_WINDOW_LEAVE_FULLSCREEN:
+                Guard.Run(() => OnWindowStateEvent(OsState()));
+                Guard.Run(RecordRestoredBounds);
+                break;
+            // SDL 3.5 has no separate pixel-density event: a density change arrives as these two.
+            case SDL_EventType.SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED:
+                Guard.Run(() => SyncScaleToDisplay());
+                break;
+            case SDL_EventType.SDL_EVENT_WINDOW_DISPLAY_CHANGED:
+                Guard.Run(() => SyncScaleToDisplay());
+                Guard.Run(_form.NotifyDisplayChanged);
                 break;
             case SDL_EventType.SDL_EVENT_MOUSE_MOTION:
                 Guard.Run(() => _form.ProcessMouseMove(Px(e.motion.x), Px(e.motion.y), SdlInput.Modifiers(SDL_GetModState()), SdlInput.Pointer((uint)e.motion.which)));
@@ -629,10 +881,13 @@ internal sealed unsafe class FormWindow : IDisposable
     /// <summary>Advances the form's clock and keeps the IME candidate window next to the caret.</summary>
     public void Tick(ulong nowMs)
     {
+        if (_disposed) return;   // closed by another window's tick earlier in this loop iteration
         Guard.Run(() =>
         {
             SyncWindowProperties();
+            if (_disposed) return;
             _form.ProcessTick(nowMs);
+            if (_disposed) return;   // a timer closed the form
             var area = _form.TextInputArea;
             if (area == _textInputArea) return;
             _textInputArea = area;
@@ -681,7 +936,18 @@ internal sealed unsafe class FormWindow : IDisposable
         SDL_GetWindowSizeInPixels(_window, &w, &h);
         w = Math.Max(1, w);
         h = Math.Max(1, h);
-        if (_backBuffer != null && _backBuffer.Width == w && _backBuffer.Height == h) return;
+        // While the scale matches the display, the window's size in design units is what a later scale change keeps.
+        if (IsNormalState() && (!_form.FollowsDisplayScale || Math.Abs(DisplayScale - _form.Scale) < 1e-6))
+        {
+            _logicalW = w / _form.Scale;
+            _logicalH = h / _form.Scale;
+        }
+        if (_backBuffer != null && _backBuffer.Width == w && _backBuffer.Height == h)
+        {
+            // Same window size, but the form may have been rescaled (a maximised window moved to another display).
+            if (_form.Width != w || _form.Height != h) { _form.Resize(w, h); _form.InvalidateAll(); }
+            return;
+        }
 
         _backBuffer?.Dispose();
         _backBuffer = new SKBitmap(FormRenderer.FrameInfo(w, h));
@@ -704,6 +970,7 @@ internal sealed unsafe class FormWindow : IDisposable
 
     void RenderIfDirtyCore()
     {
+        if (_disposed) return;   // closed from inside this loop iteration (a timer, a queued action)
         _form.PerformLayout();
         if (_backBuffer == null || !_form.TryTakeDirtyRect(out var dirty)) return;
 
@@ -738,6 +1005,7 @@ internal sealed unsafe class FormWindow : IDisposable
     {
         _disposed = true;
         _form.CaptionChanged -= OnCaptionChanged;
+        Application.TitleChanged -= OnTitleChanged;
         if (_texture != null) SDL_DestroyTexture(_texture);
         foreach (var c in _cursors.Values) SDL_DestroyCursor((SDL_Cursor*)c);
         SDL_StopTextInput(_window);

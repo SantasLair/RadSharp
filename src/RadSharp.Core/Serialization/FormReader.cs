@@ -131,8 +131,19 @@ public static class FormReader
         return control;
     }
 
-    /// <summary>Applies a node's name, properties, event handler names and children to a control.</summary>
+    /// <summary>
+    /// Applies a node's name, properties, event handler names and children to a control, with
+    /// <see cref="Control.Loading"/> set, then calls <see cref="Control.Loaded"/>.
+    /// </summary>
     static void ReadInto(Control control, JsonElement node, List<string> warnings, string path)
+    {
+        control.Loading = true;
+        try { ReadMembersAndChildren(control, node, warnings, path); }
+        finally { control.Loading = false; }
+        control.Loaded();
+    }
+
+    static void ReadMembersAndChildren(Control control, JsonElement node, List<string> warnings, string path)
     {
         var cls = ComponentRegistry.Of(control);
         if (node.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)

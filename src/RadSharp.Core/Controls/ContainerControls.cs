@@ -46,9 +46,10 @@ public class PageControl : Control
     [Published(Category = "Behavior")]
     public int ActivePageIndex
     {
-        get => Math.Clamp(_active, 0, Math.Max(0, Pages.Count - 1));
+        get => Math.Clamp(_loadedActivePage ?? _active, 0, Math.Max(0, Pages.Count - 1));
         set
         {
+            if (Loading) { _loadedActivePage = value; return; }   // the pages are children, read after it; see Loaded
             var pages = Pages;
             value = Math.Clamp(value, 0, Math.Max(0, pages.Count - 1));
             if (value == _active) return;
@@ -58,6 +59,14 @@ public class PageControl : Control
             if (old != null) OwningForm?.ControlBecameUnavailable(old);  // focus can't stay on a hidden page
             Change?.Invoke(this);
         }
+    }
+
+    int? _loadedActivePage;
+
+    protected internal override void Loaded()
+    {
+        base.Loaded();
+        if (_loadedActivePage is int index) { _loadedActivePage = null; ActivePageIndex = index; }
     }
 
     public TabSheet? ActivePage => Pages.Count > 0 ? Pages[ActivePageIndex] : null;
