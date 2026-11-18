@@ -442,6 +442,17 @@ controls don't need yet.
 
 **M14 status:** items 1–6 done; item 7 (DateTimePicker, Calendar, MaskEdit) deferred to the reference app as the plan says. Done-when met: see `GridTests` (100 000-row virtual grid) and `RowViewSuiteTests`.
 
+**Status (2026-11-17): item 7, as the reference app decided.** The reference-app study (`docs/reference-app-scope.md`)
+put `DateTimePicker` + `Calendar` (date only) in 1.0 and MaskEdit out. `Calendar` (Delphi's TMonthCalendar, light): month
+grid, today marked, `MinDate`/`MaxDate`, first day of week from the culture or chosen, keyboard (arrows, PageUp/Down,
+Ctrl+PageUp/Down, Home/End, Enter/Space), mouse and wheel, `onChange`/`onDateClick`. `DateTimePicker`: segment editing
+like Windows, a drop-down `Calendar` in the popup layer (F4/Alt+Down or the button), optional `Format`,
+`ShowCheckbox`/`Checked` for "no date" (`Value` is null), `MinDate`/`MaxDate`. Text is always Gregorian, also for
+cultures whose default calendar isn't (Thai Buddhist, Hijri: a review found a mis-typed year and a crash there). Form
+format: new property type `date` (ISO string, nullable variant), vector `dates`; approved by the user. Goldens `dates`,
+`dates-open` at 100 %/150 %; ControlsDemo has a Dates tab; NativeAOT publish warning-free. Not in 1.0: time of day,
+ranges, non-Gregorian display, MaskEdit.
+
 **Status (2026-11-17): a saved `itemIndex` now loads.** `ListBox`, `CheckListBox` and `ComboBox` lost a saved `itemIndex`,
 because the writer puts it before `items` and the reader clamped it against an empty list; `PageControl.activePageIndex`
 was lost the same way (its pages are children, read after it). Fixed in the reader without a format change: new

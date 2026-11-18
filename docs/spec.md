@@ -150,6 +150,14 @@ like `anchors`: `[0, 3]` on one line, `[]` when empty (a default-valued property
 the label moves to; default "") and `showAccelChar` (bool, default true; false draws the caption literally and
 disables its mnemonic).
 
+**Dates.** A `date` property is a calendar date written as an ISO 8601 `"yyyy-MM-dd"` string in the invariant
+culture (`"2026-11-17"`). A property may be nullable: absent means its default (null for a nullable one), and an explicit
+`null` is accepted on read. An invalid string is a warning and leaves the default. `Calendar` publishes `date` (the
+selected date; absent = none), `minDate` (default `"0001-01-01"`), `maxDate` (default `"9999-12-31"`) and
+`firstDayOfWeek` (`default`, `sunday` … `saturday`); events `onChange`, `onDateClick`. `DateTimePicker` publishes the
+same date members plus `showCheckbox` (false), `checked` (true; with `showCheckbox`, false means "no date") and `format`
+(a .NET-style date pattern, "" = the culture's short date); event `onChange`. Vector: `serialization/dates`.
+
 **Fonts** (Delphi's `TFont`/*ParentFont*). A control's `font` is optional; when absent the control
 inherits its parent's *effective* font, and the root form falls back to the theme's default (family
 `"Inter"`, the bundled Regular/Bold/Italic/Bold-Italic faces). Setting `font` on a container does not
@@ -166,7 +174,7 @@ family falls back to the theme's default face. Like every struct, `font` is writ
 ordered by name; a subclass entry with the same name overrides the inherited one; defaults are read from a
 freshly constructed prototype of the class, so constructor defaults need no annotation):
 `{ name, type, defaultValue, values?, labels?, min?, max?, step?, category?, readOnly? }`.
-Types: `string, int, real, bool, enum, color, image, font, anchors, struct, array, event, menus`.
+Types: `string, int, real, bool, enum, color, image, font, anchors, struct, array, event, menus, date`.
 Enum values are written camelCased (`Align.Client` → `"client"`, `Cursor.SizeWE` → `"sizeWE"`).
 
 **Generated form classes.** For `MainForm.radform.json` the generator emits `partial class MainForm : Form` with
