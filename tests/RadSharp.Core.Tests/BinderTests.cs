@@ -307,4 +307,117 @@ public class BinderTests
         b.Current!.Name = "After";
         Assert.Equal("Adazz", shown.Text);                  // no longer listening
     }
+
+    // ---- Validation covers every writable field ----
+
+    [Fact]
+    public void A_new_record_with_an_empty_required_name_does_not_save_even_if_the_user_edited_nothing_else()
+    {
+        var r = new Rig();
+        var fresh = new Contact();                          // Name is "": the required field is clean but invalid
+        r.Binder.Current = fresh;
+        Assert.False(r.Binder.IsDirty);
+        Assert.False(r.Binder.Validate());
+        Assert.Equal("Enter a name.", r.Binder.Errors.Single().Message);
+        Assert.Same(r.Name, r.Binder.Errors[0].Control);
+        Assert.False(r.Binder.Commit());                    // nothing edited, still refused
+
+        r.TypeInto(r.City, "Rome");
+        Assert.False(r.Binder.Commit());
+        Assert.Equal("Enter a name.", r.Binder.Errors.Single().Message);
+        Assert.Equal("", fresh.City);                       // all or nothing: the edited city wasn't written
+        Assert.Equal("Enter a name.", r.Binder.Fields.Single(f => f.Control == r.Name).Error);
+        Assert.True(r.Binder.FocusFirstError());
+
+        r.TypeInto(r.Name, "Ann");                          // an edited field is checked with its parsed value
+        Assert.True(r.Binder.Commit());
+        Assert.Equal(("Ann", "Rome"), (fresh.Name, fresh.City));
+        Assert.Empty(r.Binder.Errors);
+        Assert.Null(r.Binder.Fields.Single(f => f.Control == r.Name).Error);
+    }
+
+    [Fact]
+    public void Clean_fields_are_validated_with_the_loaded_value_and_read_only_fields_are_not_validated()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 300, 120);
+        var a = new Edit();
+        var b = new Edit();
+        a.SetBounds(10, 10, 100, 26);
+        b.SetBounds(10, 50, 100, 26);
+        f.Add(a);
+        f.Add(b);
+        f.PerformLayout();
+        var seen = new List<string>();
+        var binder = new Binder<Contact>(new Contact { City = "x" });
+        binder.Bind(a, c => c.City, (c, v) => c.City = v).Validate(v => { seen.Add("city:" + v); return null; });
+        binder.Bind(b, c => c.Name).Validate(v => { seen.Add("name:" + v); return "never"; });   // no setter: skipped
+        Assert.True(binder.Commit());
+        Assert.Equal(new[] { "city:x" }, seen);
+
+        binder.Current = null;                              // nothing loaded: nothing to validate
+        seen.Clear();
+        Assert.True(binder.Validate());
+        Assert.True(binder.Commit());
+        Assert.Empty(seen);
+    }
+
+    // ---- Lifetime: the owner form ----
+
+    sealed class Counted : INotifyPropertyChanged
+    {
+        public int Subscribers => _handlers?.GetInvocationList().Length ?? 0;
+        public string Name { get; set; } = "";
+        PropertyChangedEventHandler? _handlers;
+        public event PropertyChangedEventHandler? PropertyChanged
+        {
+            add => _handlers += value;
+            remove => _handlers -= value;
+        }
+    }
+
+    [Fact]
+    public void A_binder_made_with_its_owner_form_disposes_itself_when_the_form_closes()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 300, 80);
+        var edit = new Edit();
+        edit.SetBounds(10, 10, 100, 26);
+        f.Add(edit);
+        f.PerformLayout();
+        var model = new Counted { Name = "Ada" };
+        var binder = new Binder<Counted>(f, model);
+        binder.Bind(edit, c => c.Name, (c, v) => c.Name = v);
+        Assert.Same(model, binder.Current);
+        Assert.Equal(1, model.Subscribers);
+        f.Simulate.Click(edit);
+        f.Simulate.Type("!");
+        Assert.True(binder.IsDirty);
+
+        Assert.True(f.Close());
+        Assert.Equal(0, model.Subscribers);                 // no PropertyChanged subscription left on the model
+
+        f.Simulate.Type("?");                               // and the controls are no longer watched
+        binder.Revert();                                    // a disposed binder ignores loads
+        Assert.Equal("Ada!?", edit.Text);
+        binder.Current = model;                             // setting the model again doesn't re-subscribe
+        Assert.Equal(0, model.Subscribers);
+        binder.Dispose();                                   // safe after the form disposed it
+    }
+
+    [Fact]
+    public void The_owner_constructor_without_a_model_and_an_early_dispose_both_work()
+    {
+        var f = new Form();
+        var binder = new Binder<Counted>(f);
+        Assert.Null(binder.Current);
+        var model = new Counted();
+        binder.Current = model;
+        Assert.Equal(1, model.Subscribers);
+        binder.Dispose();                                   // before the form closes
+        Assert.Equal(0, model.Subscribers);
+        f.Close();                                          // the closed form no longer reaches the binder
+        Assert.Equal(0, model.Subscribers);
+        Assert.Throws<ArgumentNullException>(() => new Binder<Counted>((Form)null!));
+    }
 }

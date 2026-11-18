@@ -7,7 +7,7 @@ public class ActionEventTests
     [Fact]
     public void An_actions_default_event_is_onExecute_and_its_handler_takes_the_sender()
     {
-        var act = new RadSharp.Actions.Action { Name = "actSave" };
+        var act = new ActionItem { Name = "actSave" };
         var ev = CodeIntegration.DefaultEvent(act);
         Assert.Equal("onExecute", ev!.Name);
         Assert.Equal("Control sender", ev.Parameters);

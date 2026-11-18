@@ -97,7 +97,7 @@ public static unsafe class SdlHost
             first = false;
             return Windows.ContainsKey(mainForm);
         });
-        foreach (var w in Windows.Values.ToList()) w.Dispose();
+        foreach (var w in Windows.Values.ToList()) { w.Dispose(); w.Form.NotifyHostClosed(); }
         Windows.Clear();
         PlatformHost.Current = null;
         if (_liveResize) SDL_RemoveEventWatch(&OnEventWatch, 0);
@@ -149,10 +149,14 @@ public static unsafe class SdlHost
         finally { ModalStack.Remove(form); }
     }
 
+    /// <summary>True while a modal form other than <paramref name="form"/> is open (it gets no input and no idle action updates).</summary>
+    internal static bool IsFormBlocked(Form form) => ModalStack.Count > 0 && ModalStack[^1] != form;
+
     internal static void CloseForm(Form form)
     {
         if (!Windows.Remove(form, out var window)) return;
         window.Dispose();
+        form.NotifyHostClosed();   // this path doesn't go through Form.Close: stop idle action updates for it
     }
 
     internal static bool OpenUrl(string url) => SDL_OpenURL(url);
@@ -442,6 +446,7 @@ internal sealed class SdlPlatform : IPlatformServices
     public void ShowForm(Form form) => SdlHost.ShowForm(form, form.Owner, modal: false);
     public void RunModal(Form form) => SdlHost.RunModal(form);
     public void CloseForm(Form form) => SdlHost.CloseForm(form);
+    public bool IsFormBlocked(Form form) => SdlHost.IsFormBlocked(form);
     public void ProcessEventsUntil(Func<bool> done) => SdlHost.RunLoop(() => !done());
     public void ShowFileDialog(FileDialogKind kind, Form? owner, FileDialogOptions options, Action<FileResult[]?> done) =>
         SdlHost.ShowFileDialog(kind, owner, options, done);

@@ -4,7 +4,7 @@ namespace RadSharp;
 // and running onUpdate while the application is idle.
 public partial class Form
 {
-    List<Actions.Action>? _actions;
+    List<ActionItem>? _actions;
     bool _actionLinksDirty = true;
     int _actionVersion = -1;
     int _actionStamp;
@@ -17,12 +17,25 @@ public partial class Form
     void InitActions()
     {
         Shown += _ => { _windowShown = true; SyncIdleTracking(); };
-        Closed += _ => { _windowShown = false; SyncIdleTracking(); };
+        Closed += _ => NotifyHostClosed();
     }
+
+    /// <summary>
+    /// Called by the host when it has taken the form's window away (also when it did so without <see cref="Close"/>, e.g. the
+    /// host shutting down): the form stops taking part in the idle update and is no longer referenced by it.
+    /// </summary>
+    public void NotifyHostClosed()
+    {
+        _windowShown = false;
+        SyncIdleTracking();
+    }
+
+    /// <summary>Whether idle updates apply now: shown, visible and not blocked by a modal form (Delphi doesn't update disabled windows).</summary>
+    bool TakesIdleUpdates => _windowShown && Visible && !(PlatformHost.Current?.IsFormBlocked(this) ?? false);
 
     void SyncIdleTracking()
     {
-        bool track = _windowShown && Actions.ActionSlot.Used && ActionList.Count > 0;
+        bool track = _windowShown && ActionSlot.Used && ActionList.Count > 0;
         lock (ShownForms)   // UI code is single-threaded, but test runners show forms from several threads
         {
             if (track) { if (!ShownForms.Contains(this)) ShownForms.Add(this); }
@@ -32,12 +45,13 @@ public partial class Form
         }
     }
 
-    /// <summary>Runs onUpdate for the actions of every shown form. Never asks for another idle call at once (no busy loop).</summary>
+    /// <summary>Runs onUpdate for the actions of every shown, visible form that no modal form blocks. Never asks for another idle call at once (no busy loop).</summary>
     static void OnApplicationIdle(object? sender, IdleEventArgs e)
     {
         Form[] forms;
         lock (ShownForms) forms = [.. ShownForms];
-        foreach (var form in forms) form.UpdateActions();
+        foreach (var form in forms)
+            if (form.TakesIdleUpdates) form.UpdateActions();
     }
 
     /// <summary>Called when controls are added or removed anywhere on the form.</summary>
@@ -45,14 +59,14 @@ public partial class Form
     {
         _actions = null;
         _actionLinksDirty = true;
-        if (_windowShown && Actions.ActionSlot.Used) SyncIdleTracking();   // an action may have been added or removed
+        if (_windowShown && ActionSlot.Used) SyncIdleTracking();   // an action may have been added or removed
     }
 
     /// <summary>The form's actions, in tree order.</summary>
-    List<Actions.Action> ActionList => _actions ??= [.. Descendants().OfType<Actions.Action>()];
+    List<ActionItem> ActionList => _actions ??= [.. Descendants().OfType<ActionItem>()];
 
     /// <summary>
-    /// Runs <see cref="Actions.Action.Update"/> (onUpdate) for every action on this form, as the application does while idle
+    /// Runs <see cref="ActionItem.Update"/> (onUpdate) for every action on this form, as the application does while idle
     /// for shown forms (Delphi's <c>UpdateActions</c>). An exception in one handler is reported and the others still run.
     /// </summary>
     public void UpdateActions()
@@ -72,10 +86,10 @@ public partial class Form
     /// </summary>
     internal void EnsureActionLinks()
     {
-        if (!Actions.ActionSlot.Used) return;
-        if (!_actionLinksDirty && _actionVersion == Actions.ActionSlot.PendingVersion) return;
+        if (!ActionSlot.Used) return;
+        if (!_actionLinksDirty && _actionVersion == ActionSlot.PendingVersion) return;
         _actionLinksDirty = false;
-        _actionVersion = Actions.ActionSlot.PendingVersion;
+        _actionVersion = ActionSlot.PendingVersion;
         int stamp = ++_actionStamp;
         Walk(this);
         foreach (var action in ActionList) action.SweepLinks(stamp);
@@ -95,14 +109,14 @@ public partial class Form
     /// <summary>A shortcut nothing else took: runs the first enabled action on this form with that shortcut.</summary>
     bool ProcessActionShortcut(KeyEventArgs e)
     {
-        if (!Actions.ActionSlot.Used) return false;
+        if (!ActionSlot.Used) return false;
         EnsureActionLinks();
         foreach (var action in ActionList.ToArray())
         {
             if (!action.MatchesShortcut(e)) continue;
             action.UpdateState();
             if (!action.Enabled) continue;
-            action.Execute(null);
+            action.Execute(null, update: false);   // onUpdate just ran above
             e.Handled = true;
             return true;
         }

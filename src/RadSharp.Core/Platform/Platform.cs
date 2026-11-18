@@ -58,6 +58,13 @@ public interface IPlatformServices
     /// <summary>Closes a form's window.</summary>
     void CloseForm(Form form);
 
+    /// <summary>
+    /// True when a modal form other than <paramref name="form"/> is open, so <paramref name="form"/> gets no input and its
+    /// actions are not updated while the application is idle. Hosts without modal forms, and hosts written before this member
+    /// existed, return false.
+    /// </summary>
+    bool IsFormBlocked(Form form) => false;
+
     /// <summary>Processes events (all windows) until <paramref name="done"/> returns true.</summary>
     void ProcessEventsUntil(Func<bool> done);
 

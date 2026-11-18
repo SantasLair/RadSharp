@@ -1,4 +1,4 @@
-namespace RadSharp.Actions;
+namespace RadSharp;
 
 /// <summary>
 /// A command shared by buttons, tool buttons and menu items (a light Delphi <c>TAction</c>; docs/binding-and-actions.md).
@@ -10,18 +10,20 @@ namespace RadSharp.Actions;
 /// from the application's state in one place.
 /// </summary>
 /// <remarks>
-/// The class lives in its own namespace because <c>RadSharp.Action</c> would clash with <see cref="System.Action"/> in every
-/// file that has <c>using RadSharp;</c>. Form files and the palette call it <c>Action</c>; generated fields are fully
-/// qualified, so code rarely needs the type name (use an alias, <c>using RadAction = RadSharp.Actions.Action;</c>, if it does).
+/// The C# type is <c>ActionItem</c> because <c>RadSharp.Action</c> would clash with <see cref="System.Action"/> in every file
+/// that has <c>using RadSharp;</c>. Form files, the palette and the component registry still call it <c>Action</c>, as Delphi's
+/// <c>TAction</c> shows as Action: <see cref="ComponentAttribute"/> publishes the class under that name, and the form generator
+/// emits <c>global::RadSharp.ActionItem</c> fields for <c>"class": "Action"</c> nodes.
 /// </remarks>
-public class Action : Component
+[Component("Action")]
+public class ActionItem : Component
 {
     string _caption = "", _hint = "", _shortcut = "";
     bool _enabled = true, _checked, _visible = true;
     int _imageIndex = -1;
     readonly List<ActionLink> _links = [];
 
-    public Action() => ActionSlot.Used = true;
+    public ActionItem() => ActionSlot.Used = true;
 
     /// <summary>The caption linked controls show; <c>&amp;</c> marks a mnemonic, which works through the linked buttons and menu items.</summary>
     [Published(Category = "Action")]
@@ -79,9 +81,11 @@ public class Action : Component
     /// </summary>
     public bool Execute() => Execute(null);
 
-    internal bool Execute(object? invoker)
+    /// <param name="invoker">The button or menu item that ran it, or null.</param>
+    /// <param name="update">False when <see cref="Update"/> just ran (a shortcut checks the state first), so it doesn't run twice.</param>
+    internal bool Execute(object? invoker, bool update = true)
     {
-        UpdateState();
+        if (update) UpdateState();
         if (!_enabled) return false;
         if (AutoCheck) Checked = !_checked;
         if (Executed is not { } handler) return false;
@@ -147,7 +151,7 @@ public class Action : Component
 internal enum ActionMember { Caption, Hint, Shortcut, Enabled, Checked, Visible, ImageIndex }
 
 /// <summary>One client (button or menu item) linked to an action: reads and writes the client's side of each member.</summary>
-internal abstract class ActionLink(Action action)
+internal abstract class ActionLink(ActionItem action)
 {
     static readonly ActionMember[] Members =
     [
@@ -155,13 +159,13 @@ internal abstract class ActionLink(Action action)
         ActionMember.Checked, ActionMember.Visible, ActionMember.ImageIndex,
     ];
 
-    public Action Action { get; } = action;
+    public ActionItem Action { get; } = action;
     public abstract object Client { get; }
 
     /// <summary>Linked from code (by object): kept even when the action is on another form, until unlinked from code.</summary>
     public bool Explicit { get; set; }
 
-    /// <summary>The form walk that last found this link's client (see <see cref="Action.SweepLinks"/>).</summary>
+    /// <summary>The form walk that last found this link's client (see <see cref="ActionItem.SweepLinks"/>).</summary>
     public int Stamp { get; set; }
 
     public abstract bool Supports(ActionMember m);
@@ -189,7 +193,7 @@ internal abstract class ActionLink(Action action)
 /// The action side of a client: its <c>"action"</c> name and, once resolved, its link. Shared by <see cref="Button"/> and
 /// <see cref="MenuItem"/>.
 /// </summary>
-internal sealed class ActionSlot(Func<Action, ActionLink> createLink)
+internal sealed class ActionSlot(Func<ActionItem, ActionLink> createLink)
 {
     string _name = "";
 
@@ -203,7 +207,7 @@ internal sealed class ActionSlot(Func<Action, ActionLink> createLink)
 
     public string Name => Link?.Action.Name ?? _name;
 
-    public Action? Action => Link?.Action;
+    public ActionItem? Action => Link?.Action;
 
     /// <summary>Sets the name; links at once (copying every value) when <paramref name="form"/> has that action, else later.</summary>
     public void SetName(string? name, Form? form)
@@ -214,12 +218,12 @@ internal sealed class ActionSlot(Func<Action, ActionLink> createLink)
         _name = name;
         if (name.Length == 0) return;
         Used = true;
-        if (form?.FindControl(name) is Action a) Attach(a, explicitLink: false, onlyDefaults: false);
+        if (form?.FindControl(name) is ActionItem a) Attach(a, explicitLink: false, onlyDefaults: false);
         else Interlocked.Increment(ref PendingVersion);
     }
 
     /// <summary>Links to <paramref name="action"/> from code (copying every value), or unlinks with null.</summary>
-    public void SetAction(Action? action)
+    public void SetAction(ActionItem? action)
     {
         if (Link?.Action == action) return;
         Unlink();
@@ -227,7 +231,7 @@ internal sealed class ActionSlot(Func<Action, ActionLink> createLink)
         if (action != null) Attach(action, explicitLink: true, onlyDefaults: false);
     }
 
-    void Attach(Action action, bool explicitLink, bool onlyDefaults)
+    void Attach(ActionItem action, bool explicitLink, bool onlyDefaults)
     {
         var link = createLink(action);
         link.Explicit = explicitLink;
@@ -257,7 +261,7 @@ internal sealed class ActionSlot(Func<Action, ActionLink> createLink)
             }
             Unlink();
         }
-        if (_name.Length > 0 && form.FindControl(_name) is Action a)
+        if (_name.Length > 0 && form.FindControl(_name) is ActionItem a)
         {
             Attach(a, explicitLink: false, onlyDefaults: true);
             Link!.Stamp = stamp;

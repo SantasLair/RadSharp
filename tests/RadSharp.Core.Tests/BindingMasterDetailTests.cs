@@ -140,6 +140,20 @@ public class BindingMasterDetailTests
     }
 
     [Fact]
+    public void The_form_owns_its_binder_and_closing_the_form_disposes_it()
+    {
+        var f = Open();
+        int dirtyChanges = 0;
+        f.Binder.DirtyChanged += (_, _) => dirtyChanges++;
+        f.Simulate.Click(f.edtName);
+        f.Simulate.Type("x");
+        Assert.Equal(1, dirtyChanges);
+        Assert.True(f.Close());
+        f.Simulate.Type("y");                                // the binder no longer watches the controls
+        Assert.Equal(1, dirtyChanges);
+    }
+
+    [Fact]
     public void The_form_file_round_trips_with_the_actions_and_links()
     {
         // Loaded without its code-behind (as the designer does): the binder's values and the list's items aren't in the file.

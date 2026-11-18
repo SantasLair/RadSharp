@@ -614,9 +614,13 @@ public sealed class DesignHostServer
 
     internal bool IsOpen(HostWindow window) => _windows.ContainsKey(window.Id);
 
+    /// <summary>True while a modal window other than the one showing <paramref name="form"/> is open.</summary>
+    internal bool IsFormBlocked(Form form) => _modalStack.Count > 0 && _modalStack[^1].Form != form;
+
     internal void CloseForm(Form form)
     {
         if (_byForm.TryGetValue(form, out var w)) CloseWindowCore(w);
+        form.NotifyHostClosed();
     }
 
     void CloseWindowCore(HostWindow w)

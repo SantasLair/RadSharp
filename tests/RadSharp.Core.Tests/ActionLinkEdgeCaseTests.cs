@@ -1,9 +1,8 @@
 using System.Text.Json;
-using RadAction = RadSharp.Actions.Action;
 
 namespace RadSharp.Tests;
 
-/// <summary>Regression tests for <see cref="RadAction"/> links and the form writer: file order, removed actions, links to another form.</summary>
+/// <summary>Regression tests for <see cref="ActionItem"/> links and the form writer: file order, removed actions, links to another form.</summary>
 public class ActionLinkEdgeCaseTests
 {
     const string Json = """
@@ -28,7 +27,7 @@ public class ActionLinkEdgeCaseTests
     public void Saving_right_after_the_action_is_removed_keeps_the_values_its_clients_show()
     {
         var f = Load();
-        var save = Assert.IsType<RadAction>(f.FindControl("actSave"));
+        var save = Assert.IsType<ActionItem>(f.FindControl("actSave"));
         f.Remove(save);                                     // e.g. deleted in the designer, then saved at once
         using var doc = JsonDocument.Parse(FormWriter.Save(f));
         var children = doc.RootElement.GetProperty("root").GetProperty("children");
@@ -71,7 +70,7 @@ public class ActionLinkEdgeCaseTests
     {
         var f = Load();
         var other = new Form();
-        var shared = new RadAction { Name = "actShared", Caption = "Shared", Hint = "From elsewhere" };
+        var shared = new ActionItem { Name = "actShared", Caption = "Shared", Hint = "From elsewhere" };
         other.Add(shared);
         var btn = new Button { Name = "btnShared" };
         f.Add(btn);

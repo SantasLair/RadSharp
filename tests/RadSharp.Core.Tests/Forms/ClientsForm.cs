@@ -25,12 +25,13 @@ public partial class ClientsForm : Form
         new() { Name = "Globex", Email = "ap@globex.test", Active = false, Rate = 120.5m, TermsDays = 14, Since = new(2025, 6, 1) },
     ];
 
-    public readonly Binder<Client> Binder = new();
+    public readonly Binder<Client> Binder;   // owned by the form: disposed when it closes
     public int Saves;
 
     public ClientsForm()
     {
         InitializeComponent();
+        Binder = new Binder<Client>(this);
         Binder.Bind(edtName, c => c.Name, (c, v) => c.Name = v).Validate(v => v.Trim().Length > 0 ? null : "Enter a name.");
         Binder.Bind(edtEmail, c => c.Email, (c, v) => c.Email = v);
         Binder.Bind(chkActive, c => c.Active, (c, v) => c.Active = v);

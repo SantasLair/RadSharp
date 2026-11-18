@@ -22,6 +22,8 @@ namespace RadSharp;
 /// </code>
 /// </example>
 /// <remarks>
+/// <para>Create it with the owner form (<c>new Binder&lt;T&gt;(this)</c>) and it disposes itself when that form closes; without an
+/// owner, call <see cref="Dispose"/> when done, or it keeps listening to the model.</para>
 /// <para>When <typeparamref name="T"/> implements <see cref="INotifyPropertyChanged"/>, a change made to <see cref="Current"/>
 /// elsewhere reloads every field the user hasn't edited; a field the user has edited keeps the edit (and <see cref="Commit"/>
 /// writes it over the outside change). <see cref="Refresh"/> does the same on demand for other models. Raise
@@ -37,10 +39,27 @@ public sealed class Binder<T> : IDisposable where T : class
     List<BindingError> _errors = [];
     T? _current;
     bool _loading, _committing, _lastDirty, _disposed;
+    readonly Form? _owner;
+    readonly NotifyEvent? _ownerClosed;
 
     public Binder() => _changed = OnControlChanged;
 
     public Binder(T? current) : this() => Current = current;
+
+    /// <summary>
+    /// A binder that disposes itself when <paramref name="owner"/> closes (its <see cref="Form.Closed"/> event), so it stops
+    /// listening to the model and the controls without the form having to remember to call <see cref="Dispose"/>.
+    /// </summary>
+    public Binder(Form owner) : this()
+    {
+        ArgumentNullException.ThrowIfNull(owner);
+        _owner = owner;
+        _ownerClosed = _ => Dispose();
+        owner.Closed += _ownerClosed;
+    }
+
+    /// <summary>Like <see cref="Binder(Form)"/>, and starts with <paramref name="current"/> as <see cref="Current"/>.</summary>
+    public Binder(Form owner, T? current) : this(owner) => Current = current;
 
     /// <summary>
     /// The object being edited. Setting it (even to the same object) loads every bound control from it and discards unsaved
@@ -200,15 +219,17 @@ public sealed class Binder<T> : IDisposable where T : class
     }
 
     /// <summary>
-    /// Parses and validates every edited field without writing anything. Returns false and fills <see cref="Errors"/> if
+    /// Validates every writable field without writing anything: an edited field is parsed and its value checked, a clean one is
+    /// checked as loaded (so a new record with an empty required name fails too). Returns false and fills <see cref="Errors"/> if
     /// any is invalid.
     /// </summary>
     public bool Validate() => Prepare() is not null;
 
     /// <summary>
-    /// Writes the edited fields to <see cref="Current"/> through their setters, all or nothing: every edited field is parsed
-    /// and validated first, and if any fails nothing is written, <see cref="Errors"/> lists the problems and the result is false
-    /// (nothing throws). On success the controls show the stored values (formatted again) and are clean. Fields the user
+    /// Writes the edited fields to <see cref="Current"/> through their setters, all or nothing: every writable field is validated
+    /// first (an edited one is parsed and checked, a clean one is checked as loaded), and if any fails nothing is written,
+    /// <see cref="Errors"/> lists the problems and the result is false (nothing throws). On success the controls show the stored
+    /// values (formatted again) and are clean. Fields the user
     /// didn't edit are not written (they are re-read, in case a setter changed them). With <see cref="Current"/> null there is
     /// nothing to write and the result is true. "All or nothing" is about validation: a setter that throws ends the commit with
     /// its exception after the setters before it have run.
@@ -239,14 +260,25 @@ public sealed class Binder<T> : IDisposable where T : class
     /// <summary>Focuses the control of the first error from the last <see cref="Commit"/> or <see cref="Validate"/>.</summary>
     public bool FocusFirstError() => _errors.Count > 0 && _errors[0].Control.Focus();
 
-    /// <summary>The edited fields, parsed and validated; null (and <see cref="Errors"/> filled) if any failed.</summary>
+    /// <summary>
+    /// Every writable field validated (an edited one parsed and checked, a clean one checked as loaded); returns the edited
+    /// ones, or null (and <see cref="Errors"/> filled) if any failed.
+    /// </summary>
     List<BoundField>? Prepare()
     {
+        if (_current == null) { SetErrors([]); return []; }
         var dirty = new List<BoundField>();
         var errors = new List<BindingError>();
         foreach (var f in _fields)
         {
-            if (!f.IsDirty) { f.Error = null; continue; }
+            if (f.IsReadOnly) { f.Error = null; continue; }
+            if (!f.IsDirty)
+            {
+                // A clean field is checked too, against the value it loaded: a new record's empty required name must not save.
+                if (f.CheckLoaded(out var loadedMessage)) continue;
+                errors.Add(new BindingError(f, loadedMessage ?? "The value isn't valid."));
+                continue;
+            }
             if (f.Prepare(out var message)) dirty.Add(f);
             else errors.Add(new BindingError(f, message ?? "The value isn't valid."));
         }
@@ -294,12 +326,13 @@ public sealed class Binder<T> : IDisposable where T : class
         DirtyChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Stops listening to the controls and the model; the controls keep what they show.</summary>
+    /// <summary>Stops listening to the controls, the model and the owner form; the controls keep what they show. Safe to call twice.</summary>
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         foreach (var f in _fields) f.Detach();
+        if (_owner != null && _ownerClosed != null) _owner.Closed -= _ownerClosed;
         if (_current is INotifyPropertyChanged model) model.PropertyChanged -= OnModelPropertyChanged;
     }
 }
@@ -338,6 +371,7 @@ public abstract class BoundField
     internal abstract void Clear();
     internal abstract void Refresh(object model);
     internal abstract bool Prepare(out string? error);
+    internal abstract bool CheckLoaded(out string? error);
     internal abstract void WritePending(object model);
     internal abstract void AfterCommit(object model);
     internal abstract void SetAvailable(bool available);
@@ -424,6 +458,13 @@ internal sealed class Field<TModel, TValue, TRaw>(
         if (error != null) return false;
         _pending = v;
         return true;
+    }
+
+    internal override bool CheckLoaded(out string? error)
+    {
+        error = Validator?.Invoke(_loaded);
+        Error = error;
+        return error == null;
     }
 
     internal override void WritePending(object model) => set?.Invoke((TModel)model, _pending);

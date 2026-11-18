@@ -28,7 +28,7 @@ public partial class Control
     PopupMenu? _contextMenu;
 
     /// <summary>The name of the PopupMenu component shown when this control is right-clicked.</summary>
-    [Published("popupMenu", Category = "Behavior")] public string PopupMenuName { get; set; } = "";
+    [Published("popupMenu", Category = "Behavior", References = typeof(PopupMenu))] public string PopupMenuName { get; set; } = "";
 
     /// <summary>
     /// The context menu: set from code, or found by <see cref="PopupMenuName"/> on the form. Subclasses

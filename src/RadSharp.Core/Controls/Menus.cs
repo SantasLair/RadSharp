@@ -29,12 +29,12 @@ public sealed class MenuItem
 
     public List<MenuItem> Items { get; } = [];
 
-    Actions.ActionSlot? _actionSlot;
+    ActionSlot? _actionSlot;
 
-    Actions.ActionSlot Slot => _actionSlot ??= new Actions.ActionSlot(a => new Actions.MenuItemActionLink(a, this));
+    ActionSlot Slot => _actionSlot ??= new ActionSlot(a => new MenuItemActionLink(a, this));
 
     /// <summary>
-    /// The name of the <see cref="Actions.Action"/> on the form this item runs and takes its caption, shortcut, enabled,
+    /// The name of the <see cref="ActionItem"/> on the form this item runs and takes its caption, shortcut, enabled,
     /// checked and visible state from (saved as <c>"action"</c>). Resolved when the form next lays out or handles a key.
     /// </summary>
     public string ActionName
@@ -44,21 +44,31 @@ public sealed class MenuItem
     }
 
     /// <summary>The linked action: set from code (linking at once, from any form), or found by <see cref="ActionName"/>.</summary>
-    public Actions.Action? Action
+    public ActionItem? Action
     {
         get => _actionSlot?.Action;
         set => Slot.SetAction(value);
     }
 
+    Form? _host;   // the form that last walked this item's links: repainted when the action changes the item
+
+    /// <summary>Repaints the menu bar and any open popup after a linked action changed this item (items don't know their menu).</summary>
+    internal void InvalidateHost()
+    {
+        _host?.InvalidateAll();
+        if (_actionSlot?.Action?.OwningForm is { } form && form != _host) form.InvalidateAll();
+    }
+
     internal void ResolveAction(Form form, int stamp)
     {
+        _host = form;
         _actionSlot?.Resolve(form, stamp);
         foreach (var item in Items) item.ResolveAction(form, stamp);
     }
 
     // A value is left out of the file only when loading it gives it back: a link by name to an action still on a form (an
     // item doesn't know its form; a link made from code may point to another form's action, so its values are written).
-    bool Linked(Actions.ActionMember m) =>
+    bool Linked(ActionMember m) =>
         _actionSlot?.Link is { Explicit: false } link && link.Action.OwningForm != null && link.IsLinked(m);
 
     public bool IsSeparator => Separator || Caption == "-";
@@ -210,16 +220,16 @@ public sealed class MenuItem
         w.BeginObject();
         if (Name.Length > 0) { w.Key("name"); w.WriteString(Name); }
         // Values that come from the linked action aren't written (they are copied back from it on load).
-        if (Caption.Length > 0 && !Linked(Actions.ActionMember.Caption)) { w.Key("caption"); w.WriteString(Caption); }
+        if (Caption.Length > 0 && !Linked(ActionMember.Caption)) { w.Key("caption"); w.WriteString(Caption); }
         if (ActionName.Length > 0) { w.Key("action"); w.WriteString(ActionName); }
         if (AltShortcut.Length > 0) { w.Key("altShortcut"); w.WriteString(AltShortcut); }
-        if (Checked && !Linked(Actions.ActionMember.Checked)) { w.Key("checked"); w.WriteBool(true); }
-        if (!Enabled && !Linked(Actions.ActionMember.Enabled)) { w.Key("enabled"); w.WriteBool(false); }
+        if (Checked && !Linked(ActionMember.Checked)) { w.Key("checked"); w.WriteBool(true); }
+        if (!Enabled && !Linked(ActionMember.Enabled)) { w.Key("enabled"); w.WriteBool(false); }
         if (ClickHandler.Length > 0) { w.Key("onClick"); w.WriteString(ClickHandler); }
         if (RadioItem) { w.Key("radioItem"); w.WriteBool(true); }
         if (Separator) { w.Key("separator"); w.WriteBool(true); }
-        if (Shortcut.Length > 0 && !Linked(Actions.ActionMember.Shortcut)) { w.Key("shortcut"); w.WriteString(Shortcut); }
-        if (!Visible && !Linked(Actions.ActionMember.Visible)) { w.Key("visible"); w.WriteBool(false); }
+        if (Shortcut.Length > 0 && !Linked(ActionMember.Shortcut)) { w.Key("shortcut"); w.WriteString(Shortcut); }
+        if (!Visible && !Linked(ActionMember.Visible)) { w.Key("visible"); w.WriteBool(false); }
         WriteItems(w, Items);
         w.EndObject();
     }

@@ -9,11 +9,12 @@ namespace SettingsDialog;
 /// </summary>
 public partial class SettingsForm : Form
 {
-    readonly Binder<Settings> _binder = new();
+    readonly Binder<Settings> _binder;   // owned by this form: disposed when it closes
 
     public SettingsForm()
     {
         InitializeComponent();
+        _binder = new Binder<Settings>(this);
         _binder.Bind(edtUser, s => s.User, (s, v) => s.User = v.Trim());
         _binder.Bind(cboTheme, s => s.Theme, (s, v) => s.Theme = v);
         _binder.Bind(chkAutosave, s => s.Autosave, (s, v) => s.Autosave = v);

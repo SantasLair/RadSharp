@@ -175,7 +175,7 @@ public class ToolBar : Control
     }
 
     /// <summary>The name of an ImageList whose pictures ToolButtons show by <see cref="ToolButton.ImageIndex"/>.</summary>
-    [Published("images", Category = "Appearance")] public string ImagesName { get; set; } = "";
+    [Published("images", Category = "Appearance", References = typeof(ImageList))] public string ImagesName { get; set; } = "";
 
     public ImageList? Images => ImagesName.Length > 0 ? OwningForm?.FindControl(ImagesName) as ImageList : null;
 

@@ -18,6 +18,7 @@ public sealed class MetadataGenerator : IIncrementalGenerator
 {
     internal const string ControlType = "RadSharp.Control";
     internal const string PublishedAttribute = "RadSharp.PublishedAttribute";
+    internal const string ComponentAttribute = "RadSharp.ComponentAttribute";
 
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
@@ -31,7 +32,7 @@ public sealed class MetadataGenerator : IIncrementalGenerator
         context.RegisterSourceOutput(classes.Combine(assemblyName), static (spc, input) => Emit(spc, input.Left!, input.Right));
     }
 
-    internal sealed record PropModel(string JsonName, string ClrName, string ValueType, string? Converter, string? Category, string? Problem, Location? Location);
+    internal sealed record PropModel(string JsonName, string ClrName, string ValueType, string? Converter, string? Category, string? References, string? Problem, Location? Location);
     internal sealed record EventModel(string JsonName, string ClrName, string Parameters);
     internal sealed record ClassModel(string FullName, string Name, string? BaseFullName, bool Creatable,
         ImmutableArray<PropModel> Props, ImmutableArray<EventModel> Events);
@@ -51,15 +52,20 @@ public sealed class MetadataGenerator : IIncrementalGenerator
             string? explicitName = attr.ConstructorArguments.Length > 0 ? attr.ConstructorArguments[0].Value as string : null;
             string? category = attr.NamedArguments.FirstOrDefault(a => a.Key == "Category").Value.Value as string;
 
+            var referencesType = attr.NamedArguments.FirstOrDefault(a => a.Key == "References").Value.Value as ITypeSymbol;
+
             if (member is IPropertySymbol p)
             {
                 string? problem = null;
+                if (referencesType != null && p.Type.SpecialType != SpecialType.System_String)
+                    problem = "uses References, which needs a string property (the name of the component)";
                 if (p.GetMethod is not { DeclaredAccessibility: Accessibility.Public } || p.SetMethod is not { DeclaredAccessibility: Accessibility.Public })
                     problem = "needs a public getter and setter";
                 string? converter = ConverterFor(p.Type);
                 if (converter == null) problem ??= $"has type '{p.Type.ToDisplayString()}', which can't be published";
                 props.Add(new PropModel(explicitName ?? CamelCase(p.Name), p.Name,
-                    p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), converter, category, problem,
+                    p.Type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), converter, category,
+                    referencesType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), problem,
                     p.Locations.FirstOrDefault()));
             }
             else if (member is IEventSymbol e && e.Type is INamedTypeSymbol { DelegateInvokeMethod: { } invoke })
@@ -77,7 +83,11 @@ public sealed class MetadataGenerator : IIncrementalGenerator
         bool creatable = !type.IsAbstract && type.InstanceConstructors.Any(c =>
             c.Parameters.Length == 0 && c.DeclaredAccessibility is Accessibility.Public or Accessibility.Internal);
 
-        return new ClassModel(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), type.Name, baseName,
+        // [Component("Name")] publishes the class under a form-file name other than its C# name.
+        var component = type.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == ComponentAttribute);
+        string formName = component != null && component.ConstructorArguments.Length > 0 && component.ConstructorArguments[0].Value is string { Length: > 0 } cn ? cn : type.Name;
+
+        return new ClassModel(type.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat), formName, baseName,
             creatable, props.ToImmutable(), events.ToImmutable());
     }
 
@@ -152,8 +162,9 @@ public sealed class MetadataGenerator : IIncrementalGenerator
                     continue;
                 }
                 string category = p.Category == null ? "null" : Literal(p.Category);
+                string references = p.References == null ? "" : $", typeof({p.References})";
                 props.Add($"new global::RadSharp.PropertyMeta<{c.FullName}, {p.ValueType}>({Literal(p.JsonName)}, {p.Converter}, " +
-                          $"static o => o.{p.ClrName}, static (o, v) => o.{p.ClrName} = v, {category})");
+                          $"static o => o.{p.ClrName}, static (o, v) => o.{p.ClrName} = v, {category}{references})");
             }
             var events = c.Events.Select(e => $"new global::RadSharp.EventMeta({Literal(e.JsonName)}, {Literal(e.ClrName)}, {Literal(e.Parameters)})");
             string factory = c.Creatable ? $"static () => new {c.FullName}()" : "null";

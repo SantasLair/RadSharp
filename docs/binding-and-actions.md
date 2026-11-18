@@ -4,7 +4,7 @@ Two small pieces that remove the copy-in/copy-out and enable/disable code of an 
 
 - **`Binder<T>`** (`RadSharp.Core`, code only): buffered two-way binding of edit controls to one object, through typed
   lambdas. No form-file syntax, no generator work, no list item-source binding (the 1.0 cut).
-- **`Action`** (`RadSharp.Actions.Action`, a non-visual component): a light Delphi `TAction` that buttons, tool buttons and
+- **`Action`** (C# type `RadSharp.ActionItem`, a non-visual component): a light Delphi `TAction` that buttons, tool buttons and
   menu items link to by name.
 
 Both are AOT- and trim-safe: no reflection, no expression trees, no runtime code generation.
@@ -35,7 +35,7 @@ binder.Bind(edtRate,   c => c.Rate,   (c, v) => c.Rate = v,          // text <->
 binder.Current = client;            // loads the controls; not dirty
 binder.IsDirty                      // any control differs from what was loaded
 binder.DirtyChanged += ...          // IsDirty flipped
-if (!binder.Commit())               // parse + validate every edited field, then write them all (or none)
+if (!binder.Commit())               // validate every field, then write the edited ones (all or none)
     Dialogs.ShowMessage(binder.Errors[0].Message);
 binder.Revert();                    // reload the controls from Current
 ```
@@ -57,8 +57,8 @@ format string and a culture (default: the current culture, read at each format/p
 |---|---|
 | `Current = x` | Every field is loaded from `x` (getter → format → control). Each field remembers the control's value right after loading (its *baseline*, read back from the control, so a control's own normalisation — clamping, `MaxLength` — never counts as an edit) and the model value it loaded. Unsaved edits are discarded, errors cleared. Setting the same object again reloads. |
 | user edits | Nothing is written. A field is **dirty** while its control's raw value (text, checked state, index, date) differs from its baseline, so typing a change and typing it back makes the field clean again. `IsDirty` = any writable field dirty. |
-| `Commit()` | Only *dirty* fields take part. Each is parsed (text → value) and validated. **All or nothing:** if any fails, nothing is written, `Errors` lists every problem (`BindingError`: `Field`, `Control`, `Message`), each field's `Error` is set, and the result is `false`. Bad input never throws. On success every dirty field's setter runs on the object that was `Current` when `Commit` started (even if a handler sets `Current` meanwhile), then each such control is reloaded from the model only if the text differs (so `1.5` becomes `1.50`, and an unchanged text keeps its caret), the fields the user didn't edit are re-read (a setter may have changed them), baselines are reset and the binder is clean. A setter that throws ends the commit with that exception: the setters before it have run (the binder can't undo them) and the binder stays dirty. With `Current == null`, `Commit` writes nothing and returns `true`. |
-| `Validate()` | The parse-and-validate half of `Commit`, writing nothing. |
+| `Commit()` | **Every writable field is validated** (a field bound without a setter is not): a *dirty* field is parsed (text → value) and its parsed value checked by its validators; a *clean* one is checked with the value it loaded, so a new record whose required `Name` is still empty doesn't save even if the user typed nothing there. Parsing and writing still touch only the dirty fields. **All or nothing:** if any fails, nothing is written, `Errors` lists every problem (`BindingError`: `Field`, `Control`, `Message`), each field's `Error` is set, and the result is `false`. Bad input never throws. On success every dirty field's setter runs on the object that was `Current` when `Commit` started (even if a handler sets `Current` meanwhile), then each such control is reloaded from the model only if the text differs (so `1.5` becomes `1.50`, and an unchanged text keeps its caret), the fields the user didn't edit are re-read (a setter may have changed them), baselines are reset and the binder is clean. A setter that throws ends the commit with that exception: the setters before it have run (the binder can't undo them) and the binder stays dirty. With `Current == null`, `Commit` writes nothing and returns `true`. |
+| `Validate()` | The validation half of `Commit`, writing nothing: the same fields, the same `Errors`. |
 | `Revert()` | Same as `Current = Current`. |
 | `FocusFirstError()` | Focuses the control of `Errors[0]`. |
 
@@ -114,17 +114,22 @@ re-reads every getter, which is cheap and works for computed properties):
 `Refresh()` applies the same rule on demand, for models that don't raise the event. Raise `PropertyChanged` on the UI
 thread (marshal with `Application.Queue` otherwise).
 
-`Dispose()` unsubscribes from the controls and the model; the controls keep what they show.
+`Dispose()` unsubscribes from the controls, the model and the owner form; the controls keep what they show. Create the binder
+with its form (`new Binder<Client>(this)`, or `new Binder<Client>(this, client)`) and it disposes itself when that form closes
+(`Closed`), so a form needs no `Dispose` call and the binder can't outlive it as a `PropertyChanged` subscriber on a
+long-lived model. The parameterless and `Binder<T>(T? current)` constructors remain for binders with another owner; dispose
+those yourself. Disposing twice is safe.
 
 ## 2. `Action`
 
 ### 2.1 The component
 
 `Action` is a non-visual `Component`, like `Timer` and `ImageList`: it lives in the form file as a child of the form, gets
-a generated field, and sits in the designer's component tray. Its C# type is `RadSharp.Actions.Action` because a
+a generated field, and sits in the designer's component tray. Its C# type is `RadSharp.ActionItem` because a
 `RadSharp.Action` would collide with `System.Action` in every file that has `using RadSharp;` (and inside RadSharp
-itself); form files, the palette and generated code say `Action`, and code rarely needs the type name (use
-`using RadAction = RadSharp.Actions.Action;` when it does).
+itself); form files, the palette and the component registry say `Action` (like Delphi's `TAction`), and code rarely needs the
+type name. The `[Component("Action")]` attribute on the class publishes it under that name: the metadata generator registers it as
+`Action`, and the form generator resolves `"class": "Action"` to `ActionItem` and emits `global::RadSharp.ActionItem` fields.
 
 | Member | Form file | Meaning |
 |---|---|---|
@@ -192,9 +197,12 @@ skip the walk entirely.
 ### 2.3 Update while idle
 
 A form that has been shown (and not closed) and has actions joins one `Application.Idle` handler, which runs
-`UpdateActions()` for each such form whenever the host drains its input queue. The handler never sets `Done = false`,
+`UpdateActions()` for each such form that is visible and not blocked by a modal form (Delphi doesn't update disabled windows;
+the host answers through `IPlatformServices.IsFormBlocked`) whenever the host drains its input queue. A form leaves the list
+on every close path: `Form.Close`, and a host taking the window away without it (`SdlHost.CloseForm`, host shutdown) through
+`Form.NotifyHostClosed()`, so the list never keeps a form alive. The handler never sets `Done = false`,
 so it doesn't keep the host awake: updates happen after input, timers and posted work, as in Delphi. `Execute()` also
-runs `onUpdate` first, so a shortcut or click never runs a command that just became disabled. An exception in one
+runs `onUpdate` first (a shortcut runs it once, then executes), so a shortcut or click never runs a command that just became disabled. An exception in one
 `onUpdate` is reported (`Application.ThreadException`) and the other actions still update. Keep `onUpdate` cheap.
 
 ### 2.4 Shortcuts and mnemonics
@@ -210,7 +218,12 @@ Mnemonics come with the caption: `&Save` on the action gives the linked button A
 
 `Action` is on the palette (Standard) with its own icon, lands in the component tray, double-clicks to an `onExecute`
 handler, and its properties are under the **Action** category. In the Object Inspector the `action` row of a button lists
-the form's actions (and `(none)`); `popupMenu` and `images` rows now list popup menus and image lists the same way.
+the form's actions (and `(none)`); `popupMenu` and `images` rows list popup menus and image lists the same way. Which rows do
+is explicit, not by name: a published string property marked `[Published("action", References = typeof(ActionItem))]` (the
+metadata generator emits it as `PropertyMeta.ReferenceType`; no reflection) gets the list. Like Delphi's combo the row also takes
+typed text: the list sits under a text box, so a name that isn't on the form yet can be entered (Enter or a click elsewhere keeps
+it, Escape drops it, an empty box clears the reference). A linked menu item repaints the menu bar and any open dropdown when its
+action changes its caption, shortcut, enabled, checked or visible state.
 Changing an action's caption, enabled state... in the inspector updates its linked controls on the surface at once.
 
 ## 3. Master/detail without copy-in/copy-out
@@ -219,11 +232,12 @@ Changing an action's caption, enabled state... in the inspector updates its link
 public partial class ClientsForm : Form
 {
     readonly List<Client> _clients = Client.Samples();
-    readonly Binder<Client> _binder = new();
+    readonly Binder<Client> _binder;   // owned by the form: disposed when it closes
 
     public ClientsForm()
     {
         InitializeComponent();
+        _binder = new Binder<Client>(this);
         _binder.Bind(edtName, c => c.Name, (c, v) => c.Name = v).Validate(v => v.Trim().Length > 0 ? null : "Enter a name.");
         _binder.Bind(edtRate, c => c.Rate, (c, v) => c.Rate = v, BindFormat.Decimal("0.00"));
         lstClients.Items = [.. _clients.Select(c => c.Name)];

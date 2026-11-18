@@ -12,23 +12,23 @@ public partial class MainForm : Form
 
     public MainForm() => InitializeComponent();
 
-    string Display
+    string Readout
     {
         get => lblDisplay.Caption;
         set => lblDisplay.Caption = value;
     }
 
-    decimal Value => decimal.Parse(Display, CultureInfo.InvariantCulture);
+    decimal Value => decimal.Parse(Readout, CultureInfo.InvariantCulture);
 
     void frmCalculator_Show(Control sender) => btnEquals.Focus();
 
     void digit_Click(Control sender)
     {
         var key = ((Button)sender).Caption;
-        if (_startNew) { Display = key == "." ? "0." : key; _startNew = false; return; }
-        if (key == "." && Display.Contains('.')) return;
-        if (Display.Length >= 16) return;
-        Display = Display == "0" && key != "." ? key : Display + key;
+        if (_startNew) { Readout = key == "." ? "0." : key; _startNew = false; return; }
+        if (key == "." && Readout.Contains('.')) return;
+        if (Readout.Length >= 16) return;
+        Readout = Readout == "0" && key != "." ? key : Readout + key;
     }
 
     void op_Click(Control sender)
@@ -40,7 +40,7 @@ public partial class MainForm : Form
 
     void btnEquals_Click(Control sender)
     {
-        var expression = _pending != null ? $"{Format(_accumulator)} {_pending} {Display} =" : "";
+        var expression = _pending != null ? $"{Format(_accumulator)} {_pending} {Readout} =" : "";
         Calculate();
         _pending = null;
         lblHistory.Caption = expression;
@@ -59,7 +59,7 @@ public partial class MainForm : Form
             "÷" => _accumulator / v,
             _ => v,
         };
-        Display = Format(_accumulator);
+        Readout = Format(_accumulator);
         _startNew = true;
     }
 
@@ -70,17 +70,17 @@ public partial class MainForm : Form
         _accumulator = 0;
         _pending = null;
         _startNew = true;
-        Display = "0";
+        Readout = "0";
         lblHistory.Caption = "";
     }
 
-    void btnSign_Click(Control sender) => Display = Format(-Value);
-    void btnPercent_Click(Control sender) { Display = Format(Value / 100); _startNew = true; }
+    void btnSign_Click(Control sender) => Readout = Format(-Value);
+    void btnPercent_Click(Control sender) { Readout = Format(Value / 100); _startNew = true; }
 
     void btnBack_Click(Control sender)
     {
         if (_startNew) return;
-        Display = Display.Length > 1 ? Display[..^1] : "0";
+        Readout = Readout.Length > 1 ? Readout[..^1] : "0";
     }
 
     /// <summary>Typing digits and operators works too.</summary>

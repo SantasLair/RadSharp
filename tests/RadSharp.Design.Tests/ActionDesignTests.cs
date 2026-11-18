@@ -1,5 +1,4 @@
 using RadSharp.Design;
-using RadAction = RadSharp.Actions.Action;
 
 namespace RadSharp.Tests;
 
@@ -20,7 +19,7 @@ public class ActionDesignTests
     {
         var doc = new DesignDocument();
         var btn = (Button)doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 20, 20);
-        var act = Assert.IsType<RadAction>(doc.Create(ComponentRegistry.Find("Action")!, doc.Form, 300, 200));
+        var act = Assert.IsType<ActionItem>(doc.Create(ComponentRegistry.Find("Action")!, doc.Form, 300, 200));
         Assert.Same(doc.Form, act.Parent);                                  // components always go on the form (the tray)
         Assert.Equal("Action1", act.Name);
         Assert.Equal(new Rect(300, 200, 28, 28), DesignSurface.DesignRect(act));

@@ -29,12 +29,13 @@ public partial class MainForm : Form
         new() { Name = "Initech", Email = "billing@initech.example", Rate = 80m, TermsDays = 60, Since = new(2019, 11, 20) },
     ];
 
-    readonly Binder<Client> _binder = new();
+    readonly Binder<Client> _binder;   // owned by this form: disposed when it closes
     int _shown = -1;   // the list row the binder shows
 
     public MainForm()
     {
         InitializeComponent();
+        _binder = new Binder<Client>(this);
         _binder.Bind(edtName, c => c.Name, (c, v) => c.Name = v.Trim()).Validate(v => v.Trim().Length > 0 ? null : "Enter a name.");
         _binder.Bind(edtEmail, c => c.Email, (c, v) => c.Email = v.Trim())
                .Validate(v => v.Length == 0 || v.Contains('@') ? null : "Enter an e-mail address, or nothing.");

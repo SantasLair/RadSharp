@@ -222,7 +222,7 @@ public class ListView : ScrollView, ICollectionOwner, IColumnHost, IFormCollecti
     public bool Checkboxes { get => _checkboxes; set { _checkboxes = value; Invalidate(); } }
 
     /// <summary>The name of an ImageList whose pictures rows show by <see cref="ListViewItem.ImageIndex"/>.</summary>
-    [Published("images", Category = "Appearance")]
+    [Published("images", Category = "Appearance", References = typeof(ImageList))]
     public string ImagesName { get => _imagesName; set { _imagesName = value ?? ""; Invalidate(); } }
 
     /// <summary>
@@ -1288,7 +1288,7 @@ public class TreeView : ScrollView, ICollectionOwner, IFormCollections
     public bool Checkboxes { get => _checkboxes; set { _checkboxes = value; _widthDirty = true; Remeasure(); Invalidate(); } }
 
     /// <summary>The name of an ImageList whose pictures nodes show by <see cref="TreeNode.ImageIndex"/>.</summary>
-    [Published("images", Category = "Appearance")]
+    [Published("images", Category = "Appearance", References = typeof(ImageList))]
     public string ImagesName { get => _imagesName; set { _imagesName = value ?? ""; _widthDirty = true; Remeasure(); Invalidate(); } }
 
     /// <summary>

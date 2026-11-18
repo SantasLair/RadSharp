@@ -1,7 +1,7 @@
-namespace RadSharp.Actions;
+namespace RadSharp;
 
 /// <summary>Links a <see cref="Button"/> or <see cref="ToolButton"/>: caption, hint, enabled, visible, image index and (tool buttons) down.</summary>
-internal sealed class ButtonActionLink(Action action, Button button) : ActionLink(action)
+internal sealed class ButtonActionLink(ActionItem action, Button button) : ActionLink(action)
 {
     public override object Client => button;
 
@@ -69,7 +69,7 @@ internal sealed class ButtonActionLink(Action action, Button button) : ActionLin
 }
 
 /// <summary>Links a <see cref="MenuItem"/>: caption, shortcut, enabled, checked and visible (menu items have no hint or picture).</summary>
-internal sealed class MenuItemActionLink(Action action, MenuItem item) : ActionLink(action)
+internal sealed class MenuItemActionLink(ActionItem action, MenuItem item) : ActionLink(action)
 {
     public override object Client => item;
 
@@ -95,6 +95,7 @@ internal sealed class MenuItemActionLink(Action action, MenuItem item) : ActionL
             case ActionMember.Checked: item.Checked = (bool)value!; break;
             case ActionMember.Visible: item.Visible = (bool)value!; break;
         }
+        item.InvalidateHost();   // a menu item can't repaint itself: the bar and an open popup show it live
     }
 
     public override bool IsDefault(ActionMember m) => m switch

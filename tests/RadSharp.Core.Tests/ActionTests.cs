@@ -1,5 +1,4 @@
 using System.Text.Json;
-using RadAction = RadSharp.Actions.Action;
 
 namespace RadSharp.Tests;
 
@@ -37,7 +36,7 @@ public class ActionTests
     public void Loading_links_by_name_copies_the_action_and_keeps_values_the_file_sets()
     {
         var f = Load();
-        var save = Find<RadAction>(f, "actSave");
+        var save = Find<ActionItem>(f, "actSave");
         var btn = Find<Button>(f, "btnSave");
         Assert.Same(save, btn.Action);
         Assert.Equal(("&Save", "Save it", 2), (btn.Caption, btn.Hint, btn.ImageIndex));
@@ -74,7 +73,7 @@ public class ActionTests
     public void Later_changes_reach_controls_whose_value_still_matches_the_action()
     {
         var f = Load();
-        var save = Find<RadAction>(f, "actSave");
+        var save = Find<ActionItem>(f, "actSave");
         var btn = Find<Button>(f, "btnSave");
         var own = Find<Button>(f, "btnOwn");
         save.Caption = "S&tore";
@@ -96,9 +95,9 @@ public class ActionTests
     public void Clicking_a_linked_button_or_choosing_a_menu_item_runs_the_action()
     {
         var f = Load();
-        var save = Find<RadAction>(f, "actSave");
+        var save = Find<ActionItem>(f, "actSave");
         var log = new List<object?>();
-        save.Executed += a => log.Add(((RadAction)a).ActionComponent);
+        save.Executed += a => log.Add(((ActionItem)a).ActionComponent);
         var btn = Find<Button>(f, "btnSave");
 
         f.Simulate.Click(btn);
@@ -117,7 +116,7 @@ public class ActionTests
     public void A_disabled_action_disables_its_controls_and_its_shortcut()
     {
         var f = Load();
-        var save = Find<RadAction>(f, "actSave");
+        var save = Find<ActionItem>(f, "actSave");
         int runs = 0;
         save.Executed += _ => runs++;
         save.Enabled = false;
@@ -135,7 +134,7 @@ public class ActionTests
         f.SetBounds(0, 0, 300, 200);
         var edit = new Edit();
         edit.SetBounds(10, 10, 100, 24);
-        var act = new RadAction { Name = "actNew", Shortcut = "Mod+N", Visible = false };
+        var act = new ActionItem { Name = "actNew", Shortcut = "Mod+N", Visible = false };
         f.Add(edit);
         f.Add(act);
         f.PerformLayout();
@@ -158,7 +157,7 @@ public class ActionTests
     {
         var f = Load();
         int runs = 0;
-        Find<RadAction>(f, "actSave").Executed += _ => runs++;
+        Find<ActionItem>(f, "actSave").Executed += _ => runs++;
         f.Simulate.Key(Key.S, KeyModifiers.Alt);
         Assert.Equal(1, runs);
         Assert.True(Find<Button>(f, "btnSave").Focused);
@@ -168,7 +167,7 @@ public class ActionTests
     public void AutoCheck_toggles_checked_and_the_tool_button_follows()
     {
         var f = Load();
-        var bold = Find<RadAction>(f, "actBold");
+        var bold = Find<ActionItem>(f, "actBold");
         var tb = Find<ToolButton>(f, "tbBold");
         bold.Executed += _ => { };
         tb.AllowToggle = true;   // ignored while linked: Down follows the action
@@ -184,7 +183,7 @@ public class ActionTests
     public void OnUpdate_runs_while_idle_for_shown_forms_only_and_never_asks_for_more()
     {
         var f = Load();
-        var save = Find<RadAction>(f, "actSave");
+        var save = Find<ActionItem>(f, "actSave");
         bool dirty = false;
         int updates = 0;
         save.Update += _ => { updates++; save.Enabled = dirty; };
@@ -215,9 +214,9 @@ public class ActionTests
         Application.ThreadException += Handler;
         try
         {
-            Find<RadAction>(f, "actSave").Update += _ => throw new InvalidOperationException("boom");
+            Find<ActionItem>(f, "actSave").Update += _ => throw new InvalidOperationException("boom");
             bool boldUpdated = false;
-            Find<RadAction>(f, "actBold").Update += _ => boldUpdated = true;
+            Find<ActionItem>(f, "actBold").Update += _ => boldUpdated = true;
             f.UpdateActions();
             Assert.True(boldUpdated);
             Assert.Equal("boom", Assert.Single(errors).Message);
@@ -229,7 +228,7 @@ public class ActionTests
     public void Linking_from_code_copies_everything_and_unlinking_keeps_the_values()
     {
         var f = Load();
-        var save = Find<RadAction>(f, "actSave");
+        var save = Find<ActionItem>(f, "actSave");
         var b = new Button { Caption = "Old", Hint = "Old hint" };
         f.Add(b);
         b.ActionName = "actSave";                           // on the form already: like setting it in the Object Inspector
@@ -241,7 +240,7 @@ public class ActionTests
 
         // An explicit link to an action on another form survives that form's link walks.
         var other = new Form();
-        var shared = new RadAction { Name = "actShared", Caption = "Shared" };
+        var shared = new ActionItem { Name = "actShared", Caption = "Shared" };
         other.Add(shared);
         var c = new Button();
         f.Add(c);
@@ -256,7 +255,7 @@ public class ActionTests
     public void Removing_renaming_and_re_adding_the_action()
     {
         var f = Load();
-        var save = Find<RadAction>(f, "actSave");
+        var save = Find<ActionItem>(f, "actSave");
         var btn = Find<Button>(f, "btnSave");
         save.Name = "actStore";
         Assert.Equal("actStore", btn.ActionName);           // the link follows the rename
@@ -286,17 +285,20 @@ public class ActionTests
         int row = grid.IndexOf("action");
         Assert.True(row >= 0);
         grid.BeginEdit(row);
-        var list = Assert.IsType<ListBox>(host.Popups.Single());
+        Assert.Equal(2, host.Popups.Count);                   // the names under a text box (pick or type)
+        var list = Assert.IsType<ListBox>(host.Popups[0]);
+        Assert.IsAssignableFrom<Edit>(host.Popups[1]);
         Assert.Equal(new[] { PropertyGrid.NoReference, "actBold", "actSave" }, list.Items);
         var r = list.ItemRect(2);
         host.Simulate.MoveTo(list.Left + 10, list.Top + r.Y + 5);
         host.Simulate.Click(list.Left + 10, list.Top + r.Y + 5);
+        Assert.Empty(host.Popups);                            // picking closes the list and the text box
         Assert.Equal("actSave", target.ActionName);
         Assert.Equal("&Save", target.Caption);
         Assert.Equal("actSave", grid.RowValue(row));
 
         grid.BeginEdit(row);
-        list = Assert.IsType<ListBox>(host.Popups.Single());
+        list = Assert.IsType<ListBox>(host.Popups[0]);
         host.Simulate.MoveTo(list.Left + 10, list.Top + list.ItemRect(0).Y + 5);
         host.Simulate.Click(list.Left + 10, list.Top + list.ItemRect(0).Y + 5);
         Assert.Equal("", target.ActionName);
