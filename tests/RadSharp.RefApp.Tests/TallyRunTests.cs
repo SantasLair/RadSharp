@@ -1,60 +1,14 @@
+using static RadSharp.RefApp.LiveTally;
+
 namespace RadSharp.RefApp;
 
 /// <summary>
 /// The committed app (refapp/Tally, forms and code) run with F9 in the designer, through the driver, and used with
-/// simulated input on the live form. A temporary copy is opened so nothing in the repository changes. The live form's
-/// renders go to TestResults/refapp/MainForm.run*.png.
+/// simulated input on the live form (<see cref="LiveTally"/>). The live form's renders go to
+/// TestResults/refapp/MainForm.run*.png.
 /// </summary>
 public class TallyRunTests
 {
-    static readonly System.Globalization.CultureInfo Invariant = System.Globalization.CultureInfo.InvariantCulture;
-
-    static (DesignerDriver Driver, Form Live) RunTally(double scale = 1)
-    {
-        var temp = RefApp.TempDir("radsharp-tally-");
-        var copy = Path.Combine(temp, "Tally");
-        RefApp.CopyProject(RefApp.Tally, copy);
-        var d = DesignerDriver.Start(temp);
-        d.OpenProject(Path.Combine(copy, "Tally.csproj"));
-        Form.DefaultScale = scale;   // what a 150 % monitor gives the app at start-up
-        try { return (d, d.Run()); }
-        finally { Form.DefaultScale = 1; }
-    }
-
-    static T Get<T>(Form form, string name) where T : Control => Assert.IsType<T>(form.FindControl(name), exactMatch: false);
-
-    /// <summary>A virtual list's row text: selects the row (as a click would) and reads the selected item.</summary>
-    static string Cell(ListView lv, int row, int column)
-    {
-        lv.ItemIndex = row;
-        return lv.Selected!.Text(column);
-    }
-
-    static void ClickHeader(Form form, ListView lv, int column)
-    {
-        form.PerformLayout();
-        int x = 0;
-        for (int c = 0; c < column; c++) x += lv.Px(lv.ColumnWidth(c));
-        var view = lv.Viewport;
-        form.Simulate.Click(lv.AbsoluteLeft + view.X + x + lv.Px(20), lv.AbsoluteTop + view.Y + lv.Px(10));
-    }
-
-    static void ClickNav(Form form, string text)
-    {
-        var tv = Get<TreeView>(form, "tvNav");
-        DesignerDriver.ClickNode(form, tv, DesignerDriver.AllNodes(tv.Nodes).Single(n => n.Text == text));
-    }
-
-    static void AssertOrdered(ListView lv, int column, int rows, bool descending)
-    {
-        var values = Enumerable.Range(0, rows).Select(r => Cell(lv, r, column)).ToList();
-        for (int i = 1; i < values.Count; i++)
-        {
-            int cmp = string.Compare(values[i - 1], values[i], StringComparison.CurrentCultureIgnoreCase);
-            Assert.True(descending ? cmp >= 0 : cmp <= 0, $"rows {i - 1} and {i} out of order: \"{values[i - 1]}\", \"{values[i]}\"");
-        }
-    }
-
     [Fact]
     public void F9_shows_the_main_form()
     {
@@ -151,7 +105,7 @@ public class TallyRunTests
         RefApp.Render(live, "MainForm.run.dark@100%");
 
         string? text = null;
-        d.Host.Expect("About", f => { text = DriverHost.Describe(f); return "btnOk"; });
+        d.Host.Expect("Tally 0.1", f => { text = DriverHost.Describe(f); return "btnOk"; });
         DesignerDriver.ClickMenu(live, menu, "Help", "About Tally…");
         Assert.Contains("Tally 0.1", text);
 
@@ -165,7 +119,7 @@ public class TallyRunTests
     {
         var (_, live) = RunTally(scale: 1.5);
         Assert.Equal(1.5, live.Scale);
-        Assert.Equal((1500, 960), (live.Width, live.Height));
+        Assert.Equal((1710, 1140), (live.Width, live.Height));
         var tree = Get<TreeView>(live, "tvNav");
         Assert.Equal(300, tree.Width);
         Assert.Equal(10_000, Get<ListView>(live, "lvClients").ItemCount);

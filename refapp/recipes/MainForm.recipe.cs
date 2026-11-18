@@ -16,8 +16,8 @@ public static class MainFormRecipe
     {
         d.SelectForm();
         d.Set("caption", "Tally");
-        d.Set("width", "1000");
-        d.Set("height", "640");
+        d.Set("width", "1140");
+        d.Set("height", "760");
         d.Handler("onShow");                                   // frmMain_Show: opens the store
 
         // ---- Menu ----
@@ -31,34 +31,37 @@ public static class MainFormRecipe
                 Item.Separator,
                 new("&Settings…", Enabled: false),
                 Item.Separator,
-                new("E&xit", Shortcut: "Mod+Q", Handler: "mniExit_Click"),
+                new("E&xit", Name: "mniExit", Shortcut: "Mod+Q", Handler: Item.Click),
             ]),
             new Item("&Edit", Items:
             [
-                new("&Find", Shortcut: "Mod+F", Handler: "mniFind_Click"),
+                new("&Find", Name: "mniFind", Shortcut: "Mod+F", Handler: Item.Click),
             ]),
             new Item("&Client", Items:
             [
-                new("&New Client", Shortcut: "Mod+N", Enabled: false),
-                new("&Delete Client", Enabled: false),
+                new("&New Client", Name: "mniNewClient", Shortcut: "Mod+N", Handler: Item.Click),
+                new("&Save Client", Name: "mniSaveClient", Shortcut: "Mod+S", Handler: Item.Click, Enabled: false),
+                new("&Revert Changes", Name: "mniRevertClient", Handler: Item.Click, Enabled: false),
+                Item.Separator,
+                new("&Delete Client…", Name: "mniDeleteClient", Handler: Item.Click, Enabled: false),
             ]),
             new Item("&Invoice", Items:
             [
-                new("&New Invoice", Shortcut: "Mod+Shift+N", Enabled: false),
+                new("&New Invoice…", Name: "mniNewInvoice", Shortcut: "Mod+Shift+N", Handler: Item.Click, Enabled: false),
                 new("Mark &Paid", Enabled: false),
                 Item.Separator,
                 new("&Delete Invoice", Enabled: false),
             ]),
             new Item("&View", Items:
             [
-                new("&Clients", Shortcut: "Mod+1", Handler: "mniViewClients_Click"),
-                new("&Invoices", Shortcut: "Mod+2", Handler: "mniViewInvoices_Click"),
+                new("&Clients", Name: "mniViewClients", Shortcut: "Mod+1", Handler: Item.Click),
+                new("&Invoices", Name: "mniViewInvoices", Shortcut: "Mod+2", Handler: Item.Click),
                 Item.Separator,
                 new("&Dark Theme", Name: "mniDarkTheme", Handler: "mniDarkTheme_Click"),
             ]),
             new Item("&Help", Items:
             [
-                new("&About Tally…", Handler: "mniAbout_Click"),
+                new("&About Tally…", Name: "mniAbout", Handler: Item.Click),
             ]));
 
         // ---- Toolbar: commands and the search box (debounced by a timer) ----
@@ -67,11 +70,12 @@ public static class MainFormRecipe
         d.Place("ToolButton", "tbMain", 8, 4, 96, 28);
         d.Name("btnNewClient");
         d.Set("caption", "New Client");
-        d.Set("enabled", "false");
+        d.Handler("onClick");
         d.Place("ToolButton", "tbMain", 120, 4, 96, 28);
         d.Name("btnNewInvoice");
         d.Set("caption", "New Invoice");
         d.Set("enabled", "false");
+        d.Handler("onClick");
         d.Place("ToolSeparator", "tbMain", 240, 4);
         d.Name("sepTools");
         d.Place("Edit", "tbMain", 280, 5, 280, 26);
@@ -107,14 +111,21 @@ public static class MainFormRecipe
         d.Name("tsInvoices");
         d.Set("caption", "Invoices");
 
+        // Clients: the list over the detail pane (bottom-aligned first, then its splitter, then the list in what is left).
         d.ShowPage("tsClients");
-        d.Place("ListView", "tsClients", 16, 16, 400, 300);
+        ClientDetail(d);
+        d.Place("Splitter", "tsClients", 400, 120, 200, 4);
+        d.Name("splClient");
+        d.Set("align", "bottom");
+        d.Set("height", "4");
+        d.Place("ListView", "tsClients", 16, 16, 400, 200);
         d.Name("lvClients");
         d.Set("align", "client");
         d.Set("autoSort", "true");
         d.Columns(new("Name", 170), new("Company", 150), new("Email", 200), new("Phone", 110), new("City", 120));
         d.Handler("onGetItem");
         d.Handler("onColumnClick");
+        d.Handler("onChange");
 
         d.ShowPage("tsInvoices");
         d.Place("ListView", "tsInvoices", 16, 16, 400, 300);
@@ -125,7 +136,19 @@ public static class MainFormRecipe
             new("Total", 110, TextAlign.Right));
         d.Handler("onGetItem");
         d.Handler("onColumnClick");
+        d.Handler("onDblClick");                               // opens the invoice
         d.ShowPage("tsClients");
+
+        // ---- The client list's context menu: shares the Client and Invoice menus' handlers (typed into onClick) ----
+        d.Place("PopupMenu", "frmMain", 1000, 680);
+        d.Name("pmClients");
+        d.Menu(
+            new Item("&New Client", Handler: "mniNewClient_Click"),
+            new Item("New &Invoice…", Name: "pmiNewInvoice", Handler: "mniNewInvoice_Click", Enabled: false),
+            Item.Separator,
+            new Item("&Delete Client…", Name: "pmiDeleteClient", Handler: "mniDeleteClient_Click"));
+        d.Select("lvClients");
+        d.Set("popupMenu", "pmClients");
 
         // ---- Non-visual: the search debounce ----
         d.Place("Timer", "frmMain", 936, 560);
@@ -133,5 +156,68 @@ public static class MainFormRecipe
         d.Set("interval", "300");
         d.Set("enabled", "false");
         d.Handler("onTimer");
+    }
+
+    /// <summary>
+    /// The selected client's details (copy-in/copy-out by hand until the Binder, stage 7) and invoices: two columns of
+    /// labelled fields, notes, Save/Revert, and the client's invoices on the right. Every field shares one onChange
+    /// handler, which sets the dirty flag.
+    /// </summary>
+    static void ClientDetail(DesignerDriver d)
+    {
+        d.Place("Panel", "tsClients", 16, 300, 400, 100);
+        d.Name("pnlClient");
+        d.Set("align", "bottom");
+        d.Set("height", "284");
+        d.Set("borderStyle", "none");
+
+        void Field(string label, string name, int x, int y, int labelWidth, int width)
+        {
+            d.Place("Label", "pnlClient", x, y + 4, labelWidth, 20);
+            d.Name("lbl" + name[3..]);
+            d.Set("caption", label);
+            d.Place("Edit", "pnlClient", x + labelWidth + 4, y, width, 26);
+            d.Name(name);
+            d.Handler("onChange", "ClientField_Change");
+        }
+        Field("Name", "edtName", 12, 10, 76, 200);
+        Field("Company", "edtCompany", 12, 42, 76, 200);
+        Field("Email", "edtEmail", 12, 74, 76, 200);
+        Field("Phone", "edtPhone", 12, 106, 76, 200);
+        Field("Street", "edtStreet", 308, 10, 66, 170);
+        Field("City", "edtCity", 308, 42, 66, 170);
+        Field("Postcode", "edtPostcode", 308, 74, 66, 170);
+        Field("Country", "edtCountry", 308, 106, 66, 170);
+        Field("Tax ID", "edtTaxId", 308, 138, 66, 170);
+        d.Place("CheckBox", "pnlClient", 92, 140, 120, 22);
+        d.Name("chkArchived");
+        d.Set("caption", "Archived");
+        d.Handler("onChange", "ClientField_Change");
+        d.Place("Label", "pnlClient", 12, 174, 76, 20);
+        d.Name("lblNotes");
+        d.Set("caption", "Notes");
+        d.Place("Memo", "pnlClient", 92, 170, 456, 64);
+        d.Name("memNotes");
+        d.Handler("onChange", "ClientField_Change");
+
+        d.Place("Button", "pnlClient", 92, 246, 88, 28);
+        d.Name("btnSaveClient");
+        d.Set("caption", "Save");
+        d.Set("enabled", "false");
+        d.Handler("onClick");
+        d.Place("Button", "pnlClient", 188, 246, 88, 28);
+        d.Name("btnRevertClient");
+        d.Set("caption", "Revert");
+        d.Set("enabled", "false");
+        d.Handler("onClick");
+
+        d.Place("Label", "pnlClient", 568, 12, 200, 20);
+        d.Name("lblClientInvoices");
+        d.Set("caption", "Invoices");
+        d.Place("ListView", "pnlClient", 568, 36, 352, 238);
+        d.Name("lvClientInvoices");
+        d.Anchors("left", "top", "right", "bottom");
+        d.Columns(new("Number", 92), new("Issued", 92), new("Status", 74), new("Total", 80, TextAlign.Right));
+        d.Handler("onDblClick");                               // opens the invoice
     }
 }

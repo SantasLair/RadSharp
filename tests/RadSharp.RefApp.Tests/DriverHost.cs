@@ -11,6 +11,7 @@ public sealed class DriverHost : IPlatformServices
 {
     readonly Queue<(string What, Func<Form, string?> Answer)> _modals = new();
     readonly ConcurrentQueue<Action> _posted = new();
+    readonly HashSet<Form> _closed = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>Forms shown with <see cref="Form.Show"/> (the live form of an F9 run), oldest first.</summary>
     public List<Form> Shown { get; } = [];
@@ -22,8 +23,9 @@ public sealed class DriverHost : IPlatformServices
     public List<string> ModalLog { get; } = [];
 
     /// <summary>
-    /// Answers the next modal dialog: <paramref name="answer"/> drives it like a person (typing, clicking) and returns
-    /// the name of the button to press last, or null to leave it with whatever it already decided.
+    /// Answers the next modal dialog, which must show <paramref name="what"/> in its caption or text (else the test fails:
+    /// a different dialog came first). <paramref name="answer"/> drives it like a person (typing, clicking) and returns the
+    /// name of the button to press last, or null to leave it with whatever it already decided.
     /// </summary>
     public void Expect(string what, Func<Form, string?> answer) => _modals.Enqueue((what, answer));
 
@@ -38,11 +40,14 @@ public sealed class DriverHost : IPlatformServices
 
     public void RunModal(Form form)
     {
+        _closed.Remove(form);
         ModalLog.Add(form.Caption);
         form.PerformLayout();
         form.NotifyShown();
         if (!_modals.TryDequeue(out var next))
             throw new InvalidOperationException($"Unexpected modal dialog \"{form.Caption}\": {Describe(form)}");
+        if (!form.Caption.Contains(next.What, StringComparison.Ordinal) && !Describe(form).Contains(next.What, StringComparison.Ordinal))
+            throw new InvalidOperationException($"Expected a dialog showing \"{next.What}\", got \"{form.Caption}\": {Describe(form)}");
         string? button;
         try { button = next.Answer(form); }
         catch (Exception e) { throw new InvalidOperationException($"While answering \"{form.Caption}\" ({next.What}): {e.Message}", e); }
@@ -52,7 +57,9 @@ public sealed class DriverHost : IPlatformServices
                 ?? throw new InvalidOperationException($"\"{form.Caption}\" has no button {button}.");
             form.Simulate.Click(b);
         }
-        if (form.IsModal) form.Close();
+        // A dialog the answer didn't close (no button, or a CloseQuery that refused) is closed from its title bar; one that
+        // did close isn't closed a second time (Close would run its CloseQuery and Closed handlers again).
+        if (form.IsModal && !_closed.Contains(form)) form.Close();
     }
 
     public void ShowModal(Form form, Action onClosed)
@@ -61,7 +68,11 @@ public sealed class DriverHost : IPlatformServices
         onClosed();
     }
 
-    public void CloseForm(Form form) => Shown.Remove(form);
+    public void CloseForm(Form form)
+    {
+        Shown.Remove(form);
+        _closed.Add(form);
+    }
 
     public void ProcessEventsUntil(Func<bool> done)
     {

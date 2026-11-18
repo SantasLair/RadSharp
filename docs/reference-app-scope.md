@@ -424,6 +424,45 @@ DateTimePicker (M, swaps into 3), then Binder and Action (stage 7).
   stored as an embedded resource would not load under F9: unverified), the PopupMenus, the client detail pane (stage 2),
   *By year* in the tree (stage 4).
 
+**Added 2026-11-17, stages 2–3:**
+
+- **Interims gone.** All menu handlers now come from the designer: the recipe double-clicks most items in the menu
+  editor (`Item.Click`, which names them `<name>_Click`) and types the rest into onClick (stubs written when the editor
+  closes). The guard checks that every handler a form file names was written into the recipe project's code-behind by
+  the designer, and that the committed code has a method of that name with the same parameter types. The guard now runs
+  New Application in `TestResults/Tally` (one folder below the root, like `refapp/Tally`), so `nuget.config` comes out
+  with the committed relative path `../../artifacts/packages`; the guard compares it byte for byte and write-back copies
+  it. `TallyBuildTests` packs with `pack.ps1`/`pack.sh`.
+- **Stage 2** (client master/detail by hand): a bottom-aligned detail pane under the client list (11 fields, Save/Revert,
+  the client's invoices), Client menu New/Save (Mod+S)/Revert/Delete, a `PopupMenu` on the list sharing the menu's
+  handlers. Copy-in/copy-out for the client: 11 lines each way (each field appears twice in hand-written code, plus one
+  shared `onChange` per control in the form file), and 55 lines in all with the re-entry guard, the dirty flag, the
+  shared change handler and the leave prompt; keeping the list selection on the pane's client (Cancel puts it back)
+  adds 24 more.
+- **Stage 3** (InvoiceForm): made with File › New Form; DateTimePickers for the dates (no ISO edits needed); a
+  StringGrid of lines (Columns editor, in-place editing, validation in `onSetEditText`, the last empty row adds a line),
+  totals, `ShowModalAsync` from the main window, `CloseQuery` asking before discarding. Numbers are parsed and shown in
+  the current culture without thousands separators (so `1,5` is refused in en-US instead of read as 15); tests pin en-US
+  or de-DE.
+- **Bugs met** (minimal repros were run on 2026-11-17; framework fixes belong to other branches):
+  1. Typing a handler name into an Events row and pressing Enter writes no stub (only a double-click does): the form then
+     names a missing method (RAD1001 at build). Interim: the driver double-clicks the row after typing. Medium.
+  2. `Form.ModalResult` keeps the value of a close that `CloseQuery` refused (Delphi resets it to `mrNone`); a later close
+     from the title bar or `Close()` then reports, e.g., Ok for an unsaved dialog. Not hit by Tally (Save sets the result in
+     code after saving). Medium.
+  3. Setting `ModalResult` inside a `CloseQuery` handler re-enters `Close()`: `CloseQuery` runs twice and `Closed` fires
+     twice, so "Save changes? Yes/No/Cancel" that saves and closes from `CloseQuery` can't be written cleanly. Interim:
+     InvoiceForm asks "Discard the changes?" (Yes/No) instead. Low–medium.
+  4. `CodeIntegration.EnsureHandler` inserts `\n` line breaks into a file that uses `\r\n` (mixed line endings after the
+     first stub on Windows checkouts) and leaves a line of only spaces in the stub body. Low.
+  5. Still present, not hit: `itemIndex` set in the designer is lost on load (`FormWriter.Save` then `FormReader.Load` of
+     a ComboBox with items and itemIndex 2 gives -1). Tally sets every combo's index in code.
+- A menu item's onClick is `(MenuItem sender)` and a button's `(Control sender)`, so one command on a menu item, a toolbar
+  button and a panel button needs one small handler per surface (Tally: `NewClient()`, `SaveClient()` called from two
+  each); the context menu can share the main menu's handler. This is what `Action` (stage 7) removes.
+- The test host checks that each answered dialog shows the expected caption or text, so a different dialog appearing
+  first fails the test instead of receiving its answer.
+
 ---
 
 ## 6. Risks and open questions (decisions for you)

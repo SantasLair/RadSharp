@@ -17,7 +17,9 @@ public class RebuildReferenceAppTests
     {
         var temp = RefApp.TempDir("radsharp-refapp-");
         var d = DesignerDriver.Start(temp);
-        var project = TallyRecipe.Build(d, Path.Combine(temp, "projects"), Directory.Exists(RefApp.Packages) ? RefApp.Packages : null);
+        var folder = Path.Combine(RefApp.RecipeLocation, TallyRecipe.AppName);
+        if (Directory.Exists(folder)) Directory.Delete(folder, recursive: true);
+        var project = TallyRecipe.Build(d, RefApp.RecipeLocation, RefApp.Packages);
 
         if (RefApp.Write)
             foreach (var line in RefApp.WriteBack(project, RefApp.Tally)) Console.WriteLine("refapp: " + line);
@@ -32,6 +34,27 @@ public class RebuildReferenceAppTests
             Assert.True(expected.AsSpan().SequenceEqual(actual),
                 $"{rel} differs from its recipe's output ({RefApp.FirstDifference(System.Text.Encoding.UTF8.GetString(expected), System.Text.Encoding.UTF8.GetString(actual))}). " +
                 "Forms change only through recipes: rerun with RADSHARP_REFAPP_WRITE=1.");
+        }
+
+        foreach (var rel in RefApp.DesignerOwned)
+            Assert.True(File.ReadAllText(Path.Combine(project.Directory, rel)) == File.ReadAllText(Path.Combine(RefApp.Tally, rel)),
+                $"{rel} differs from what File › New Application writes: rerun with RADSHARP_REFAPP_WRITE=1.");
+
+        // Every handler a form names was written into the code-behind by the designer (double-click, the menu editor), and
+        // the committed code has a method of that name taking the same parameter types.
+        foreach (var rel in produced)
+        {
+            var className = Path.GetFileName(rel)[..^".radform.json".Length];
+            var (form, _) = FormReader.Load(File.ReadAllText(Path.Combine(project.Directory, rel)));
+            var designed = RefApp.MethodSignatures(File.ReadAllText(Path.Combine(project.Directory, className + ".cs")), className);
+            var committed = RefApp.MethodSignatures(File.ReadAllText(Path.Combine(RefApp.Tally, className + ".cs")), className);
+            foreach (var (owner, handler, types) in RefApp.Handlers(form))
+            {
+                Assert.True(designed.TryGetValue(handler, out var stub) && stub == types,
+                    $"{className}: the designer wrote no stub {handler}({types}) for {owner}.");
+                Assert.True(committed.TryGetValue(handler, out var code) && code == types,
+                    $"{className}.cs has no {handler}({types}) for {owner}: rerun with RADSHARP_REFAPP_WRITE=1 to add the stub.");
+            }
         }
 
         foreach (var rel in produced)

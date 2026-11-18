@@ -24,6 +24,19 @@ public static class RefApp
     /// <summary>The packed RadSharp packages (<c>artifacts/packages</c>), where <c>dotnet pack</c> puts them.</summary>
     public static string Packages => Path.Combine(Root, "artifacts", "packages");
 
+    /// <summary>
+    /// Where the guard runs the recipes: File › New Application creates <c>TestResults/Tally</c>, one folder below the
+    /// repository root like <c>refapp/Tally</c>, so the relative package path it writes into <c>nuget.config</c>
+    /// (<c>../../artifacts/packages</c>) is the committed one.
+    /// </summary>
+    public static string RecipeLocation => Path.Combine(Root, "TestResults");
+
+    /// <summary>
+    /// Files of the committed app that the designer owns besides the forms: written by File › New Application and never
+    /// edited by hand, so the guard compares them and <see cref="WriteBack"/> copies them.
+    /// </summary>
+    public static readonly string[] DesignerOwned = ["nuget.config"];
+
     /// <summary>PNG renders for people and agents to look at: <c>TestResults/refapp</c>.</summary>
     public static string Results
     {
@@ -78,7 +91,7 @@ public static class RefApp
             var target = Path.Combine(committed, rel);
             bool isForm = rel.EndsWith(".radform.json", StringComparison.Ordinal);
             bool isFormCode = produced.FormFiles.Any(f => RadProject.CodeFileFor(f) == Path.GetFullPath(source));
-            if (first || isForm || (isFormCode && !File.Exists(target)))
+            if (first || isForm || DesignerOwned.Contains(rel) || (isFormCode && !File.Exists(target)))
             {
                 if (File.Exists(target) && File.ReadAllText(target) == File.ReadAllText(source)) continue;
                 Directory.CreateDirectory(Path.GetDirectoryName(target)!);
@@ -106,6 +119,51 @@ public static class RefApp
                 log.Add("deleted " + rel + " (no recipe makes it)");
             }
         return log;
+    }
+
+    /// <summary>
+    /// Every event handler a form file names, with the parameter types its method must take: the controls' events (the
+    /// form's own included) and the menu items' onClick.
+    /// </summary>
+    public static List<(string Owner, string Handler, string ParameterTypes)> Handlers(Form form)
+    {
+        var list = new List<(string, string, string)>();
+        void Items(string owner, IEnumerable<MenuItem> items)
+        {
+            foreach (var item in items)
+            {
+                if (item.ClickHandler.Length > 0) list.Add(($"{owner} › {item.Caption}", item.ClickHandler, "MenuItem"));
+                Items(owner, item.Items);
+            }
+        }
+        foreach (var c in form.Descendants().Prepend(form))
+        {
+            var cls = ComponentRegistry.Of(c);
+            foreach (var (ev, handler) in c.EventHandlers.OrderBy(p => p.Key, StringComparer.Ordinal))
+            {
+                var meta = cls.FindEvent(ev) ?? throw new InvalidOperationException($"{c.Name} has no event {ev}.");
+                list.Add(($"{c.Name}.{ev}", handler, TypesOf(meta.Parameters)));
+            }
+            if (c is IMenuOwner menu) Items(c.Name, menu.Items);
+        }
+        return list;
+    }
+
+    /// <summary>"Control sender, MouseEventArgs e" → "Control, MouseEventArgs".</summary>
+    static string TypesOf(string parameters) =>
+        string.Join(", ", parameters.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Select(p => p[..p.LastIndexOf(' ')].Trim()));
+
+    /// <summary>The void methods of a class by name, with their parameter types ("Control, MouseEventArgs").</summary>
+    public static Dictionary<string, string> MethodSignatures(string source, string className)
+    {
+        var root = CSharpSyntaxTree.ParseText(source).GetCompilationUnitRoot();
+        var result = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var cls in root.DescendantNodes().OfType<ClassDeclarationSyntax>().Where(c => c.Identifier.Text == className))
+            foreach (var m in cls.Members.OfType<MethodDeclarationSyntax>())
+                if (m.ReturnType.ToString() == "void")
+                    result.TryAdd(m.Identifier.Text, string.Join(", ", m.ParameterList.Parameters.Select(p => p.Type!.ToString())));
+        return result;
     }
 
     /// <summary>The void methods of a class: name and parameter list text (the designer's handler stubs).</summary>

@@ -32,9 +32,15 @@ namespace RadSharp.RefApp;
 /// Enter (text); Enter and a click on the list item (enums); a click on the check box (booleans).</description></item>
 /// <item><term>Anchors</term><description>clicks the anchors row's arrow, then the flag rows' check boxes.</description></item>
 /// <item><term>Handler</term><description>Events tab, event filter, double-click on the event row (writes the stub into
-/// the .cs and saves).</description></item>
+/// the .cs and saves). With a name (a handler shared by several controls): click the row, Enter, type the name, Enter,
+/// then double-click the row, because Enter alone writes no stub (a designer bug; the double-click is the interim).</description></item>
+/// <item><term>Strings</term><description>a string-list row (a combo box's items): Enter opens the memo; type the lines with
+/// Enter between them; a click on the row's name closes the memo and keeps the text.</description></item>
 /// <item><term>Columns / Nodes / Menu</term><description>the inspector's columns/nodes row + Enter, or Mod+M for the
-/// menu editor; then the editor's own buttons, fields and tree, by mouse and keyboard.</description></item>
+/// menu editor; then the editor's own buttons, fields and tree, by mouse and keyboard. Columns clicks each entry of the
+/// column list before filling it (a grid's first Add turns its untitled columns into entries) and deletes leftovers. A
+/// menu item's handler is typed into onClick (the stubs are written when the editor closes) or, with
+/// <see cref="Item.Click"/>, made by double-clicking the item.</description></item>
 /// <item><term>Save, Run</term><description>Mod+S, F9.</description></item>
 /// </list>
 /// <para><b>Bypasses</b> (where this differs from a person at a real window), each a gap the hand check (§4.4) covers:</para>
@@ -51,6 +57,8 @@ namespace RadSharp.RefApp;
 /// nothing is started (the designer reports "Could not start …" in its output, which is ignored).</item>
 /// <item>Designer settings live in a temporary file, not the user's.</item>
 /// <item>Posted actions (<see cref="Application.Queue"/>) run when the driver pumps, after each verb.</item>
+/// <item>The app tests (<see cref="LiveTally"/>) stand in for a 150 % monitor by setting <see cref="Form.DefaultScale"/>
+/// before F9 and while a dialog opens; a real host takes it from the display.</item>
 /// </list>
 /// </remarks>
 public sealed class DesignerDriver
@@ -379,7 +387,8 @@ public sealed class DesignerDriver
         {
             Input.Key(Key.Enter);
             if (!grid.IsEditing) throw new DriverException($"Enter on {property} opened no editor.");
-            Input.Type(value);
+            if (value.Length == 0) Input.Key(Key.Delete);   // the editor opens with the old text selected
+            else Input.Type(value);
             Input.Key(Key.Enter);
         }
         Done();
@@ -420,6 +429,57 @@ public sealed class DesignerDriver
         return target.EventHandlers.GetValueOrDefault(eventName) ?? throw new DriverException($"Double-clicking {eventName} wrote no handler.");
     }
 
+    /// <summary>
+    /// Gives the selected control's event a handler by name (to share one method between several controls): Events tab,
+    /// click the row, Enter, type the name, Enter. Then a double-click on the row, because Enter alone writes no stub into
+    /// the code (bug, docs/reference-app-scope.md §5.1); the double-click keeps the typed name and writes the stub if the
+    /// method doesn't exist yet.
+    /// </summary>
+    public void Handler(string eventName, string name)
+    {
+        var target = Doc.Primary;
+        var grid = ShowInspector(events: true);
+        TypeInto(D, Find<Edit>("edtEventsFilter"), eventName);
+        int row = grid.IndexOf(eventName);
+        if (row < 0) throw new DriverException($"{target.Name} has no event {eventName}.");
+        var r = grid.RowRect(row);
+        int x = grid.AbsoluteLeft + r.X + 12, y = grid.AbsoluteTop + r.Y + r.Height / 2;
+        Input.Click(x, y);
+        Input.Key(Key.Enter);
+        if (!grid.IsEditing) throw new DriverException($"Enter on {eventName} opened no editor.");
+        Input.Key("Mod+A");
+        Input.Type(name);
+        Input.Key(Key.Enter);
+        Input.DoubleClick(x, y);
+        Done();
+        if (target.EventHandlers.GetValueOrDefault(eventName) != name)
+            throw new DriverException($"{target.Name}.{eventName} is \"{target.EventHandlers.GetValueOrDefault(eventName)}\" after typing {name}.");
+    }
+
+    /// <summary>
+    /// Sets a string-list property (a combo box's items) of the selected control: the row's Enter opens a memo; type one
+    /// line per item (Enter between them), then click the row's name, which closes the memo and keeps the text.
+    /// </summary>
+    public void Strings(string property, params string[] lines)
+    {
+        var grid = ShowInspector(events: false);
+        int row = InspectorRow(property);
+        Input.Key(Key.Enter);
+        if (!grid.IsEditing || D.Popups.LastOrDefault() is not Memo) throw new DriverException($"Enter on {property} opened no list editor.");
+        Input.Key("Mod+A");
+        for (int i = 0; i < lines.Length; i++)
+        {
+            if (i > 0) Input.Key(Key.Enter);
+            Input.Type(lines[i]);
+        }
+        var r = grid.RowRect(row);
+        Input.Click(grid.AbsoluteLeft + r.X + 12, grid.AbsoluteTop + r.Y + r.Height / 2);
+        Done();
+        if (grid.IsEditing) throw new DriverException($"Clicking beside the {property} editor didn't close it.");
+        var expected = lines.Length == 1 ? "(1 items)" : $"({lines.Length} items)";
+        if (grid.RowValue(row) != expected) throw new DriverException($"The inspector shows {property} = {grid.RowValue(row)} after entering {lines.Length} lines.");
+    }
+
     // ---- Collection editors ----
 
     /// <summary>A column for <see cref="Columns"/>: title, width (0: default) and alignment.</summary>
@@ -431,13 +491,36 @@ public sealed class DesignerDriver
         InspectorRow("columns");
         Host.Expect("Columns", f =>
         {
-            foreach (var c in columns)
+            // A list view starts with no columns; Add makes the first. A grid's first Add also turns its existing untitled
+            // columns into entries (the editor's hint says so), so the entries are filled in order, adding more as needed
+            // and deleting any left over.
+            var list = (ListBox)f.FindControl("lstColumns")!;
+            void ClickEntry(int i)
             {
-                f.Simulate.Click(f.FindControl("btnAdd")!);
+                f.PerformLayout();
+                var r = list.ItemRect(i);
+                f.Simulate.Click(list.AbsoluteLeft + r.X + 10, list.AbsoluteTop + r.Y + r.Height / 2);
+                if (list.ItemIndex != i) throw new DriverException($"Clicking column entry {i} didn't select it.");
+            }
+            if (list.Items.Length == 0) f.Simulate.Click(f.FindControl("btnAdd")!);
+            for (int i = 0; i < columns.Length; i++)
+            {
+                var c = columns[i];
+                if (i >= list.Items.Length)
+                {
+                    ClickEntry(list.Items.Length - 1);
+                    f.Simulate.Click(f.FindControl("btnAdd")!);
+                }
+                ClickEntry(i);
                 TypeInto(f, f.FindControl("edtTitle"), c.Title);
                 if (c.Width > 0) { TypeInto(f, f.FindControl("spnWidth"), c.Width.ToString(System.Globalization.CultureInfo.InvariantCulture)); f.Simulate.Key(Key.Tab); }
                 if (c.MinWidth > 0) { TypeInto(f, f.FindControl("spnMinWidth"), c.MinWidth.ToString(System.Globalization.CultureInfo.InvariantCulture)); f.Simulate.Key(Key.Tab); }
                 if (c.Alignment != TextAlign.Left) PickCombo(f, (ComboBox)f.FindControl("cboAlignment")!, (int)c.Alignment);
+            }
+            while (list.Items.Length > columns.Length)
+            {
+                ClickEntry(list.Items.Length - 1);
+                f.Simulate.Click(f.FindControl("btnDelete")!);
             }
             return "btnClose";
         });
@@ -482,11 +565,18 @@ public sealed class DesignerDriver
         ExpectAnswered();
     }
 
-    /// <summary>A menu item for <see cref="Menu"/>; <see cref="Separator"/> is a separator line.</summary>
+    /// <summary>
+    /// A menu item for <see cref="Menu"/>; <see cref="Separator"/> is a separator line. <paramref name="Handler"/> is typed
+    /// into the onClick field (the editor writes the stub when it closes); <see cref="Click"/> instead double-clicks the
+    /// item, which names the handler <c>&lt;name&gt;_Click</c> and writes the stub at once.
+    /// </summary>
     public sealed record Item(string Caption, string Name = "", string Shortcut = "", string Handler = "", string AltShortcut = "",
         bool Enabled = true, bool Checked = false, params Item[] Items)
     {
         public static readonly Item Separator = new("-");
+
+        /// <summary>Put in <see cref="Handler"/>: double-click the item for its default handler instead of typing one.</summary>
+        public const string Click = "(double-click)";
     }
 
     /// <summary>Fills the selected (empty) MainMenu or PopupMenu with the menu editor (Component › Menu Editor, Mod+M).</summary>
@@ -512,7 +602,12 @@ public sealed class DesignerDriver
                     if (spec.Name.Length > 0) TypeInto(f, f.FindControl("edtName"), spec.Name);
                     if (spec.Shortcut.Length > 0) TypeInto(f, f.FindControl("edtShortcut"), spec.Shortcut);
                     if (spec.AltShortcut.Length > 0) TypeInto(f, f.FindControl("edtAltShortcut"), spec.AltShortcut);
-                    if (spec.Handler.Length > 0) TypeInto(f, f.FindControl("edtHandler"), spec.Handler);
+                    if (spec.Handler == Item.Click)
+                    {
+                        DoubleClickNode(f, tv, AllNodes(tv.Nodes).First(n => n.Tag == created));
+                        if (created.ClickHandler.Length == 0) throw new DriverException($"Double-clicking {spec.Caption} gave it no handler.");
+                    }
+                    else if (spec.Handler.Length > 0) TypeInto(f, f.FindControl("edtHandler"), spec.Handler);
                     var enabled = (CheckBox)f.FindControl("chkEnabled")!;
                     if (enabled.Checked != spec.Enabled) f.Simulate.Click(enabled);
                     var check = (CheckBox)f.FindControl("chkChecked")!;
@@ -562,6 +657,16 @@ public sealed class DesignerDriver
             form.Simulate.Wheel(tree.AbsoluteLeft + v.X + v.Width / 2, tree.AbsoluteTop + v.Y + v.Height / 2, r.Y < v.Y ? 1 : -1);
         }
         throw new DriverException($"Tree node {node.Text} can't be scrolled into view.");
+    }
+
+    /// <summary>Double-clicks a tree node's row: its first click is <see cref="ClickNode"/> (which scrolls it into view).</summary>
+    public static void DoubleClickNode(Form form, TreeView tree, TreeNode node)
+    {
+        ClickNode(form, tree, node);
+        var r = tree.RowRect(tree.RowOf(node));
+        int x = tree.AbsoluteLeft + r.X + Math.Min(r.Width / 2, 120 + node.Level * 20), y = tree.AbsoluteTop + r.Y + r.Height / 2;
+        form.Simulate.Press(x, y, clicks: 2);
+        form.Simulate.Release(x, y);
     }
 
     /// <summary>Clicks a page control's tab.</summary>

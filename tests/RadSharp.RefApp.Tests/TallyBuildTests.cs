@@ -3,11 +3,11 @@ using System.Diagnostics;
 namespace RadSharp.RefApp;
 
 /// <summary>
-/// The package path, out of process: <c>dotnet pack</c> RadSharp.Core (which carries the generators in
-/// analyzers/dotnet/cs and the form MSBuild wiring in build/ and buildTransitive/) and RadSharp.Platform.Sdl into
-/// artifacts/packages, then <c>dotnet build</c> refapp/Tally, which restores them through its nuget.config as a user's
+/// The package path, out of process: the repository's pack script (<c>pack.ps1</c>, <c>pack.sh</c> elsewhere) packs
+/// RadSharp.Core (which carries the generators in analyzers/dotnet/cs and the form MSBuild wiring in build/ and
+/// buildTransitive/), RadSharp.Platform.Sdl and the templates into artifacts/packages with one version, then <c>dotnet build</c> refapp/Tally, which restores them through its nuget.config as a user's
 /// project would. It is slow on a cold cache (Release builds, a restore from nuget.org into refapp/Tally/packages) and it
-/// adds two packages to artifacts/packages, so it only runs when asked for:
+/// adds three packages to artifacts/packages, so it only runs when asked for:
 /// <c>RADSHARP_REFAPP_PACK=1 dotnet test tests/RadSharp.RefApp.Tests --filter Category=Pack</c>.
 /// </summary>
 public class TallyBuildTests
@@ -15,12 +15,16 @@ public class TallyBuildTests
     [PackFact, Trait("Category", "Pack")]
     public void Tally_builds_against_the_packed_packages()
     {
-        // One version for both packages: Platform.Sdl's dependency on Core is the version Core had in Sdl's own build, so
-        // two packs that straddle a minute (Directory.Build.props stamps yyyyMMddHHmm) would otherwise disagree.
+        // The repository's pack script, as a user follows getting-started.md: one version for Core, Platform.Sdl and the
+        // templates. The version is passed so the test knows which packages to expect (a fresh one, newer than any packed
+        // before, so the floating 0.1.0-dev* reference picks it).
         var version = "0.1.0-dev." + DateTime.UtcNow.ToString("yyyyMMddHHmm", System.Globalization.CultureInfo.InvariantCulture);
-        foreach (var project in new[] { "src/RadSharp.Core/RadSharp.Core.csproj", "src/RadSharp.Platform.Sdl/RadSharp.Platform.Sdl.csproj" })
-            Dotnet(RefApp.Root, $"pack {project} -c Release -nologo -p:Version={version}");
-        Assert.True(File.Exists(Path.Combine(RefApp.Packages, $"RadSharp.Platform.Sdl.{version}.nupkg")));
+        if (OperatingSystem.IsWindows())
+            Run("powershell", RefApp.Root, $"-NoProfile -ExecutionPolicy Bypass -File pack.ps1 -Version {version}");
+        else
+            Run("sh", RefApp.Root, $"./pack.sh {version}");
+        foreach (var package in new[] { "RadSharp.Core", "RadSharp.Platform.Sdl", "RadSharp.Templates" })
+            Assert.True(File.Exists(Path.Combine(RefApp.Packages, $"{package}.{version}.nupkg")), $"pack didn't make {package} {version}.");
 
         // A floating version (0.1.0-dev*) is only re-resolved when restore is forced to; a no-op restore keeps the old one.
         Dotnet(RefApp.Tally, "restore Tally.csproj --force-evaluate");
@@ -29,9 +33,11 @@ public class TallyBuildTests
         Assert.Contains($"radsharp.platform.sdl/{version}", File.ReadAllText(Path.Combine(RefApp.Tally, "obj", "project.assets.json")).ToLowerInvariant());
     }
 
-    static string Dotnet(string folder, string arguments)
+    static string Dotnet(string folder, string arguments) => Run("dotnet", folder, arguments);
+
+    static string Run(string program, string folder, string arguments)
     {
-        var psi = new ProcessStartInfo("dotnet", arguments)
+        var psi = new ProcessStartInfo(program, arguments)
         {
             WorkingDirectory = folder,
             RedirectStandardOutput = true,

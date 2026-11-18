@@ -17,6 +17,8 @@ public static class TallyRecipe
         var project = d.NewApplication(AppName, location, packages);
         MainFormRecipe.Build(d);
         d.Save();
+        InvoiceFormRecipe.Build(d);
+        d.Save();
         return project;
     }
 }
