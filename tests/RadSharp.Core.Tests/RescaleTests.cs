@@ -230,4 +230,139 @@ public class RescaleTests
         Assert.Equal(new Rect(20, 40, 80, 28), b.Bounds);
         Assert.Equal(new Rect(0, 0, 200, 100), f.Bounds);
     }
+
+    // ---- Review fixes ----
+
+    static Form ClientPanelDialog(out Button ok)
+    {
+        // 301 - 103 = 198 at 100 % is 247.5 at 125 %, but the laid-out client panel is 376 - 129 = 247 there.
+        var f = new Form { Name = "f" };
+        f.SetBounds(0, 0, 301, 201);
+        var left = new Panel { Name = "left", Align = Align.Left };
+        left.SetBounds(0, 0, 103, 10);
+        var client = new Panel { Name = "client", Align = Align.Client };
+        var top = new Button { Name = "top", Anchors = Anchors.Top | Anchors.Right };
+        top.SetBounds(100, 10, 81, 29);
+        ok = new Button { Name = "ok", Anchors = Anchors.Bottom | Anchors.Right };
+        ok.SetBounds(100, 150, 81, 29);
+        client.Add(top);
+        client.Add(ok);
+        f.Add(left);
+        f.Add(client);
+        return f;
+    }
+
+    static Form FreshClientPanelDialog(double scale)
+    {
+        var f = ClientPanelDialog(out _);
+        f.ApplyScale(scale);
+        return f;
+    }
+
+    [Fact]
+    public void An_anchored_control_in_a_parent_sized_by_layout_lands_where_a_fresh_load_puts_it()
+    {
+        var fresh = FreshClientPanelDialog(1.25);
+        var form = ClientPanelDialog(out _);
+        form.ApplyScale(1);
+        form.ChangeScale(1.25);
+        Assert.Equal(Snapshot(fresh), Snapshot(form));   // was a pixel left of it: PW0 converted to 248, not laid out as 247
+
+        // Also for a control that was hidden while the scale changed.
+        var hidden = ClientPanelDialog(out var ok);
+        hidden.ApplyScale(1);
+        ok.Visible = false;
+        hidden.ChangeScale(1.25);
+        ok.Visible = true;
+        Assert.Equal(Snapshot(fresh), Snapshot(hidden));
+
+        form.ChangeScale(1);                             // and still back exactly
+        Assert.Equal(Snapshot(FreshClientPanelDialog(1)), Snapshot(form));
+    }
+
+    [Fact]
+    public void Scroll_positions_keep_the_same_content_in_view_across_a_scale_change()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 400, 300);
+        var box = new ScrollBox();
+        box.SetBounds(0, 0, 200, 150);
+        var tall = new Panel();
+        tall.SetBounds(0, 0, 100, 1000);
+        box.Add(tall);
+        f.Add(box);
+        string[] items = Enumerable.Range(0, 200).Select(i => $"Item {i}").ToArray();
+        var list = new ListBox { Items = items };
+        list.SetBounds(200, 0, 200, 200);
+        f.Add(list);
+        var end = new ListBox { Items = items };
+        end.SetBounds(200, 0, 200, 200);
+        f.Add(end);
+        f.ApplyScale(1);
+        box.ScrollY = 300;
+        list.ScrollY = 24 * 50;                  // row 50 at the top
+        end.ScrollY = int.MaxValue;              // the last row at the bottom
+        int endAt100 = end.ScrollY;
+
+        f.ChangeScale(1.5);
+        Assert.Equal(450, box.ScrollY);          // were 300 and 1200: the content jumped
+        Assert.Equal(box.AbsoluteTop + box.ContentOffset.Y, tall.AbsoluteTop);
+        Assert.Equal(36 * 50, list.ScrollY);
+        Assert.InRange(end.ScrollY, end.ContentHeight - end.Viewport.Height - 1, end.ContentHeight - end.Viewport.Height);   // was 4602
+
+        f.ChangeScale(1);
+        Assert.Equal((300, 24 * 50, endAt100), (box.ScrollY, list.ScrollY, end.ScrollY));
+        list.ScrollY = 50;                       // scrolling after the change isn't undone by a later layout
+        f.Resize(500, 400);
+        Assert.Equal(50, list.ScrollY);
+    }
+
+    [Fact]
+    public void ChangeScale_on_a_form_not_scaled_yet_raises_ScaleChanged()
+    {
+        var seen = new List<(double, double)>();
+        var f = new Form();
+        f.ScaleChanged += (_, c) => seen.Add((c.From, c.To));
+        f.ChangeScale(1);                        // no change
+        Assert.Empty(seen);
+
+        var g = new Form();
+        g.ScaleChanged += (_, c) => seen.Add((c.From, c.To));
+        g.ChangeScale(2);
+        Assert.Equal([(1.0, 2.0)], seen);
+        Assert.True(g.IsScaled);
+    }
+
+    [Fact]
+    public void A_message_box_built_at_100_percent_follows_the_display_like_one_built_at_150()
+    {
+        Assert.Equal(1, Form.DefaultScale);
+        var f = Dialogs.CreateMessageForm("Saved.", MessageType.Information, MessageButtons.Ok);
+        Assert.True(f.FollowsDisplayScale);      // was false only at 100 %: the host left it small on a 150 % display
+        var ok = f.FindControl("btnOk")!;
+        var before = ok.Bounds;
+        f.ChangeScale(1.5);
+        Assert.Equal((int)Math.Round(before.Width * 1.5, MidpointRounding.AwayFromZero), ok.Width);
+        f.ChangeScale(1);
+        Assert.Equal(before, ok.Bounds);
+        Assert.False(new Form().FollowsDisplayScale);   // a code-built form never scaled still doesn't
+    }
+
+    [Fact]
+    public void A_ScaleChanged_handler_can_change_the_scale_again()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 400, 300);
+        var b = new Button { Anchors = Anchors.Right | Anchors.Bottom };
+        b.SetBounds(300, 250, 80, 30);
+        f.Add(b);
+        f.ApplyScale(1);
+        var seen = new List<(double, double)>();
+        f.ScaleChanged += (form, c) => { seen.Add((c.From, c.To)); if (c.To == 1.5) form.ChangeScale(2); };
+        f.ChangeScale(1.5);
+        Assert.Equal([(1.0, 1.5), (1.5, 2.0)], seen);
+        Assert.Equal(new Rect(600, 500, 160, 60), b.Bounds);
+        f.ChangeScale(1);
+        Assert.Equal(new Rect(300, 250, 80, 30), b.Bounds);
+    }
 }

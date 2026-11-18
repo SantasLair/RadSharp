@@ -39,6 +39,9 @@ public sealed class WindowPlacement
     /// </summary>
     public const int MinVisible = 48;
 
+    // The scales TryParse accepts; anything else is read as 100 %.
+    const double MinScale = 0.25, MaxScale = 16;
+
     /// <summary>Takes the placement of <paramref name="form"/> (open or closed).</summary>
     public static WindowPlacement Capture(Form form)
     {
@@ -67,19 +70,26 @@ public sealed class WindowPlacement
         ArgumentNullException.ThrowIfNull(form);
         var host = PlatformHost.Current;
         var displays = host?.GetDisplays() ?? [];
-        var (rect, display) = Resolve(displays);
+        var (rect, display) = Locate(displays);
 
-        // The size was in the form's pixels at Scale; keep it in design units at the form's scale now.
-        if (Scale > 0 && form.Scale != Scale)
-            rect = new Rect(rect.X, rect.Y, LayoutMath.Round(rect.Width / Scale * form.Scale), LayoutMath.Round(rect.Height / Scale * form.Scale));
+        // The size was in the form's pixels at Scale. Keep it in design units at the scale the window will have on that
+        // display (the display's, for a form that follows display scale), and fit it there at that size.
+        double target = display != null && form.FollowsDisplayScale ? display.Scale : form.Scale;
+        if (Scale > 0 && target != Scale)
+            rect = new Rect(rect.X, rect.Y, LayoutMath.Round(rect.Width / Scale * target), LayoutMath.Round(rect.Height / Scale * target));
+        if (display != null) rect = Fit(rect, display);
         if (rect.Width <= 0 || rect.Height <= 0) return;
 
+        // An open window gets the rect as it should end up (the host's MoveForm, like Form.MoveToDisplay).
         if (host?.MoveForm(form, rect) == true)
         {
             form.NotifyRestoredBounds(rect);
             form.WindowState = State;
             return;
         }
+        // Not open: the window is created at the form's scale, and the host rescales it on the display.
+        if (target != form.Scale)
+            rect = new Rect(rect.X, rect.Y, LayoutMath.Round(rect.Width / target * form.Scale), LayoutMath.Round(rect.Height / target * form.Scale));
         form.StartPosition = FormStartPosition.Manual;
         form.StartDisplay = display;
         form.SetBounds(rect.X, rect.Y, rect.Width, rect.Height);
@@ -89,6 +99,13 @@ public sealed class WindowPlacement
 
     /// <summary>The rect to use and the display it lands on, for the given displays (see <see cref="ApplyTo"/>).</summary>
     public (Rect Bounds, Display? Display) Resolve(IReadOnlyList<Display> displays)
+    {
+        var (rect, display) = Locate(displays);
+        return (display != null ? Fit(rect, display) : rect, display);
+    }
+
+    /// <summary>The display the placement belongs on, and the saved rect moved with that display if it moved (not fitted yet).</summary>
+    (Rect Bounds, Display? Display) Locate(IReadOnlyList<Display> displays)
     {
         ArgumentNullException.ThrowIfNull(displays);
         var rect = Bounds;
@@ -104,7 +121,12 @@ public sealed class WindowPlacement
         // The display was found by name but has moved: move the rect with it.
         if (display.Name == DisplayName && DisplayBounds is { Width: > 0, Height: > 0 } && display.Bounds != DisplayBounds)
             rect = new Rect(rect.X - DisplayBounds.X + display.Bounds.X, rect.Y - DisplayBounds.Y + display.Bounds.Y, rect.Width, rect.Height);
+        return (rect, display);
+    }
 
+    /// <summary>Shrinks <paramref name="rect"/> to <paramref name="display"/>'s work area, and centres it there if not enough of it would show.</summary>
+    static Rect Fit(Rect rect, Display display)
+    {
         var area = display.WorkArea is { Width: > 0, Height: > 0 } ? display.WorkArea : display.Bounds;
         int w = Math.Min(rect.Width, area.Width), h = Math.Min(rect.Height, area.Height);
         rect = new Rect(rect.X, rect.Y, w, h);
@@ -113,7 +135,7 @@ public sealed class WindowPlacement
         bool titleOnScreen = rect.Y >= area.Y;   // the title bar must not be above the work area
         if (visibleW < Math.Min(MinVisible, w) || visibleH < Math.Min(MinVisible, h) || !titleOnScreen)
             rect = Screen.CenterIn(area, w, h);
-        return (rect, display);
+        return rect;
     }
 
     /// <summary>The placement as a JSON object on one line, e.g. <c>{"x":100,"y":80,"width":800,"height":600,"state":"maximized",...}</c>.</summary>
@@ -171,8 +193,9 @@ public sealed class WindowPlacement
                 "fullScreen" => WindowState.FullScreen,
                 _ => WindowState.Normal,
             } : WindowState.Normal;
+            // A scale no display has (a garbled file) would blow the size up or down when it is converted: use 100 %.
             double scale = root.TryGetProperty("scale", out var sc) && sc.ValueKind == JsonValueKind.Number && sc.TryGetDouble(out var v)
-                && v > 0 && double.IsFinite(v) ? v : 1;
+                && v >= MinScale && v <= MaxScale ? v : 1;
             string name = root.TryGetProperty("display", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() ?? "" : "";
             Rect displayBounds = default;
             if (root.TryGetProperty("displayBounds", out var db) && db.ValueKind == JsonValueKind.Array && db.GetArrayLength() == 4)
@@ -187,7 +210,8 @@ public sealed class WindowPlacement
             };
             return true;
         }
-        catch (JsonException) { return false; }
+        // A garbled file can also hold text JsonDocument accepts but can't hand back as a string (a lone surrogate escape).
+        catch (Exception e) when (e is JsonException or InvalidOperationException or FormatException) { placement = null; return false; }
 
         static bool Int(JsonElement o, string key, out int value)
         {

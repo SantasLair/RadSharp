@@ -330,7 +330,9 @@ public class WindowModelTests
         f.Show();
         new WindowPlacement { Bounds = new Rect(-3000, 100, 800, 500), DisplayName = "Left 4K", DisplayBounds = Left.Bounds, State = WindowState.FullScreen }
             .ApplyTo(f);
-        Assert.Equal(new Rect(-3000, 100, 800, 500), host.Moves.Single().Bounds);
+        // Saved at 100 %: 800 x 500 design units, which the window on the 200 % display is (MoveForm takes the rect it
+        // ends up with, as for MoveToDisplay).
+        Assert.Equal(new Rect(-3000, 100, 1600, 1000), host.Moves.Single().Bounds);
         Assert.Equal(WindowState.FullScreen, f.WindowState);
         Assert.Same(Left, f.Display);
     }
@@ -364,5 +366,54 @@ public class WindowModelTests
         WindowPlacement.Remember(third, path);   // unreadable: ignored
         Assert.Equal(FormStartPosition.Default, third.StartPosition);
         Assert.Empty(host.Moves);
+    }
+
+    // ---- Review fixes ----
+
+    [Fact]
+    public void ApplyTo_an_open_form_on_a_display_with_another_scale_restores_the_saved_size()
+    {
+        var host = Install();
+        var f = new Form();
+        f.SetBounds(0, 0, 800, 600);
+        f.ApplyScale(1.5);
+        f.Show();
+        f.NotifyRestoredBounds(new Rect(2000, 250, 1200, 600));   // open on the 150 % laptop
+        new WindowPlacement { Bounds = new Rect(100, 100, 800, 600), DisplayName = "Main", DisplayBounds = Main.Bounds }.ApplyTo(f);
+        Assert.Equal(new Rect(100, 100, 800, 600), host.Moves[^1].Bounds);   // was 1200 x 900 on the 100 % display
+    }
+
+    [Fact]
+    public void ApplyTo_fits_the_converted_size_on_the_display()
+    {
+        Install();
+        var f = new Form { ScaleWithDisplay = false };   // keeps 150 % on the 100 % display
+        f.ApplyScale(1.5);
+        new WindowPlacement { Bounds = new Rect(0, 0, 1900, 1000), DisplayName = "Main", DisplayBounds = Main.Bounds }.ApplyTo(f);
+        Assert.Equal(new Rect(0, 0, 1920, 1040), f.Bounds);       // was 2850 x 1500
+    }
+
+    [Fact]
+    public void A_garbled_placement_file_is_ignored_instead_of_throwing()
+    {
+        Install();
+        // A lone surrogate escape: JsonDocument accepts it, but GetString throws InvalidOperationException.
+        const string loneSurrogate = """{"x":1,"y":2,"width":300,"height":200,"display":"\uD800"}""";
+        Assert.False(WindowPlacement.TryParse(loneSurrogate, out var none));
+        Assert.Null(none);
+        var path = Path.Combine(Directory.CreateTempSubdirectory("radsharp-placement-").FullName, "window.json");
+        File.WriteAllText(path, loneSurrogate);
+        var f = new Form();
+        WindowPlacement.Remember(f, path);       // threw at start-up
+        Assert.Equal(FormStartPosition.Default, f.StartPosition);
+
+        // A scale no display has is read as 100 %, rather than blowing the size up to int.MaxValue.
+        PlatformHost.Current = null;
+        Assert.True(WindowPlacement.TryParse("""{"x":10,"y":10,"width":800,"height":600,"scale":1e-300}""", out var tiny));
+        Assert.Equal(1, tiny!.Scale);
+        var g = new Form();
+        g.ApplyScale(1);
+        tiny.ApplyTo(g);
+        Assert.Equal(new Rect(10, 10, 800, 600), g.Bounds);
     }
 }
