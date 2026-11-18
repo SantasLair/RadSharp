@@ -203,6 +203,26 @@ public class DialogAndInspectorTests
     }
 
     [Fact]
+    public void PropertyGrid_raises_EventHandlerAssigned_once_for_a_non_empty_name()
+    {
+        var (f, grid, target) = Inspector();
+        grid.Mode = PropertyGridMode.Events;
+        int click = grid.IndexOf("onClick");
+        var assigned = new List<string>();
+        grid.EventHandlerAssigned += (_, ev, handler) => assigned.Add(ev.Name + ":" + handler);
+
+        grid.BeginEdit(click);
+        f.Simulate.Type("btnGo_Click");
+        f.Simulate.Key(Key.Enter);
+        Assert.Equal(["onClick:btnGo_Click"], assigned);
+
+        grid.Apply(click, "");   // clearing is not an assignment
+        grid.Apply(click, "btnGo_Click");
+        Assert.Equal(["onClick:btnGo_Click", "onClick:btnGo_Click"], assigned);
+        Assert.False(target.EventHandlers.ContainsKey("onClick") && target.EventHandlers["onClick"] == "");
+    }
+
+    [Fact]
     public void PropertyGrid_multi_target_shows_common_rows_and_edits_every_target()
     {
         var f = new Form();

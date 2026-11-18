@@ -50,6 +50,7 @@ public partial class DesignerForm : Form
             grid.PropertyChanged += (_, _) => Document?.NotifyChanged();
         }
         gridEvents.EventDoubleClick += (_, ev) => { if (Document is { } d) EditHandler(d.Primary, ev); };
+        gridEvents.EventHandlerAssigned += (_, ev, handler) => EnsureHandlerQuietly(ev, handler);
         gridProps.CollectionEditRequested += (_, target, name) =>
         {
             if (Document is not { } d) return;

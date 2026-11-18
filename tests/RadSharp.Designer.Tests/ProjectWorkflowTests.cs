@@ -99,8 +99,8 @@ public class ProjectWorkflowTests
         var code = Path.Combine(project.Directory, "MainForm.cs");
         var source = File.ReadAllText(code);
         Assert.Contains("void Button1_Click(Control sender)", source);
-        File.WriteAllText(code, source.Replace("    void Button1_Click(Control sender)\n    {\n        \n    }",
-            "    void Button1_Click(Control sender)\n    {\n        ((Button)sender).Caption = \"Clicked\";\n    }"));
+        File.WriteAllText(code, System.Text.RegularExpressions.Regex.Replace(source,
+            @"(void Button1_Click\(Control sender\)\r?\n\s*\{\r?\n)", "$1        ((Button)sender).Caption = \"Clicked\";\n"));
 
         d.Simulate.Key(Key.F9);
         var live = Assert.Single(host.Shown);
@@ -108,6 +108,43 @@ public class ProjectWorkflowTests
         live.Simulate.Click(liveButton);
         Assert.Equal("Clicked", liveButton.Caption);
         Assert.Contains(d.OutputLines, l => l.StartsWith("Running MainForm"));
+    }
+
+    [Fact]
+    public void Typing_a_handler_name_into_an_event_row_writes_one_quiet_stub()
+    {
+        var project = RadProject.Create(TempDir(), "TypedHandler");
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        var a = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 10, 10);
+        var b = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 10, 50);
+        var code = Path.Combine(project.Directory, "MainForm.cs");
+        var before = File.ReadAllText(code);
+        var grid = (PropertyGrid)d.FindControl("gridEvents")!;
+
+        doc.Select(a);
+        Assert.True(grid.Apply(grid.IndexOf("onClick"), "Shared_Click"));   // what Enter in the row's editor does
+        var source = File.ReadAllText(code);
+        Assert.Equal("Shared_Click", a.EventHandlers["onClick"]);
+        Assert.Contains("void Shared_Click(Control sender)", source.Replace("\r\n", "\n"));
+
+        // A second control pointing at the same method writes nothing more.
+        doc.Select(b);
+        Assert.True(grid.Apply(grid.IndexOf("onClick"), "Shared_Click"));   // what Enter in the row's editor does
+        Assert.Equal(source, File.ReadAllText(code));
+
+        // Clearing the row writes nothing and removes nothing.
+        Assert.True(grid.Apply(grid.IndexOf("onClick"), ""));
+        Assert.False(b.EventHandlers.ContainsKey("onClick"));
+        Assert.Equal(source, File.ReadAllText(code));
+        Assert.NotEqual(before, source);
+
+        // Several controls at once: one stub.
+        doc.SelectMany([a, b]);
+        Assert.True(grid.Apply(grid.IndexOf("onClick"), "Both_Click"));
+        var multi = File.ReadAllText(code);
+        Assert.Equal(1, multi.Split("void Both_Click(").Length - 1);
+        Assert.Equal("Both_Click", b.EventHandlers["onClick"]);
     }
 
     [Fact]
