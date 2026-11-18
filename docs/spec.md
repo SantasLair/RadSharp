@@ -56,6 +56,9 @@ A form file is UTF-8 JSON:
 - Events are properties whose name starts with `on` (`"onClick": "btnSave_Click"`). The value is a handler *name*.
 - In an app, the source generator binds names to methods **at compile time**; a missing method is a compile error
   (RAD1001, reported at the handler name in the form file, with the method signature to add).
+- A control (or named menu item) whose `name` equals a member the form inherits (`Monitor`, `Icon`, `Close`, `Caption`,
+  or a member of the form's own base class) is error RAD1006, reported at the `name` value; its field is not generated.
+  Rename the control, as the generated field would hide the member. The designer refuses such names too.
 - When a form is loaded without generated bindings (as the designer does), names are kept on the control
   so re-saving doesn't lose them.
 - Handler convention: the **first argument is always the sender**, e.g.

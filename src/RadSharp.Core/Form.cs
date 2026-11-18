@@ -58,7 +58,7 @@ public class Form : Control
 
     /// <summary>
     /// The scale generated <c>InitializeComponent()</c> code loads forms at. Hosts set it at startup
-    /// (the SDL host uses the display's content scale).
+    /// (the SDL host uses the monitor's content scale).
     /// </summary>
     public static double DefaultScale { get; set; } = 1;
 
@@ -210,60 +210,65 @@ public class Form : Control
     }
 
     /// <summary>
-    /// The display the window opens on, for <see cref="FormStartPosition.Default"/> and
+    /// The monitor the window opens on, for <see cref="FormStartPosition.Default"/> and
     /// <see cref="FormStartPosition.CenterScreen"/> (and <see cref="FormStartPosition.CenterOwner"/> without an owner):
     /// the window is centred on it, and maximised or full screen there if <see cref="WindowState"/> says so.
     /// <see cref="FormStartPosition.Manual"/> windows go where <see cref="Control.Left"/>/<see cref="Control.Top"/> say.
-    /// Null (the default) leaves it to the host. Read when the window is created; ignored if the display is gone.
+    /// Null (the default) leaves it to the host. Read when the window is created; ignored if the monitor is gone.
     /// </summary>
-    public Display? StartDisplay { get; set; }
+    public MonitorInfo? StartMonitor { get; set; }
 
     /// <summary>
-    /// The display the window is on now (the one with most of it); before the window opens, or after it closed, the one
-    /// with most of <see cref="RestoredBounds"/>. Null if the host reports no displays.
+    /// The monitor the window is on now (the one with most of it); before the window opens, or after it closed, the one
+    /// with most of <see cref="RestoredBounds"/>. Null if the host reports no monitors.
     /// </summary>
-    public Display? Display
+    /// <remarks>
+    /// Inside a form's code this member hides <see cref="System.Threading.Monitor"/>: write
+    /// <c>System.Threading.Monitor.Enter(...)</c> in full there (or use <c>lock</c>). A control cannot be named
+    /// <c>Monitor</c> either (generator error RAD1006).
+    /// </remarks>
+    public MonitorInfo? Monitor
     {
         get
         {
             var host = PlatformHost.Current;
             if (host == null) return null;
-            return host.GetDisplayOf(this) ?? Screen.Nearest(host.GetDisplays(), RestoredBounds);
+            return host.GetMonitorOf(this) ?? Screen.Nearest(host.GetMonitors(), RestoredBounds);
         }
     }
 
     /// <summary>
-    /// Moves the window to <paramref name="display"/>, centred in its work area. A maximised or full-screen window
-    /// stays so, on the new display. When the display has another scale the size is converted, so the window keeps its
-    /// size in design units. If the window isn't open, it opens there (<see cref="StartDisplay"/>). Returns true if an
+    /// Moves the window to <paramref name="monitor"/>, centred in its work area. A maximised or full-screen window
+    /// stays so, on the new monitor. When the monitor has another scale the size is converted, so the window keeps its
+    /// size in design units. If the window isn't open, it opens there (<see cref="StartMonitor"/>). Returns true if an
     /// open window was moved.
     /// </summary>
-    public bool MoveToDisplay(Display display)
+    public bool MoveToMonitor(MonitorInfo monitor)
     {
-        ArgumentNullException.ThrowIfNull(display);
+        ArgumentNullException.ThrowIfNull(monitor);
         var r = RestoredBounds;
-        double k = FollowsDisplayScale ? display.Scale / Scale : 1;
-        var target = Screen.CenterIn(display.WorkArea, LayoutMath.Round(r.Width * k), LayoutMath.Round(r.Height * k));
+        double k = FollowsMonitorScale ? monitor.Scale / Scale : 1;
+        var target = Screen.CenterIn(monitor.WorkArea, LayoutMath.Round(r.Width * k), LayoutMath.Round(r.Height * k));
         if (PlatformHost.Current?.MoveForm(this, target) == true) return true;
-        StartDisplay = display;
+        StartMonitor = monitor;
         return false;
     }
 
     /// <summary>
-    /// Whether the host rescales the form (<see cref="ChangeScale"/>) when its window moves to a display with another
+    /// Whether the host rescales the form (<see cref="ChangeScale"/>) when its window moves to a monitor with another
     /// scale. On by default; it applies to forms that have a scale (loaded from a form file, <see cref="ApplyScale"/>,
     /// or <see cref="Scale"/> set by hand), not to code-built forms that were never scaled.
     /// </summary>
-    public bool ScaleWithDisplay { get; set; } = true;
+    public bool ScaleWithMonitor { get; set; } = true;
 
-    /// <summary>True if the host should follow display scale changes for this form (see <see cref="ScaleWithDisplay"/>).</summary>
-    public bool FollowsDisplayScale => ScaleWithDisplay && (_scaleApplied || _scaleSet);
+    /// <summary>True if the host should follow monitor scale changes for this form (see <see cref="ScaleWithMonitor"/>).</summary>
+    public bool FollowsMonitorScale => ScaleWithMonitor && (_scaleApplied || _scaleSet);
 
-    /// <summary>Raised when the host reports that the window moved to another display (see <see cref="Display"/>).</summary>
-    public event Action<Form>? DisplayChanged;
+    /// <summary>Raised when the host reports that the window moved to another monitor (see <see cref="Monitor"/>).</summary>
+    public event Action<Form>? MonitorChanged;
 
-    /// <summary>Host callback: the window is now mostly on another display.</summary>
-    public void NotifyDisplayChanged() => DisplayChanged?.Invoke(this);
+    /// <summary>Host callback: the window is now mostly on another monitor.</summary>
+    public void NotifyMonitorChanged() => MonitorChanged?.Invoke(this);
 
     /// <summary>Caption colour for the OS title bar (Windows 11), instead of the form colour. Read when the window is created.</summary>
     public Color? TitleBarColor { get; set; }
@@ -299,7 +304,7 @@ public class Form : Control
     /// <summary>
     /// Gives the form the scale <paramref name="scale"/> whether or not it is scaled yet (Delphi's <c>ChangeScale</c>):
     /// a dialog that should match its owner window calls <c>ChangeScale(owner.Scale)</c>, and the SDL host calls it
-    /// when the window moves to a display with another scale. Every length (bounds, margins, padding, min/max sizes,
+    /// when the window moves to a monitor with another scale. Every length (bounds, margins, padding, min/max sizes,
     /// anchor distances, a subclass's own lengths) is recomputed from the 100 % value it was scaled from, so the
     /// layout is the same as loading at <paramref name="scale"/> in the first place and 100 % → 150 % → 100 % gives
     /// back exactly the original layout. A length set from code since is in the old scale's pixels: it is converted
@@ -341,7 +346,7 @@ public class Form : Control
 
     /// <summary>
     /// Raised after <see cref="ChangeScale"/> moved the form to another scale (for example because its window was
-    /// dragged to a display with another scale), once the form was laid out again. <see cref="ScaleChange.Apply"/>
+    /// dragged to a monitor with another scale), once the form was laid out again. <see cref="ScaleChange.Apply"/>
     /// rescales lengths the application keeps itself.
     /// </summary>
     public event Action<Form, ScaleChange>? ScaleChanged;

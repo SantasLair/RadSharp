@@ -74,19 +74,19 @@ public interface IPlatformServices
     bool OpenUrl(string url) => false;
 
     /// <summary>
-    /// The displays (monitors) attached now, the primary one first. Coordinates are screen coordinates in the host's
-    /// window units (the same as <see cref="Form.RestoredBounds"/>). Hosts without displays return an empty list,
+    /// The monitors attached now, the primary one first. Coordinates are screen coordinates in the host's
+    /// window units (the same as <see cref="Form.RestoredBounds"/>). Hosts without monitors return an empty list,
     /// which is also what hosts written before this member existed return.
     /// </summary>
-    IReadOnlyList<Display> GetDisplays() => [];
+    IReadOnlyList<MonitorInfo> GetMonitors() => [];
 
-    /// <summary>The display <paramref name="form"/>'s window is on (the one with most of it), or null if it has no window or the host can't tell.</summary>
-    Display? GetDisplayOf(Form form) => null;
+    /// <summary>The monitor <paramref name="form"/>'s window is on (the one with most of it), or null if it has no window or the host can't tell.</summary>
+    MonitorInfo? GetMonitorOf(Form form) => null;
 
     /// <summary>
     /// Moves and resizes an open form's window so its normal (restored) client area is <paramref name="bounds"/>, in
     /// screen coordinates (the units of <see cref="Form.RestoredBounds"/>). A maximised or full-screen window is
-    /// restored, moved and then given its state back, so it ends up maximised on the display it was moved to.
+    /// restored, moved and then given its state back, so it ends up maximised on the monitor it was moved to.
     /// Returns false if the form has no window or the host can't move windows.
     /// </summary>
     bool MoveForm(Form form, Rect bounds) => false;
@@ -98,7 +98,7 @@ public enum WindowState
     Normal,
     Maximized,
     Minimized,
-    /// <summary>Covers the whole display it is on, without a frame (the desktop's resolution is kept).</summary>
+    /// <summary>Covers the whole monitor it is on, without a frame (the desktop's resolution is kept).</summary>
     FullScreen,
 }
 
@@ -121,17 +121,17 @@ public enum FormBorderStyle
 }
 
 /// <summary>
-/// A display (monitor), as the host reports it (see <see cref="Screen"/>). <see cref="Bounds"/> and
+/// A monitor, as the host reports it (see <see cref="Screen"/>). <see cref="Bounds"/> and
 /// <see cref="WorkArea"/> are screen coordinates in the host's window units, the units of
 /// <see cref="Form.RestoredBounds"/>; <see cref="Scale"/> is the UI scale forms on it load at.
 /// </summary>
-/// <param name="Id">The host's id for the display; stable only while the application runs.</param>
-/// <param name="Name">The display's name (e.g. its model); use it, with <see cref="Bounds"/>, to find a display again in a later run.</param>
-/// <param name="Bounds">The whole display.</param>
+/// <param name="Id">The host's id for the monitor; stable only while the application runs.</param>
+/// <param name="Name">The monitor's name (e.g. its model); use it, with <see cref="Bounds"/>, to find a monitor again in a later run.</param>
+/// <param name="Bounds">The whole monitor.</param>
 /// <param name="WorkArea">The part not covered by task bars, docks and menu bars.</param>
-/// <param name="Scale">The display's UI scale (1 = 100 %).</param>
-/// <param name="IsPrimary">Whether this is the primary display.</param>
-public sealed record Display(uint Id, string Name, Rect Bounds, Rect WorkArea, double Scale, bool IsPrimary)
+/// <param name="Scale">The monitor's UI scale (1 = 100 %).</param>
+/// <param name="IsPrimary">Whether this is the primary monitor.</param>
+public sealed record MonitorInfo(uint Id, string Name, Rect Bounds, Rect WorkArea, double Scale, bool IsPrimary)
 {
     public override string ToString() => $"{Name} ({Bounds.Width} x {Bounds.Height} at {Bounds.X}, {Bounds.Y}, {Scale * 100:0} %)";
 }

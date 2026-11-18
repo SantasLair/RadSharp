@@ -4,19 +4,19 @@ namespace RadSharp.Tests;
 
 /// <summary>
 /// M13 item 1: the rest of the window model (full screen, border style, top-most, icon, modal defaults), the
-/// <see cref="Screen"/> API, opening on a chosen display and window placement save/restore, through a fake host.
+/// <see cref="Screen"/> API, opening on a chosen monitor and window placement save/restore, through a fake host.
 /// </summary>
 [Collection("PlatformHost")]
 public class WindowModelTests
 {
-    static readonly Display Left = new(1, "Left 4K", new Rect(-3840, 0, 3840, 2160), new Rect(-3840, 0, 3840, 2100), 2, false);
-    static readonly Display Main = new(2, "Main", new Rect(0, 0, 1920, 1080), new Rect(0, 0, 1920, 1040), 1, true);
-    static readonly Display Laptop = new(3, "Laptop", new Rect(1920, 200, 1600, 900), new Rect(1920, 200, 1600, 860), 1.5, false);
+    static readonly MonitorInfo Left = new(1, "Left 4K", new Rect(-3840, 0, 3840, 2160), new Rect(-3840, 0, 3840, 2100), 2, false);
+    static readonly MonitorInfo Main = new(2, "Main", new Rect(0, 0, 1920, 1080), new Rect(0, 0, 1920, 1040), 1, true);
+    static readonly MonitorInfo Laptop = new(3, "Laptop", new Rect(1920, 200, 1600, 900), new Rect(1920, 200, 1600, 860), 1.5, false);
 
-    /// <summary>A host with displays: windows are rects on them; moving one reports the new rect back like the SDL host.</summary>
-    sealed class DisplayHost : IPlatformServices
+    /// <summary>A host with monitors: windows are rects on them; moving one reports the new rect back like the SDL host.</summary>
+    sealed class MonitorHost : IPlatformServices
     {
-        public List<Display> Displays = [Main, Left, Laptop];
+        public List<MonitorInfo> Monitors = [Main, Left, Laptop];
         public readonly List<Form> Open = [];
         public readonly List<(Form Form, Rect Bounds)> Moves = [];
         public Action<Form>? OnModal;
@@ -34,8 +34,8 @@ public class WindowModelTests
         public void PostToUiThread(Action action) => action();
         public void ShowModal(Form form, Action onClosed) { RunModal(form); onClosed(); }
 
-        public IReadOnlyList<Display> GetDisplays() => Displays;
-        public Display? GetDisplayOf(Form form) => Open.Contains(form) ? Screen.FromRectIn(Displays, form.RestoredBounds) : null;
+        public IReadOnlyList<MonitorInfo> GetMonitors() => Monitors;
+        public MonitorInfo? GetMonitorOf(Form form) => Open.Contains(form) ? Screen.FromRectIn(Monitors, form.RestoredBounds) : null;
         public bool MoveForm(Form form, Rect bounds)
         {
             if (!Open.Contains(form)) return false;
@@ -45,9 +45,9 @@ public class WindowModelTests
         }
     }
 
-    static DisplayHost Install()
+    static MonitorHost Install()
     {
-        var host = new DisplayHost();
+        var host = new MonitorHost();
         PlatformHost.Current = host;
         return host;
     }
@@ -63,7 +63,7 @@ public class WindowModelTests
         Assert.Equal("", f.IconSource);
         Assert.Null(f.Icon);
         Assert.True(f.IsUserResizable);
-        Assert.True(f.ScaleWithDisplay);
+        Assert.True(f.ScaleWithMonitor);
         var json = FormWriter.Save(f);
         Assert.DoesNotContain("borderStyle", json);
         Assert.DoesNotContain("topMost", json);
@@ -160,35 +160,35 @@ public class WindowModelTests
     // ---- Screen ----
 
     [Fact]
-    public void Screen_lists_the_hosts_displays_and_finds_them_by_point_rect_and_id()
+    public void Screen_lists_the_hosts_monitors_and_finds_them_by_point_rect_and_id()
     {
         Install();
-        Assert.Equal([Main, Left, Laptop], Screen.Displays);
+        Assert.Equal([Main, Left, Laptop], Screen.Monitors);
         Assert.Same(Main, Screen.Primary);
         Assert.Same(Left, Screen.FromPoint(-10, 500));
         Assert.Null(Screen.FromPoint(5000, 5000));
         Assert.Same(Laptop, Screen.FromRect(new Rect(1800, 300, 400, 300)));   // most of it is on the laptop
-        Assert.Same(Laptop, Screen.FromRect(new Rect(4000, 400, 100, 100)));   // off every display: the nearest
+        Assert.Same(Laptop, Screen.FromRect(new Rect(4000, 400, 100, 100)));   // off every monitor: the nearest
         Assert.Same(Left, Screen.FromId(1));
         Assert.Equal("Laptop (1600 x 900 at 1920, 200, 150 %)", Laptop.ToString());
 
         PlatformHost.Current = null;
-        Assert.Empty(Screen.Displays);
+        Assert.Empty(Screen.Monitors);
         Assert.Null(Screen.Primary);
     }
 
     [Fact]
-    public void A_host_written_before_displays_existed_still_compiles_and_reports_none()
+    public void A_host_written_before_monitors_existed_still_compiles_and_reports_none()
     {
         IPlatformServices old = new OldHost();
-        Assert.Empty(old.GetDisplays());
-        Assert.Null(old.GetDisplayOf(new Form()));
+        Assert.Empty(old.GetMonitors());
+        Assert.Null(old.GetMonitorOf(new Form()));
         Assert.False(old.MoveForm(new Form(), new Rect(0, 0, 10, 10)));
         PlatformHost.Current = old;
         var f = new Form();
-        Assert.Null(f.Display);
-        Assert.False(f.MoveToDisplay(Main));
-        Assert.Same(Main, f.StartDisplay);   // it will open there instead
+        Assert.Null(f.Monitor);
+        Assert.False(f.MoveToMonitor(Main));
+        Assert.Same(Main, f.StartMonitor);   // it will open there instead
     }
 
     sealed class OldHost : IPlatformServices
@@ -203,7 +203,7 @@ public class WindowModelTests
     }
 
     [Fact]
-    public void A_form_knows_its_display_and_moves_to_another_centred_in_its_work_area_at_its_scale()
+    public void A_form_knows_its_monitor_and_moves_to_another_centred_in_its_work_area_at_its_scale()
     {
         var host = Install();
         var f = new Form();
@@ -211,27 +211,27 @@ public class WindowModelTests
         f.ApplyScale(1);
         f.Show();
         f.NotifyRestoredBounds(new Rect(100, 100, 800, 600));
-        Assert.Same(Main, f.Display);
+        Assert.Same(Main, f.Monitor);
 
-        Assert.True(f.MoveToDisplay(Laptop));                         // 150 %: the window grows to keep its size
+        Assert.True(f.MoveToMonitor(Laptop));                         // 150 %: the window grows to keep its size
         Assert.Equal(new Rect(2120, 200, 1200, 860), host.Moves[^1].Bounds);   // 900 high is shrunk to the work area
-        Assert.Same(Laptop, f.Display);
+        Assert.Same(Laptop, f.Monitor);
 
         f.WindowState = WindowState.Maximized;                        // maximised on the laptop; move it on as it is
-        Assert.True(f.MoveToDisplay(Main));
+        Assert.True(f.MoveToMonitor(Main));
         Assert.Equal(WindowState.Maximized, f.WindowState);
-        Assert.Same(Main, f.Display);
+        Assert.Same(Main, f.Monitor);
     }
 
     [Fact]
-    public void A_form_that_is_not_open_opens_on_the_display_it_was_moved_to()
+    public void A_form_that_is_not_open_opens_on_the_monitor_it_was_moved_to()
     {
         Install();
         var f = new Form();
         f.SetBounds(0, 0, 400, 300);
-        Assert.False(f.MoveToDisplay(Left));
-        Assert.Same(Left, f.StartDisplay);
-        Assert.Same(Main, f.Display);   // not open: the display with most of RestoredBounds
+        Assert.False(f.MoveToMonitor(Left));
+        Assert.Same(Left, f.StartMonitor);
+        Assert.Same(Main, f.Monitor);   // not open: the monitor with most of RestoredBounds
     }
 
     // ---- Placement ----
@@ -242,22 +242,22 @@ public class WindowModelTests
         var p = new WindowPlacement
         {
             Bounds = new Rect(-3000, 120, 1600, 1000), State = WindowState.Maximized, Scale = 2,
-            DisplayName = "Left \"4K\" é", DisplayBounds = Left.Bounds,
+            MonitorName = "Left \"4K\" é", MonitorBounds = Left.Bounds,
         };
         var json = p.ToJson();
-        Assert.Equal("{\"x\":-3000,\"y\":120,\"width\":1600,\"height\":1000,\"state\":\"maximized\",\"scale\":2,\"display\":\"Left \\\"4K\\\" é\",\"displayBounds\":[-3840,0,3840,2160]}", json);
+        Assert.Equal("{\"x\":-3000,\"y\":120,\"width\":1600,\"height\":1000,\"state\":\"maximized\",\"scale\":2,\"monitor\":\"Left \\\"4K\\\" é\",\"monitorBounds\":[-3840,0,3840,2160]}", json);
         Assert.True(WindowPlacement.TryParse(json, out var back));
-        Assert.Equal((p.Bounds, p.State, p.Scale, p.DisplayName, p.DisplayBounds), (back!.Bounds, back.State, back.Scale, back.DisplayName, back.DisplayBounds));
+        Assert.Equal((p.Bounds, p.State, p.Scale, p.MonitorName, p.MonitorBounds), (back!.Bounds, back.State, back.Scale, back.MonitorName, back.MonitorBounds));
 
         Assert.False(WindowPlacement.TryParse("", out _));
         Assert.False(WindowPlacement.TryParse("not json", out _));
         Assert.False(WindowPlacement.TryParse("""{"x":1,"y":2,"width":0,"height":5}""", out _));
         Assert.True(WindowPlacement.TryParse("""{"x":1,"y":2,"width":3,"height":4}""", out var minimal));
-        Assert.Equal((WindowState.Normal, 1.0, ""), (minimal!.State, minimal.Scale, minimal.DisplayName));
+        Assert.Equal((WindowState.Normal, 1.0, ""), (minimal!.State, minimal.Scale, minimal.MonitorName));
     }
 
     [Fact]
-    public void Capture_takes_the_restored_bounds_state_scale_and_display()
+    public void Capture_takes_the_restored_bounds_state_scale_and_monitor()
     {
         Install();
         var f = new Form();
@@ -268,38 +268,38 @@ public class WindowModelTests
         Assert.Equal(new Rect(2000, 300, 900, 600), p.Bounds);
         Assert.Equal(WindowState.Normal, p.State);   // minimised comes back as normal
         Assert.Equal(1.5, p.Scale);
-        Assert.Equal(("Laptop", Laptop.Bounds), (p.DisplayName, p.DisplayBounds));
+        Assert.Equal(("Laptop", Laptop.Bounds), (p.MonitorName, p.MonitorBounds));
     }
 
     [Fact]
-    public void Resolve_keeps_a_visible_rect_and_falls_back_when_the_display_is_gone_moved_or_the_rect_is_off_screen()
+    public void Resolve_keeps_a_visible_rect_and_falls_back_when_the_monitor_is_gone_moved_or_the_rect_is_off_screen()
     {
-        var onLaptop = new WindowPlacement { Bounds = new Rect(2000, 300, 900, 600), DisplayName = "Laptop", DisplayBounds = Laptop.Bounds };
+        var onLaptop = new WindowPlacement { Bounds = new Rect(2000, 300, 900, 600), MonitorName = "Laptop", MonitorBounds = Laptop.Bounds };
         Assert.Equal((new Rect(2000, 300, 900, 600), Laptop), onLaptop.Resolve([Main, Laptop]));
 
-        // The laptop is gone: centred on the primary display.
+        // The laptop is gone: centred on the primary monitor.
         Assert.Equal((new Rect(510, 220, 900, 600), Main), onLaptop.Resolve([Main, Left]));
 
-        // The laptop moved to the left of the main display: the rect moves with it.
+        // The laptop moved to the left of the main monitor: the rect moves with it.
         var moved = Laptop with { Bounds = new Rect(-1600, 0, 1600, 900), WorkArea = new Rect(-1600, 0, 1600, 860) };
         Assert.Equal((new Rect(-1520, 100, 900, 600), moved), onLaptop.Resolve([Main, moved]));
 
-        // Mostly off the display's work area, or the title bar above it: centred on it.
-        var offEdge = new WindowPlacement { Bounds = new Rect(1890, 500, 800, 400), DisplayName = "Main", DisplayBounds = Main.Bounds };
+        // Mostly off the monitor's work area, or the title bar above it: centred on it.
+        var offEdge = new WindowPlacement { Bounds = new Rect(1890, 500, 800, 400), MonitorName = "Main", MonitorBounds = Main.Bounds };
         Assert.Equal(new Rect(560, 320, 800, 400), offEdge.Resolve([Main]).Bounds);
-        var above = new WindowPlacement { Bounds = new Rect(100, -20, 800, 400), DisplayName = "Main", DisplayBounds = Main.Bounds };
+        var above = new WindowPlacement { Bounds = new Rect(100, -20, 800, 400), MonitorName = "Main", MonitorBounds = Main.Bounds };
         Assert.Equal(new Rect(560, 320, 800, 400), above.Resolve([Main]).Bounds);
 
         // Larger than the work area: shrunk to fit.
-        var huge = new WindowPlacement { Bounds = new Rect(0, 0, 5000, 3000), DisplayName = "Main", DisplayBounds = Main.Bounds };
+        var huge = new WindowPlacement { Bounds = new Rect(0, 0, 5000, 3000), MonitorName = "Main", MonitorBounds = Main.Bounds };
         Assert.Equal(new Rect(0, 0, 1920, 1040), huge.Resolve([Main]).Bounds);
 
-        // No name (another host wrote it): the display with most of the rect.
+        // No name (another host wrote it): the monitor with most of the rect.
         var unnamed = new WindowPlacement { Bounds = new Rect(-2000, 100, 800, 600) };
-        Assert.Same(Left, unnamed.Resolve([Main, Left]).Display);
+        Assert.Same(Left, unnamed.Resolve([Main, Left]).Monitor);
 
-        // No displays at all: unchanged.
-        Assert.Equal((new Rect(2000, 300, 900, 600), (Display?)null), onLaptop.Resolve([]));
+        // No monitors at all: unchanged.
+        Assert.Equal((new Rect(2000, 300, 900, 600), (MonitorInfo?)null), onLaptop.Resolve([]));
     }
 
     [Fact]
@@ -309,13 +309,13 @@ public class WindowModelTests
         var saved = new WindowPlacement
         {
             Bounds = new Rect(2000, 300, 900, 600), State = WindowState.Maximized, Scale = 1.5,
-            DisplayName = "Laptop", DisplayBounds = Laptop.Bounds,
+            MonitorName = "Laptop", MonitorBounds = Laptop.Bounds,
         };
         var f = new Form();
         f.ApplyScale(1);                              // loaded at 100 %; the host rescales it on the 150 % laptop
         saved.ApplyTo(f);
         Assert.Equal(FormStartPosition.Manual, f.StartPosition);
-        Assert.Same(Laptop, f.StartDisplay);
+        Assert.Same(Laptop, f.StartMonitor);
         Assert.Equal(new Rect(2000, 300, 600, 400), f.Bounds);   // 900 x 600 at 150 % is 600 x 400 at 100 %
         Assert.Equal(new Rect(2000, 300, 600, 400), f.RestoredBounds);
         Assert.Equal(WindowState.Maximized, f.WindowState);
@@ -328,13 +328,13 @@ public class WindowModelTests
         var f = new Form();
         f.ApplyScale(1);
         f.Show();
-        new WindowPlacement { Bounds = new Rect(-3000, 100, 800, 500), DisplayName = "Left 4K", DisplayBounds = Left.Bounds, State = WindowState.FullScreen }
+        new WindowPlacement { Bounds = new Rect(-3000, 100, 800, 500), MonitorName = "Left 4K", MonitorBounds = Left.Bounds, State = WindowState.FullScreen }
             .ApplyTo(f);
-        // Saved at 100 %: 800 x 500 design units, which the window on the 200 % display is (MoveForm takes the rect it
-        // ends up with, as for MoveToDisplay).
+        // Saved at 100 %: 800 x 500 design units, which the window on the 200 % monitor is (MoveForm takes the rect it
+        // ends up with, as for MoveToMonitor).
         Assert.Equal(new Rect(-3000, 100, 1600, 1000), host.Moves.Single().Bounds);
         Assert.Equal(WindowState.FullScreen, f.WindowState);
-        Assert.Same(Left, f.Display);
+        Assert.Same(Left, f.Monitor);
     }
 
     [Fact]
@@ -359,7 +359,7 @@ public class WindowModelTests
         Assert.Equal(FormStartPosition.Manual, second.StartPosition);
         Assert.Equal(new Rect(300, 200, 700, 500), second.Bounds);
         Assert.Equal(WindowState.Maximized, second.WindowState);
-        Assert.Same(Main, second.StartDisplay);
+        Assert.Same(Main, second.StartMonitor);
 
         File.WriteAllText(path, "garbage");
         var third = new Form();
@@ -371,7 +371,7 @@ public class WindowModelTests
     // ---- Review fixes ----
 
     [Fact]
-    public void ApplyTo_an_open_form_on_a_display_with_another_scale_restores_the_saved_size()
+    public void ApplyTo_an_open_form_on_a_monitor_with_another_scale_restores_the_saved_size()
     {
         var host = Install();
         var f = new Form();
@@ -379,18 +379,30 @@ public class WindowModelTests
         f.ApplyScale(1.5);
         f.Show();
         f.NotifyRestoredBounds(new Rect(2000, 250, 1200, 600));   // open on the 150 % laptop
-        new WindowPlacement { Bounds = new Rect(100, 100, 800, 600), DisplayName = "Main", DisplayBounds = Main.Bounds }.ApplyTo(f);
-        Assert.Equal(new Rect(100, 100, 800, 600), host.Moves[^1].Bounds);   // was 1200 x 900 on the 100 % display
+        new WindowPlacement { Bounds = new Rect(100, 100, 800, 600), MonitorName = "Main", MonitorBounds = Main.Bounds }.ApplyTo(f);
+        Assert.Equal(new Rect(100, 100, 800, 600), host.Moves[^1].Bounds);   // was 1200 x 900 on the 100 % monitor
     }
 
     [Fact]
-    public void ApplyTo_fits_the_converted_size_on_the_display()
+    public void ApplyTo_fits_the_converted_size_on_the_monitor()
     {
         Install();
-        var f = new Form { ScaleWithDisplay = false };   // keeps 150 % on the 100 % display
+        var f = new Form { ScaleWithMonitor = false };   // keeps 150 % on the 100 % monitor
         f.ApplyScale(1.5);
-        new WindowPlacement { Bounds = new Rect(0, 0, 1900, 1000), DisplayName = "Main", DisplayBounds = Main.Bounds }.ApplyTo(f);
+        new WindowPlacement { Bounds = new Rect(0, 0, 1900, 1000), MonitorName = "Main", MonitorBounds = Main.Bounds }.ApplyTo(f);
         Assert.Equal(new Rect(0, 0, 1920, 1040), f.Bounds);       // was 2850 x 1500
+    }
+
+    [Fact]
+    public void Placement_still_reads_the_display_keys_written_before_the_rename()
+    {
+        Assert.True(WindowPlacement.TryParse(
+            """{"x":1,"y":2,"width":300,"height":200,"display":"Laptop","displayBounds":[1920,200,1600,900]}""", out var old));
+        Assert.Equal(("Laptop", Laptop.Bounds), (old!.MonitorName, old.MonitorBounds));
+        // The new keys win when both are present.
+        Assert.True(WindowPlacement.TryParse(
+            """{"x":1,"y":2,"width":300,"height":200,"monitor":"Main","display":"Laptop"}""", out var both));
+        Assert.Equal("Main", both!.MonitorName);
     }
 
     [Fact]
@@ -398,7 +410,7 @@ public class WindowModelTests
     {
         Install();
         // A lone surrogate escape: JsonDocument accepts it, but GetString throws InvalidOperationException.
-        const string loneSurrogate = """{"x":1,"y":2,"width":300,"height":200,"display":"\uD800"}""";
+        const string loneSurrogate = """{"x":1,"y":2,"width":300,"height":200,"monitor":"\uD800"}""";
         Assert.False(WindowPlacement.TryParse(loneSurrogate, out var none));
         Assert.Null(none);
         var path = Path.Combine(Directory.CreateTempSubdirectory("radsharp-placement-").FullName, "window.json");
@@ -407,7 +419,7 @@ public class WindowModelTests
         WindowPlacement.Remember(f, path);       // threw at start-up
         Assert.Equal(FormStartPosition.Default, f.StartPosition);
 
-        // A scale no display has is read as 100 %, rather than blowing the size up to int.MaxValue.
+        // A scale no monitor has is read as 100 %, rather than blowing the size up to int.MaxValue.
         PlatformHost.Current = null;
         Assert.True(WindowPlacement.TryParse("""{"x":10,"y":10,"width":800,"height":600,"scale":1e-300}""", out var tiny));
         Assert.Equal(1, tiny!.Scale);
