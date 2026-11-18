@@ -446,7 +446,7 @@ public partial class DesignerForm : Form
         if (Document is not { } doc) return;
         var menu = doc.Primary as IMenuOwner ?? doc.Form.Descendants().OfType<IMenuOwner>().FirstOrDefault();
         if (menu == null) { Dialogs.ShowMessage("Add a MainMenu or PopupMenu to the form first.", this); return; }
-        MenuEditor.Edit(doc, menu, this);
+        MenuEditor.Edit(doc, menu, this, EditMenuHandlers);
     }
 
     void mnuTabOrder_Click(object sender)

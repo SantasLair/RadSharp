@@ -1,3 +1,4 @@
+using RadSharp.Design;
 using RadSharp.Design.Code;
 using RadSharp.Designer;
 
@@ -619,5 +620,44 @@ public class ProjectWorkflowTests
         var project = RadProject.Create(TempDir(), "Wrap");
         var dialog = new FormNameDialog(project, "New Form", "Form2", null, null);
         Assert.True(((Label)dialog.FindControl("lblProblem")!).WordWrap);
+    }
+
+    [Fact]
+    public void Menu_editor_onClick_field_writes_the_handler_stub_and_the_app_compiles()
+    {
+        var project = RadProject.Create(TempDir(), "MenuApp");
+        var (d, host) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        doc.Create(ComponentRegistry.Find("MainMenu")!, doc.Form, 0, 0);
+        host.AnswerModal = f =>
+        {
+            void Click(string b) => f.Simulate.Click((Button)f.FindControl(b)!);
+            Click("btnAdd");
+            ((Edit)f.FindControl("edtCaption")!).Text = "E&xit";
+            ((Edit)f.FindControl("edtHandler")!).Text = "mniExit_Click";
+            return "btnClose";
+        };
+        d.Simulate.Key("Mod+M");
+
+        var source = File.ReadAllText(Path.Combine(project.Directory, "MainForm.cs"));
+        Assert.Contains("void mniExit_Click(MenuItem sender)", source);
+        Assert.Contains("\"onClick\": \"mniExit_Click\"", File.ReadAllText(Path.Combine(project.Directory, "MainForm.radform.json")));
+        Assert.NotNull(d.Run());   // F9: no RAD1001
+        Assert.DoesNotContain(d.OutputLines, l => l.Contains("RAD1001"));
+    }
+
+    [Fact]
+    public void Menu_editor_double_click_proposes_a_default_handler_name_and_writes_the_stub()
+    {
+        var project = RadProject.Create(TempDir(), "MenuDbl");
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        var menu = (MainMenu)doc.Create(ComponentRegistry.Find("MainMenu")!, doc.Form, 0, 0);
+        var editor = new MenuEditor(doc, menu) { HandlerRequested = d.EditMenuHandlers };
+        var item = editor.AddItem("Open");
+        item.Name = "mniOpen";
+        editor.EditHandler();   // what a double-click on the item or the onClick field does
+        Assert.Equal("mniOpen_Click", item.ClickHandler);
+        Assert.Contains("void mniOpen_Click(MenuItem sender)", File.ReadAllText(Path.Combine(project.Directory, "MainForm.cs")));
     }
 }

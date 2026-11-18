@@ -9,8 +9,12 @@
 
   <!-- Packaging. -->
   <PropertyGroup>
-    <!-- A unique pre-release per build: projects reference 0.1.0-dev* and always get the newest local pack. -->
-    <Version>0.1.0-dev.$([System.DateTime]::UtcNow.ToString(yyyyMMddHHmm))</Version>
+    <!-- A unique pre-release per build: projects reference 0.1.0-dev* and always get the newest local pack.
+         Packages depend on each other at their own build's version, so packing several projects must use ONE version:
+         run ./pack.ps1 (or ./pack.sh), which stamps it once and passes -p:RadSharpVersion=... to every pack, or pass
+         -p:RadSharpVersion=<version> yourself. A bare `dotnet pack` of one project stamps its own minute. -->
+    <RadSharpVersion Condition="'$(RadSharpVersion)' == ''">0.1.0-dev.$([System.DateTime]::UtcNow.ToString(yyyyMMddHHmm))</RadSharpVersion>
+    <Version>$(RadSharpVersion)</Version>
     <Authors>RadSharp contributors</Authors>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageOutputPath>$(MSBuildThisFileDirectory)artifacts/packages</PackageOutputPath>

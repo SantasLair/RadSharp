@@ -46,6 +46,19 @@ public sealed class RadProject
     public static string CodeFileFor(string formFile) =>
         Path.Combine(Path.GetDirectoryName(formFile)!, FormClassName(formFile) + ".cs");
 
+    /// <summary>
+    /// The package folder as written to <c>nuget.config</c>: relative to the project folder (with <c>/</c>, which NuGet
+    /// accepts on every OS) when it is on the same volume, so the project can be moved or shared; absolute otherwise.
+    /// A URL feed is kept as given.
+    /// </summary>
+    internal static string PackageSourceFor(string projectDirectory, string packageSource)
+    {
+        if (packageSource.Contains("://", StringComparison.Ordinal)) return packageSource;
+        var full = Path.GetFullPath(packageSource);
+        var relative = Path.GetRelativePath(Path.GetFullPath(projectDirectory), full);
+        return Path.IsPathRooted(relative) ? full : relative.Replace('\\', '/');
+    }
+
     static string Sanitize(string name) =>
         new([.. name.Select((c, i) => char.IsLetterOrDigit(c) || c == '_' ? c : '_')]);
 
@@ -96,7 +109,7 @@ public sealed class RadProject
                     <add key="globalPackagesFolder" value="packages" />
                   </config>
                   <packageSources>
-                    <add key="radsharp-local" value="{packageSource}" />
+                    <add key="radsharp-local" value="{PackageSourceFor(directory, packageSource)}" />
                     <add key="nuget.org" value="https://api.nuget.org/v3/index.json" />
                   </packageSources>
                 </configuration>

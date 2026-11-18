@@ -36,9 +36,51 @@ public sealed class MenuEditor
     readonly TreeView _tree;
     readonly Edit _caption, _name, _shortcut, _altShortcut, _handler;
     readonly CheckBox _enabled, _checked;
+    readonly HashSet<MenuItem> _handlerEdited = [];
     bool _loading;
 
     public Form Form { get; }
+
+    /// <summary>
+    /// The code side, wired by the designer (the editor itself can't reach the code-behind). Called with the items whose
+    /// <see cref="MenuItem.ClickHandler"/> is set and whether to open the handler in the code editor: <c>false</c> when
+    /// the editor closes after fields were edited (create the stubs quietly, all in one call), <c>true</c> with the one
+    /// item of a double-click.
+    /// </summary>
+    public Action<IReadOnlyList<MenuItem>, bool>? HandlerRequested { get; set; }
+
+    /// <summary>The conventional handler name, as the Object Inspector proposes: <c>mniExit_Click</c> (the caption's letters when the item has no name).</summary>
+    public static string DefaultHandlerName(MenuItem item)
+    {
+        var name = item.Name.Length > 0 ? item.Name : "mni" + new string([.. item.Caption.Where(char.IsLetterOrDigit)]);
+        return name + "_Click";
+    }
+
+    /// <summary>
+    /// Double-click on an item or on the onClick field: gives the item a handler (the default name if it has none) and asks
+    /// the designer to create the stub and show it. Does nothing for separators.
+    /// </summary>
+    public void EditHandler(MenuItem? item = null)
+    {
+        item ??= SelectedItem;
+        if (item == null || item.IsSeparator) return;
+        if (item.ClickHandler.Length == 0)
+        {
+            item.ClickHandler = DefaultHandlerName(item);
+            if (item == SelectedItem) LoadFields();
+            _doc.NotifyChanged();
+        }
+        _handlerEdited.Remove(item);
+        HandlerRequested?.Invoke([item], true);
+    }
+
+    /// <summary>Creates the stubs of the handlers typed during the session (on close).</summary>
+    void FlushHandlers()
+    {
+        var items = _handlerEdited.Where(i => i.ClickHandler.Length > 0).ToList();
+        _handlerEdited.Clear();
+        if (items.Count > 0) HandlerRequested?.Invoke(items, false);
+    }
 
     public MenuEditor(DesignDocument doc, IMenuOwner menu, Form? owner = null)
     {
@@ -81,7 +123,9 @@ public sealed class MenuEditor
         _name.Change += _ => Store(i => i.Name = _name.Text.Trim());
         _shortcut.Change += _ => Store(i => i.Shortcut = _shortcut.Text.Trim());
         _altShortcut.Change += _ => Store(i => i.AltShortcut = _altShortcut.Text.Trim());
-        _handler.Change += _ => Store(i => i.ClickHandler = _handler.Text.Trim());
+        _handler.Change += _ => Store(i => { i.ClickHandler = _handler.Text.Trim(); _handlerEdited.Add(i); });
+        _handler.MouseDown += (_, e) => { if (e.Clicks == 2) EditHandler(); };
+        _tree.DoubleClick += _ => EditHandler();
         _enabled.Change += _ => Store(i => i.Enabled = _enabled.Checked);
         _checked.Change += _ => Store(i => i.Checked = _checked.Checked);
 
@@ -90,11 +134,14 @@ public sealed class MenuEditor
     }
 
     /// <summary>Opens the editor modally on <paramref name="menu"/>; the whole session is one undo step.</summary>
-    public static void Edit(DesignDocument doc, IMenuOwner menu, Form? owner)
+    /// <param name="handlers">Creates a handler stub in the code-behind (see <see cref="HandlerRequested"/>); null when there is no code side.</param>
+    public static void Edit(DesignDocument doc, IMenuOwner menu, Form? owner, Action<IReadOnlyList<MenuItem>, bool>? handlers = null)
     {
         doc.Snapshot();
-        new MenuEditor(doc, menu, owner).Form.ShowModal();
+        var editor = new MenuEditor(doc, menu, owner) { HandlerRequested = handlers };
+        editor.Form.ShowModal();
         doc.NotifyChanged();
+        editor.FlushHandlers();
     }
 
     public MenuItem? SelectedItem => _tree.Selected?.Tag as MenuItem;

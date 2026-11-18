@@ -192,12 +192,36 @@ public partial class DesignerForm
             target.EventHandlers[ev.Name] = handler;
             doc.NotifyChanged();
         }
-        var code = RadProject.CodeFileFor(form.Path);
-        if (!File.Exists(code)) { sbMain.SimpleText = $"{Path.GetFileName(code)} is missing"; return; }
-        var (source, line) = CodeIntegration.EnsureHandler(File.ReadAllText(code), form.ClassName, handler, ev.Parameters);
-        File.WriteAllText(code, source);
+        int line = EnsureStub(form, handler, ev.Parameters);
+        if (line == 0) return;
         Save(form);
-        OpenInEditor(code, line);
+        OpenInEditor(RadProject.CodeFileFor(form.Path), line);
+    }
+
+    /// <summary>
+    /// The menu editor's code side: makes sure the handler of the <paramref name="items"/> (a <see cref="MenuItem"/> click,
+    /// <c>(MenuItem sender)</c>) exists in the code-behind, saves the form, and opens the IDE there when
+    /// <paramref name="open"/>. Wired to <see cref="MenuEditor.HandlerRequested"/>.
+    /// </summary>
+    public void EditMenuHandlers(IReadOnlyList<MenuItem> items, bool open)
+    {
+        if (_active is not { } form) return;
+        int line = 1;
+        foreach (var item in items.Where(i => i.ClickHandler.Length > 0))
+            line = EnsureStub(form, item.ClickHandler, "MenuItem sender");
+        if (items.Count > 0 && line > 0) Save(form);
+        if (open && line > 0) OpenInEditor(RadProject.CodeFileFor(form.Path), line);
+    }
+
+    /// <summary>Writes the stub if missing; returns the caret line, or 0 when the code file is missing.</summary>
+    int EnsureStub(OpenForm form, string handler, string parameters)
+    {
+        var code = RadProject.CodeFileFor(form.Path);
+        if (!File.Exists(code)) { sbMain.SimpleText = $"{Path.GetFileName(code)} is missing"; return 0; }
+        var original = File.ReadAllText(code);
+        var (source, line) = CodeIntegration.EnsureHandler(original, form.ClassName, handler, parameters);
+        if (source != original) File.WriteAllText(code, source);
+        return line;
     }
 
     /// <summary>
