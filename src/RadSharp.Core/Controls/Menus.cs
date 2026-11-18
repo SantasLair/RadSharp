@@ -56,7 +56,10 @@ public sealed class MenuItem
         foreach (var item in Items) item.ResolveAction(form, stamp);
     }
 
-    bool Linked(Actions.ActionMember m) => _actionSlot?.Link is { } link && link.IsLinked(m);
+    // A value is left out of the file only when loading it gives it back: a link by name to an action still on a form (an
+    // item doesn't know its form; a link made from code may point to another form's action, so its values are written).
+    bool Linked(Actions.ActionMember m) =>
+        _actionSlot?.Link is { Explicit: false } link && link.Action.OwningForm != null && link.IsLinked(m);
 
     public bool IsSeparator => Separator || Caption == "-";
     public bool HasSubmenu => Items.Count > 0;

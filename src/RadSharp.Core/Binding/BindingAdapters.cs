@@ -34,9 +34,15 @@ internal sealed class ToggleAdapter(ToggleControl box) : ControlAdapter<bool>
     public override void Detach(NotifyEvent handler) => box.Change -= handler;
 }
 
-/// <summary>A radio group as one value: the index of the checked button, -1 for none.</summary>
+/// <summary>
+/// A radio group as one value: the index of the checked button, -1 for none. The buttons need not share a parent: when one
+/// becomes checked (by the user or from code) the adapter unchecks the others, which a radio button does only for its siblings.
+/// </summary>
 internal sealed class RadioAdapter(RadioButton[] buttons) : ControlAdapter<int>
 {
+    NotifyEvent? _exclusive;
+    bool _syncing;
+
     public override IReadOnlyList<Control> Controls { get; } = buttons;
     public override int Read() => Array.FindIndex(buttons, b => b.Checked);
 
@@ -48,8 +54,34 @@ internal sealed class RadioAdapter(RadioButton[] buttons) : ControlAdapter<int>
     }
 
     public override void Clear() => Write(-1);
-    public override void Attach(NotifyEvent handler) { foreach (var b in buttons) b.Change += handler; }
-    public override void Detach(NotifyEvent handler) { foreach (var b in buttons) b.Change -= handler; }
+
+    public override void Attach(NotifyEvent handler)
+    {
+        _exclusive ??= OnButtonChanged;
+        foreach (var b in buttons)
+        {
+            b.Change -= _exclusive;
+            b.Change += _exclusive;   // before the binder's handler, so it sees the group with one button checked
+            b.Change += handler;
+        }
+    }
+
+    public override void Detach(NotifyEvent handler)
+    {
+        foreach (var b in buttons)
+        {
+            b.Change -= handler;
+            if (_exclusive != null) b.Change -= _exclusive;
+        }
+    }
+
+    void OnButtonChanged(Control sender)
+    {
+        if (_syncing || sender is not RadioButton { Checked: true } on) return;
+        _syncing = true;
+        try { foreach (var b in buttons) if (b != on) b.Checked = false; }
+        finally { _syncing = false; }
+    }
 }
 
 /// <summary>A spin edit by its text, so a number typed but not yet confirmed (Enter, leaving the box) still counts.</summary>

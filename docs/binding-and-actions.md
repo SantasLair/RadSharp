@@ -57,7 +57,7 @@ format string and a culture (default: the current culture, read at each format/p
 |---|---|
 | `Current = x` | Every field is loaded from `x` (getter → format → control). Each field remembers the control's value right after loading (its *baseline*, read back from the control, so a control's own normalisation — clamping, `MaxLength` — never counts as an edit) and the model value it loaded. Unsaved edits are discarded, errors cleared. Setting the same object again reloads. |
 | user edits | Nothing is written. A field is **dirty** while its control's raw value (text, checked state, index, date) differs from its baseline, so typing a change and typing it back makes the field clean again. `IsDirty` = any writable field dirty. |
-| `Commit()` | Only *dirty* fields take part. Each is parsed (text → value) and validated. **All or nothing:** if any fails, nothing is written, `Errors` lists every problem (`BindingError`: `Field`, `Control`, `Message`), each field's `Error` is set, and the result is `false`. Bad input never throws. On success every dirty field's setter runs, then each such control is reloaded from the model only if the text differs (so `1.5` becomes `1.50`, and an unchanged text keeps its caret), baselines are reset and the binder is clean. With `Current == null`, `Commit` writes nothing and returns `true`. |
+| `Commit()` | Only *dirty* fields take part. Each is parsed (text → value) and validated. **All or nothing:** if any fails, nothing is written, `Errors` lists every problem (`BindingError`: `Field`, `Control`, `Message`), each field's `Error` is set, and the result is `false`. Bad input never throws. On success every dirty field's setter runs on the object that was `Current` when `Commit` started (even if a handler sets `Current` meanwhile), then each such control is reloaded from the model only if the text differs (so `1.5` becomes `1.50`, and an unchanged text keeps its caret), the fields the user didn't edit are re-read (a setter may have changed them), baselines are reset and the binder is clean. A setter that throws ends the commit with that exception: the setters before it have run (the binder can't undo them) and the binder stays dirty. With `Current == null`, `Commit` writes nothing and returns `true`. |
 | `Validate()` | The parse-and-validate half of `Commit`, writing nothing. |
 | `Revert()` | Same as `Current = Current`. |
 | `FocusFirstError()` | Focuses the control of `Errors[0]`. |
@@ -75,7 +75,7 @@ mutable edit model instead.
   (a value that is no item selects nothing). The mapped overload treats item *i* as `values[i]`; a model value not in the
   map selects nothing, and committing with nothing chosen is an error.
 - **RadioButton**: `Bind(radio, bool)` treats one button like a check box. `BindRadios` treats a group as one value; the
-  buttons need not share a parent (the binder unchecks the others itself). None checked at commit is an error.
+  buttons need not share a parent (the binder unchecks the others itself, on load and when the user checks one). None checked at commit is an error.
 - **DateTimePicker**: `DateOnly` uses the shown date; an unchecked check box at commit is an error. `DateOnly?` maps
   null to "check box shown and unchecked".
 - **TrackBar** clamps to its range; the clamped position is the baseline.
@@ -109,7 +109,7 @@ re-reads every getter, which is cheap and works for computed properties):
 - A field **the user has edited keeps the edit**: the control isn't touched, the new model value becomes the field's
   baseline (so the field is dirty unless the edit happens to equal it), and `Commit` writes the user's value over the
   outside change (last writer wins). `Revert` shows the new value.
-- Events raised by the binder's own `Commit` are ignored.
+- Events raised by the binder's own `Commit` are ignored; after writing, `Commit` re-reads the fields the user didn't edit, so a setter that changes other properties shows up.
 
 `Refresh()` applies the same rule on demand, for models that don't raise the event. Raise `PropertyChanged` on the UI
 thread (marshal with `Application.Queue` otherwise).
@@ -174,7 +174,8 @@ Semantics (Delphi's):
   what "linked" means per member. A control whose caption was set to something else keeps it.
 - **Stored only when it differs:** the form writer skips a linked member whose value equals the action's (it comes back
   from the action on load). So a button linked to `actSave` saves just `"action": "actSave"` unless it overrides
-  something. Save → load → save stays byte-identical.
+  something. Save → load → save stays byte-identical. Only links that loading can restore count: a
+  control linked from code to another form's action saves its own values (loading can't get them back from there).
 - **Clicking** a linked button or tool button, choosing a linked menu item, or its mnemonic runs `action.Execute()`.
   If code subscribed to the control's own `Click` (e.g. an `onClick` in the form file), that runs *instead* (Delphi's
   rule). A button's `modalResult` still applies.

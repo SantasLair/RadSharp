@@ -209,18 +209,28 @@ public sealed class Binder<T> : IDisposable where T : class
     /// Writes the edited fields to <see cref="Current"/> through their setters, all or nothing: every edited field is parsed
     /// and validated first, and if any fails nothing is written, <see cref="Errors"/> lists the problems and the result is false
     /// (nothing throws). On success the controls show the stored values (formatted again) and are clean. Fields the user
-    /// didn't edit are not written. With <see cref="Current"/> null there is nothing to write and the result is true.
+    /// didn't edit are not written (they are re-read, in case a setter changed them). With <see cref="Current"/> null there is
+    /// nothing to write and the result is true. "All or nothing" is about validation: a setter that throws ends the commit with
+    /// its exception after the setters before it have run.
     /// </summary>
     public bool Commit()
     {
         if (_current == null) { SetErrors([]); return true; }
         if (Prepare() is not { } dirty) return false;
         if (dirty.Count == 0) return true;
+        var target = _current;   // a handler may set Current while the setters run: the edits still go to this object
         _committing = true;
-        try { foreach (var f in dirty) f.WritePending(_current); }
+        try { foreach (var f in dirty) f.WritePending(target); }
         finally { _committing = false; }
+        if (!ReferenceEquals(_current, target)) return true;   // that handler loaded the other object already
         _loading = true;
-        try { foreach (var f in dirty) f.AfterCommit(_current); }
+        try
+        {
+            // The edited fields show the stored values; the others are re-read, since a setter may have changed them too.
+            foreach (var f in _fields)
+                if (dirty.Contains(f)) f.AfterCommit(target);
+                else f.Refresh(target);
+        }
         finally { _loading = false; }
         CheckDirty();
         return true;

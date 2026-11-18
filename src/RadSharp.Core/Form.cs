@@ -430,7 +430,13 @@ public partial class Form : Control
     {
         var e = new CloseQueryEventArgs();
         CloseQuery?.Invoke(this, e);
-        if (!e.CanClose) return false;
+        if (!e.CanClose)
+        {
+            // Delphi's CloseModal: a refused close (e.g. OK pressed while a field is invalid) leaves no result behind, so
+            // closing the window later is Cancel rather than a second OK.
+            if (IsModal) _modalResult = ModalResult.None;
+            return false;
+        }
         if (IsModal && _modalResult == ModalResult.None) _modalResult = ModalResult.Cancel;
         CloseAllPopups();
         PlatformHost.Current?.CloseForm(this);

@@ -188,8 +188,10 @@ public class Button : Control
 
     internal void ResolveAction(Form form, int stamp) => _actionSlot?.Resolve(form, stamp);
 
+    // Only an action on this form gives the value back when the file is loaded (a code link may point to another form's).
     internal override bool IsActionLinked(string publishedName) =>
-        _actionSlot?.Link is { } link && Actions.ButtonActionLink.MemberOf(publishedName) is { } m && link.IsLinked(m);
+        _actionSlot?.Link is { } link && link.Action.OwningForm is { } form && form == OwningForm
+        && Actions.ButtonActionLink.MemberOf(publishedName) is { } m && link.IsLinked(m);
 
     /// <summary>Runs the linked action (unless code subscribed to <see cref="Control.Click"/>, which then runs instead), else raises Click.</summary>
     protected internal override void OnClick()
