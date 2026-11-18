@@ -20,6 +20,8 @@ public partial class MainForm : Form
         SetUpListView();
         lblChecks.Caption = "Checked: Syntax highlighting, Line numbers";
         lblCombos.Caption = "Pick or type a fruit; autoComplete fills in the rest.";
+        calDemo_Change(calDemo);
+        dtp_Change(dtpShort);
     }
 
     /// <summary>A 16x16 PNG data URI (an ImageList takes file paths, resources or data URIs): shape 0 folder, 1 disc, 2 page, 3 diamond.</summary>
@@ -219,4 +221,12 @@ public partial class MainForm : Form
         var c = Swatch(dgPalette.Col, dgPalette.Row);
         lblDgStatus.Caption = $"Current cell ({dgPalette.Col}, {dgPalette.Row}) #{c.R:X2}{c.G:X2}{c.B:X2} | {cells} cell(s) in {ranges.Count} range(s)";
     }
+
+    // ---- Dates tab --------------------------------------------------------------------------------------------
+
+    void calDemo_Change(Control sender) =>
+        lblDtCal.Caption = $"Calendar: {(calDemo.SelectedDate is { } d ? d.ToString("dddd, d MMMM yyyy", CultureInfo.CurrentCulture) : "(none)")}";
+
+    void dtp_Change(Control sender) =>
+        lblDtPick.Caption = $"Short: {dtpShort.Value:yyyy-MM-dd}   Long: {dtpLong.Value:yyyy-MM-dd}   Optional: {(dtpOptional.Value is { } d ? d.ToString("yyyy-MM-dd", Inv) : "(no date)")}";
 }
