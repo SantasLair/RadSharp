@@ -1,0 +1,18 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "root": {
+    "class": "Form",
+    "name": "frmChecks",
+    "width": 520,
+    "height": 240,
+    "children": [
+      { "class": "CheckListBox", "name": "clbPlain", "items": ["Alpha", "Beta", "Gamma", "Delta"], "checked": [2, 0], "left": 10, "top": 10, "width": 150, "height": 120 },
+      { "class": "CheckListBox", "name": "clbTri", "allowGrayed": true, "multiSelect": true, "items": ["One", "Two"], "left": 180, "top": 10, "width": 150, "height": 120, "onClickCheck": "clbTri_ClickCheck" },
+      { "class": "CheckListBox", "name": "clbNone", "items": ["Solo"], "checked": [], "left": 350, "top": 10, "width": 150, "height": 120 },
+      { "class": "ComboBox", "name": "cboFree", "style": "dropDown", "autoComplete": false, "text": "Custom", "items": ["Small", "Medium", "Large"], "left": 10, "top": 150, "width": 150 },
+      { "class": "ComboBox", "name": "cboList", "items": ["Small", "Medium", "Large"], "left": 180, "top": 150, "width": 150 },
+      { "class": "ListBox", "name": "lstVar", "style": "variable", "itemHeight": 20, "items": ["a", "b"], "onMeasureItem": "lstVar_MeasureItem", "left": 350, "top": 150, "width": 150, "height": 80 }
+    ]
+  }
+}

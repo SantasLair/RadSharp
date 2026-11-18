@@ -107,7 +107,9 @@ public class DesignSurface : Control
             if (x >= r.X && y >= r.Y && x < r.X + r.Width && y < r.Y + r.Height) return c;
         }
         if (x < 0 || y < 0 || x >= form.Width || y >= form.Height) return null;
-        return form.HitTestForm(x, y);
+        var hit = form.HitTestForm(x, y);
+        while (hit.IsTransient && hit.Parent != null) hit = hit.Parent;   // a combo box's inner edit is part of the combo box
+        return hit;
     }
 
     IEnumerable<(Handle Handle, Rect Rect)> HandleRects(Control c)

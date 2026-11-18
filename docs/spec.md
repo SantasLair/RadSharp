@@ -80,6 +80,14 @@ alongside `columns`, and `sortColumn` (when not -1), in the usual alphabetical o
 At run time `SortColumn` is kept as set (even beyond `ColCount`, so it can be set before the columns exist), but
 shrinking `ColCount` to or below it resets it to -1; growing never does.
 
+**Lists and combo boxes.** `ListBox` gains `style` (`fixed`, the default, or `variable`: row heights come from the
+`onMeasureItem` handler); `ComboBox` gains `style` (`dropDownList`, the default, or `dropDown`: an editable text part),
+`text` (the editable text; written only when not empty) and `autoComplete` (default `true`). `CheckListBox` (a `ListBox`)
+adds `allowGrayed`, `onClickCheck`, and `checked`: the indices of the checked items, ascending, on one line
+(`"checked": [0, 3]`; omitted when none). The grayed state is a run-time state and is not saved. Integer arrays are written
+like `anchors`: `[0, 3]` on one line, `[]` when empty (a default-valued property is not written at all). A reader must accept
+`checked` before or after `items`.
+
 **Deterministic output** (save → load → save is byte-identical, in every runtime)
 - Top-level keys: `format`, `version`, `generator`, `root`.
 - Node keys: `class`, `name`, `caption`, `text`, then the rest in **ordinal (code-point) alphabetical order**,

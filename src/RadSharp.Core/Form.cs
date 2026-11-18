@@ -525,7 +525,7 @@ public class Form : Control
             foreach (var (c, _) in ordered)
             {
                 if (!c.IsShown || !c.Enabled) continue;
-                if (c.TabStop) list.Add(c);
+                if (c.IncludeInTabOrder) list.Add(c);
                 Collect(c, list);
             }
         }
@@ -903,7 +903,9 @@ public class Form : Control
     Control? TextTarget()
     {
         if (_popups.Count == 0) return _focused ?? this;
-        return _focused != null && _focused.IsSelfOrDescendantOf(_popups[^1]) ? _focused : null;
+        var top = _popups[^1];
+        if (_focused == null) return null;
+        return _focused.IsSelfOrDescendantOf(top) || (top.PopupTextTarget != null && _focused == top.PopupTextTarget) ? _focused : null;
     }
 
     static bool IsShortcutCandidate(KeyEventArgs e) =>

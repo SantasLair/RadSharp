@@ -153,6 +153,18 @@ public static class PaletteIcons
             k.Line(3.5f, 10.5f, 12, 10.5f, k.P.Faint);
             k.Line(3.5f, 12.5f, 9, 12.5f, k.P.Faint);
         },
+        ["CheckListBox"] = k =>
+        {
+            k.Box(1.5f, 1.5f, 13, 13, k.P.Fill, k.P.Outline, 1);
+            k.Box(3, 3.5f, 3, 3, k.P.Accent, null, 0.5f);
+            k.Polyline(k.P.OnAccent, 1, 3.6f, 5, 4.3f, 5.8f, 5.5f, 4.2f);
+            k.Line(7.5f, 5, 12.5f, 5, k.P.Faint);
+            k.Box(3, 7.5f, 3, 3, k.P.Fill2, k.P.Outline, 0.5f);
+            k.Line(7.5f, 9, 11.5f, 9, k.P.Faint);
+            k.Box(3, 11.5f, 3, 3, k.P.Accent, null, 0.5f);
+            k.Polyline(k.P.OnAccent, 1, 3.6f, 13, 4.3f, 13.8f, 5.5f, 12.2f);
+            k.Line(7.5f, 13, 12, 13, k.P.Faint);
+        },
         ["ListView"] = k =>
         {
             k.Box(1.5f, 1.5f, 13, 13, k.P.Fill, k.P.Outline, 1);

@@ -306,7 +306,7 @@ public partial class DesignerForm : Form
         var root = new TreeNode(Label(doc.Form)) { Tag = doc.Form, Expanded = true };
         void Add(TreeNode node, Control c)
         {
-            foreach (var child in c.Children)
+            foreach (var child in c.Children.Where(ch => !ch.IsTransient))
             {
                 var n = node.Add(Label(child));
                 n.Tag = child;
