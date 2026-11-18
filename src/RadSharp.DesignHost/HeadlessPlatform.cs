@@ -36,4 +36,12 @@ internal sealed class HeadlessPlatform(DesignHostServer server) : IPlatformServi
     public void PostToUiThread(Action action) => server.Post(action);
 
     public bool OpenUrl(string url) => false;
+
+    // The design host's windows live in the client's process: it has no displays of its own to report, and the
+    // protocol has no message to move a window, so these answer "nothing" (Screen.Displays is empty here).
+    public IReadOnlyList<Display> GetDisplays() => [];
+
+    public Display? GetDisplayOf(Form form) => null;
+
+    public bool MoveForm(Form form, Rect bounds) => false;
 }

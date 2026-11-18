@@ -15,6 +15,17 @@ internal static class SdlInput
         return r;
     }
 
+    /// <summary>
+    /// What produced a mouse event. SDL synthesizes mouse events from touch and pen input (so taps click) and marks them with
+    /// the reserved device ids SDL_TOUCH_MOUSEID (-1) and SDL_PEN_MOUSEID (-2); any other id is a real mouse.
+    /// </summary>
+    public static PointerKind Pointer(uint mouseId) => mouseId switch
+    {
+        (uint)SDL3.SDL_TOUCH_MOUSEID => PointerKind.Touch,
+        (uint)SDL3.SDL_PEN_MOUSEID => PointerKind.Pen,
+        _ => PointerKind.Mouse,
+    };
+
     public static MouseButton? Button(byte sdlButton) => sdlButton switch
     {
         1 => MouseButton.Left,

@@ -15,6 +15,19 @@ public sealed class Picture
     public int Width => Image.Width;
     public int Height => Image.Height;
 
+    /// <summary>
+    /// The pixels as 8-bit RGBA (not premultiplied), rows top to bottom, <c>Width * 4</c> bytes per row: what a host
+    /// needs for a window icon.
+    /// </summary>
+    public unsafe byte[] ToRgba()
+    {
+        var info = new SKImageInfo(Width, Height, SKColorType.Rgba8888, SKAlphaType.Unpremul);
+        var bytes = new byte[info.BytesSize];
+        fixed (byte* p = bytes)
+            if (!Image.ReadPixels(info, (nint)p, info.RowBytes, 0, 0)) Array.Clear(bytes);
+        return bytes;
+    }
+
     public static Picture? FromBytes(byte[] data)
     {
         using var bitmap = SKBitmap.Decode(data);

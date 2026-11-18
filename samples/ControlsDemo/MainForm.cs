@@ -16,7 +16,7 @@ public partial class MainForm : Form
     public MainForm()
     {
         InitializeComponent();
-        imgIcons.Images = [Icon(new SKColor(230, 180, 40), 0), Icon(new SKColor(60, 130, 230), 1), Icon(new SKColor(120, 160, 120), 2), Icon(new SKColor(200, 80, 80), 3)];
+        imgIcons.Images = [IconUri(new SKColor(230, 180, 40), 0), IconUri(new SKColor(60, 130, 230), 1), IconUri(new SKColor(120, 160, 120), 2), IconUri(new SKColor(200, 80, 80), 3)];
         SetUpListView();
         lblChecks.Caption = "Checked: Syntax highlighting, Line numbers";
         lblCombos.Caption = "Pick or type a fruit; autoComplete fills in the rest.";
@@ -25,7 +25,7 @@ public partial class MainForm : Form
     }
 
     /// <summary>A 16x16 PNG data URI (an ImageList takes file paths, resources or data URIs): shape 0 folder, 1 disc, 2 page, 3 diamond.</summary>
-    static string Icon(SKColor color, int shape)
+    static string IconUri(SKColor color, int shape)
     {
         using var bmp = new SKBitmap(16, 16);
         using (var c = new SKCanvas(bmp))
