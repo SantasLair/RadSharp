@@ -106,10 +106,171 @@ public sealed class RadProject
         var workflows = Path.Combine(directory, ".github", "workflows");
         System.IO.Directory.CreateDirectory(workflows);
         File.WriteAllText(Path.Combine(workflows, "build.yml"), CrossPlatformWorkflow);
+        WriteDebugFiles(directory, name);
         var project = new RadProject(Path.Combine(directory, name + ".csproj"));
         project.AddForm("MainForm", name);
         project.EnsureSolution();
         return project;
+    }
+
+    /// <summary>
+    /// Writes what F5 needs: <c>.vscode/launch.json</c> + <c>tasks.json</c> (VS Code, C# extension, <c>coreclr</c>) and
+    /// <c>Properties/launchSettings.json</c> (Visual Studio, Rider). Matches templates/radsharp-app.
+    /// </summary>
+    static void WriteDebugFiles(string directory, string name)
+    {
+        var vscode = Path.Combine(directory, ".vscode");
+        System.IO.Directory.CreateDirectory(vscode);
+        File.WriteAllText(Path.Combine(vscode, "launch.json"), $$"""
+            {
+              "version": "0.2.0",
+              "configurations": [
+                {
+                  "name": "Run {{name}}",
+                  "type": "coreclr",
+                  "request": "launch",
+                  "preLaunchTask": "build",
+                  "program": "${workspaceFolder}/bin/Debug/net10.0/{{name}}.dll",
+                  "cwd": "${workspaceFolder}",
+                  "console": "internalConsole",
+                  "stopAtEntry": false
+                }
+              ]
+            }
+
+            """);
+        File.WriteAllText(Path.Combine(vscode, "tasks.json"), $$"""
+            {
+              "version": "2.0.0",
+              "tasks": [
+                {
+                  "label": "build",
+                  "command": "dotnet",
+                  "type": "process",
+                  "args": ["build", "${workspaceFolder}/{{name}}.csproj"],
+                  "problemMatcher": "$msCompile",
+                  "group": { "kind": "build", "isDefault": true }
+                },
+                {
+                  "label": "publish (native executable)",
+                  "command": "dotnet",
+                  "type": "process",
+                  "args": ["publish", "${workspaceFolder}/{{name}}.csproj", "-c", "Release"],
+                  "problemMatcher": "$msCompile"
+                }
+              ]
+            }
+
+            """);
+        var properties = Path.Combine(directory, "Properties");
+        System.IO.Directory.CreateDirectory(properties);
+        File.WriteAllText(Path.Combine(properties, "launchSettings.json"), $$"""
+            {
+              "profiles": {
+                "{{name}}": {
+                  "commandName": "Project"
+                }
+              }
+            }
+
+            """);
+    }
+
+    // ---- Form names and renaming ----
+
+    /// <summary>The first <c>FormN</c> (N ≥ 2) that <see cref="ValidateFormName"/> accepts.</summary>
+    public string NextFreeFormName()
+    {
+        for (int n = 2; ; n++)
+            if (ValidateFormName($"Form{n}") == null) return $"Form{n}";
+    }
+
+    /// <summary>
+    /// Why <paramref name="name"/> can't be the class name of a new form (not a C# identifier, a keyword, already a
+    /// form or a type in the project, or a file in the way), or null if it can.
+    /// </summary>
+    public string? ValidateFormName(string name, string? renaming = null)
+    {
+        if (!Microsoft.CodeAnalysis.CSharp.SyntaxFacts.IsValidIdentifier(name))
+            return "The class name must be a C# identifier (letters, digits and '_', not starting with a digit).";
+        if (Microsoft.CodeAnalysis.CSharp.SyntaxFacts.GetKeywordKind(name) != Microsoft.CodeAnalysis.CSharp.SyntaxKind.None)
+            return $"'{name}' is a C# keyword.";
+        // Contextual keywords the compiler refuses as type names (CS9056 / CS8105).
+        if (name is "file" or "record" or "required" or "scoped" or "var")
+            return $"'{name}' can't be used as a class name.";
+        if (typeof(Form).Assembly.GetType("RadSharp." + name) != null)
+            return $"'{name}' is a RadSharp type; a form with that name would hide it.";
+        // Renaming a form may change only its case ("MainForm" to "Mainform"): its own files are not in the way.
+        string? ownForm = renaming == null ? null : Path.GetFullPath(renaming);
+        string? ownCode = ownForm == null ? null : CodeFileFor(ownForm);
+        bool Own(string file, string? own) => own != null && string.Equals(Path.GetFullPath(file), own, StringComparison.OrdinalIgnoreCase);
+        var formFile = Path.Combine(Directory, name + ".radform.json");
+        var codeFile = Path.Combine(Directory, name + ".cs");
+        if ((File.Exists(formFile) && !Own(formFile, ownForm)) || FormFiles.Any(f => !Own(f, ownForm) && string.Equals(FormClassName(f), name, StringComparison.OrdinalIgnoreCase)))
+            return $"The project already has a form named {name}.";
+        if (File.Exists(codeFile) && !Own(codeFile, ownCode)) return $"{name}.cs already exists.";
+        foreach (var file in SourceFiles)
+            if (DeclaredTypes(file).Contains(name)) return $"The project already declares a type named {name} ({Path.GetFileName(file)}).";
+        return null;
+    }
+
+    static HashSet<string> DeclaredTypes(string file)
+    {
+        var root = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(File.ReadAllText(file)).GetRoot();
+        return [.. root.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.BaseTypeDeclarationSyntax>().Select(t => t.Identifier.Text)];
+    }
+
+    /// <summary>
+    /// Renames a form's class: <c>Old.radform.json</c> and <c>Old.cs</c> become <c>New.…</c>, and every identifier
+    /// <c>Old</c> in the project's source files follows (textual, not semantic: see
+    /// <see cref="CodeIntegration.RenameIdentifier"/>; an unrelated identifier of the same name is renamed too).
+    /// Nothing is touched if the new name is invalid or a target file exists; if a write fails midway, the files
+    /// already changed are restored. Returns the new form file.
+    /// </summary>
+    public string RenameForm(string formFile, string newName)
+    {
+        formFile = Path.GetFullPath(formFile);
+        var oldName = FormClassName(formFile);
+        if (!File.Exists(formFile)) throw new FileNotFoundException("Form file not found.", formFile);
+        if (ValidateFormName(newName, formFile) is { } problem) throw new IOException(problem);
+        var newForm = Path.Combine(Path.GetDirectoryName(formFile)!, newName + ".radform.json");
+        var oldCode = CodeFileFor(formFile);
+        var newCode = CodeFileFor(newForm);
+
+        // Compute everything in memory first.
+        var writes = new List<(string Path, string Text)>();
+        foreach (var file in SourceFiles)
+        {
+            var source = File.ReadAllText(file);
+            var updated = CodeIntegration.RenameIdentifier(source, oldName, newName);
+            bool isCode = string.Equals(file, oldCode, StringComparison.OrdinalIgnoreCase);
+            if (isCode || updated != source) writes.Add((isCode ? newCode : file, updated));
+        }
+
+        var undo = new List<Action>();
+        try
+        {
+            File.Move(formFile, newForm);
+            undo.Add(() => File.Move(newForm, formFile));
+            if (File.Exists(oldCode))
+            {
+                File.Move(oldCode, newCode);
+                undo.Add(() => File.Move(newCode, oldCode));
+            }
+            foreach (var (path, text) in writes)
+            {
+                var original = File.ReadAllText(path);
+                undo.Add(() => File.WriteAllText(path, original));   // before the write: a write can fail after truncating
+                File.WriteAllText(path, text);
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            for (int i = undo.Count - 1; i >= 0; i--)
+                try { undo[i](); } catch (Exception) { }
+            throw;
+        }
+        return newForm;
     }
 
     // ---- Main form (Delphi: Project > Options > Forms > Main form) ----

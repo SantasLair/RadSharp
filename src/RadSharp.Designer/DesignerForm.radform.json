@@ -178,6 +178,10 @@
                 "onClick": "mnuRemoveForm_Click"
               },
               {
+                "caption": "Rename Form…",
+                "onClick": "mnuRenameForm_Click"
+              },
+              {
                 "caption": "Set as Main Form",
                 "onClick": "mnuSetMainForm_Click"
               },
