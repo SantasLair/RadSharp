@@ -1,0 +1,49 @@
+using RadSharp.RefApp.Recipes;
+
+[assembly: CollectionBehavior(DisableTestParallelization = true)]   // the designer, PlatformHost and DefaultScale are process-wide
+
+namespace RadSharp.RefApp;
+
+/// <summary>
+/// The guard of docs/reference-app-scope.md §4.2 step 4: the recipes, run on the real designer in a fresh project, produce
+/// exactly the committed refapp/Tally form files. Agents never edit form JSON by hand; to change a form, change its recipe
+/// and run with <c>RADSHARP_REFAPP_WRITE=1</c>, which copies the output over (see <see cref="RefApp.WriteBack"/>).
+/// Also writes each form's design-time render at 100 % and 150 % to TestResults/refapp.
+/// </summary>
+public class RebuildReferenceAppTests
+{
+    [Fact]
+    public void Recipes_rebuild_every_committed_form_byte_for_byte()
+    {
+        var temp = RefApp.TempDir("radsharp-refapp-");
+        var d = DesignerDriver.Start(temp);
+        var project = TallyRecipe.Build(d, Path.Combine(temp, "projects"), Directory.Exists(RefApp.Packages) ? RefApp.Packages : null);
+
+        if (RefApp.Write)
+            foreach (var line in RefApp.WriteBack(project, RefApp.Tally)) Console.WriteLine("refapp: " + line);
+        Assert.True(Directory.Exists(RefApp.Tally), "refapp/Tally doesn't exist yet: run once with RADSHARP_REFAPP_WRITE=1.");
+
+        var produced = RefApp.Files(project.Directory, "*.radform.json");
+        Assert.Equal(produced, RefApp.Files(RefApp.Tally, "*.radform.json"));
+        foreach (var rel in produced)
+        {
+            var expected = File.ReadAllBytes(Path.Combine(RefApp.Tally, rel));
+            var actual = File.ReadAllBytes(Path.Combine(project.Directory, rel));
+            Assert.True(expected.AsSpan().SequenceEqual(actual),
+                $"{rel} differs from its recipe's output ({RefApp.FirstDifference(System.Text.Encoding.UTF8.GetString(expected), System.Text.Encoding.UTF8.GetString(actual))}). " +
+                "Forms change only through recipes: rerun with RADSHARP_REFAPP_WRITE=1.");
+        }
+
+        foreach (var rel in produced)
+        {
+            var text = File.ReadAllText(Path.Combine(project.Directory, rel));
+            var name = Path.GetFileName(rel)[..^".radform.json".Length];
+            foreach (var (scale, label) in new[] { (1.0, "100%"), (1.5, "150%") })
+            {
+                var (form, warnings) = FormReader.Load(text, new FormLoadOptions { Scale = scale });
+                Assert.Empty(warnings);
+                RefApp.Render(form, $"{name}@{label}");
+            }
+        }
+    }
+}

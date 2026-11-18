@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    The reference app (refapp/Tally) built and run through the real designer (docs/reference-app-scope.md §4.2).
+    Tally itself consumes the packed RadSharp packages and is never referenced here: its forms run through F9, which
+    compiles them in memory against this process's RadSharp assemblies (the project references below), so there is
+    only one RadSharp.Core in the process. The package path is checked out of process (TallyBuildTests, trait Pack).
+  -->
+
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\RadSharp.Designer\RadSharp.Designer.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The recipes: plain C# calls on DesignerDriver, one file per form. -->
+    <Compile Include="..\..\refapp\recipes\**\*.cs" Link="recipes\%(RecursiveDir)%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+</Project>

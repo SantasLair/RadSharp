@@ -1,0 +1,313 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmMain",
+    "caption": "Tally",
+    "height": 640,
+    "onShow": "frmMain_Show",
+    "width": 1000,
+    "children": [
+      {
+        "class": "MainMenu",
+        "name": "mnuMain",
+        "items": [
+          {
+            "caption": "&File",
+            "items": [
+              {
+                "caption": "&Import Clients…",
+                "enabled": false
+              },
+              {
+                "caption": "&Generate Demo Data…",
+                "enabled": false
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "&Settings…",
+                "enabled": false
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "E&xit",
+                "onClick": "mniExit_Click",
+                "shortcut": "Mod+Q"
+              }
+            ]
+          },
+          {
+            "caption": "&Edit",
+            "items": [
+              {
+                "caption": "&Find",
+                "onClick": "mniFind_Click",
+                "shortcut": "Mod+F"
+              }
+            ]
+          },
+          {
+            "caption": "&Client",
+            "items": [
+              {
+                "caption": "&New Client",
+                "enabled": false,
+                "shortcut": "Mod+N"
+              },
+              {
+                "caption": "&Delete Client",
+                "enabled": false
+              }
+            ]
+          },
+          {
+            "caption": "&Invoice",
+            "items": [
+              {
+                "caption": "&New Invoice",
+                "enabled": false,
+                "shortcut": "Mod+Shift+N"
+              },
+              {
+                "caption": "Mark &Paid",
+                "enabled": false
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "&Delete Invoice",
+                "enabled": false
+              }
+            ]
+          },
+          {
+            "caption": "&View",
+            "items": [
+              {
+                "caption": "&Clients",
+                "onClick": "mniViewClients_Click",
+                "shortcut": "Mod+1"
+              },
+              {
+                "caption": "&Invoices",
+                "onClick": "mniViewInvoices_Click",
+                "shortcut": "Mod+2"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "name": "mniDarkTheme",
+                "caption": "&Dark Theme",
+                "onClick": "mniDarkTheme_Click"
+              }
+            ]
+          },
+          {
+            "caption": "&Help",
+            "items": [
+              {
+                "caption": "&About Tally…",
+                "onClick": "mniAbout_Click"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "class": "ToolBar",
+        "name": "tbMain",
+        "children": [
+          {
+            "class": "ToolButton",
+            "name": "btnNewClient",
+            "caption": "New Client",
+            "enabled": false,
+            "left": 4,
+            "top": 4,
+            "width": 96
+          },
+          {
+            "class": "ToolButton",
+            "name": "btnNewInvoice",
+            "caption": "New Invoice",
+            "enabled": false,
+            "left": 102,
+            "top": 4,
+            "width": 96
+          },
+          {
+            "class": "ToolSeparator",
+            "name": "sepTools",
+            "left": 200,
+            "top": 6
+          },
+          {
+            "class": "Edit",
+            "name": "edtSearch",
+            "height": 26,
+            "left": 211,
+            "onChange": "edtSearch_Change",
+            "placeholder": "Find clients (name, company, email, city)",
+            "top": 5,
+            "width": 280
+          }
+        ]
+      },
+      {
+        "class": "StatusBar",
+        "name": "sbMain",
+        "simpleText": "Ready"
+      },
+      {
+        "class": "TreeView",
+        "name": "tvNav",
+        "align": "left",
+        "onChange": "tvNav_Change",
+        "nodes": [
+          {
+            "text": "Clients",
+            "expanded": true,
+            "nodes": [
+              {
+                "text": "Active"
+              },
+              {
+                "text": "Archived"
+              }
+            ]
+          },
+          {
+            "text": "Invoices",
+            "expanded": true,
+            "nodes": [
+              {
+                "text": "Draft"
+              },
+              {
+                "text": "Sent"
+              },
+              {
+                "text": "Overdue"
+              },
+              {
+                "text": "Paid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "class": "Splitter",
+        "name": "splNav"
+      },
+      {
+        "class": "PageControl",
+        "name": "pgMain",
+        "align": "client",
+        "onChange": "pgMain_Change",
+        "children": [
+          {
+            "class": "TabSheet",
+            "name": "tsClients",
+            "caption": "Clients",
+            "children": [
+              {
+                "class": "ListView",
+                "name": "lvClients",
+                "align": "client",
+                "autoSort": true,
+                "onColumnClick": "lvClients_ColumnClick",
+                "onGetItem": "lvClients_GetItem",
+                "columns": [
+                  {
+                    "title": "Name",
+                    "width": 170
+                  },
+                  {
+                    "title": "Company",
+                    "width": 150
+                  },
+                  {
+                    "title": "Email",
+                    "width": 200
+                  },
+                  {
+                    "title": "Phone",
+                    "width": 110
+                  },
+                  {
+                    "title": "City",
+                    "width": 120
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "class": "TabSheet",
+            "name": "tsInvoices",
+            "caption": "Invoices",
+            "children": [
+              {
+                "class": "ListView",
+                "name": "lvInvoices",
+                "align": "client",
+                "autoSort": true,
+                "onColumnClick": "lvInvoices_ColumnClick",
+                "onGetItem": "lvInvoices_GetItem",
+                "columns": [
+                  {
+                    "title": "Number",
+                    "width": 100
+                  },
+                  {
+                    "title": "Client",
+                    "width": 200
+                  },
+                  {
+                    "title": "Issued",
+                    "width": 100
+                  },
+                  {
+                    "title": "Due",
+                    "width": 100
+                  },
+                  {
+                    "title": "Status",
+                    "width": 90
+                  },
+                  {
+                    "alignment": "right",
+                    "title": "Total",
+                    "width": 110
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "class": "Timer",
+        "name": "tmrSearch",
+        "enabled": false,
+        "interval": 300,
+        "left": 936,
+        "onTimer": "tmrSearch_Timer",
+        "top": 560
+      }
+    ]
+  }
+}

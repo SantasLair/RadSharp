@@ -394,6 +394,36 @@ Stages 1–3 and 5 need nothing new and can start right away, interleaved with M
 order: menu fields and named forms (both S, unblock 0–1), keeping unknown classes (S), F9 widening (M, unblocks 4),
 DateTimePicker (M, swaps into 3), then Binder and Action (stage 7).
 
+### 5.1 Facts learned in stages 0–1 (added 2026-11-17)
+
+- **Harness.** `tests/RadSharp.RefApp.Tests`: `DesignerDriver` (its header lists every verb's input path and every
+  bypass), `DriverHost` (answers modal dialogs from a queue; an unexpected dialog fails the test with its text; raises
+  `Shown` like the SDL host), recipes in `refapp/recipes/*.cs` compiled into the test project, and the guard
+  `RebuildReferenceAppTests`. The committed app was made by the recipe itself (first `RADSHARP_REFAPP_WRITE=1` run copies
+  everything File › New Application wrote; later runs copy forms and add missing handler stubs with
+  `CodeIntegration.EnsureHandler`, never touching other code).
+- **One RadSharp in the test process.** The tests never reference `refapp/Tally/Tally.csproj`: Tally uses
+  `PackageReference`s, and mixing them with the tests' `ProjectReference`s would put two builds of `RadSharp.Core` (same
+  name, different versions) in one process. Tally's forms run through F9, which compiles the sources in memory against the
+  process's own RadSharp assemblies, so types match by construction. The package path is tested out of process
+  (`TallyBuildTests`: `dotnet pack` Core and Platform.Sdl, then `dotnet build` Tally; opt-in with `RADSHARP_REFAPP_PACK=1`).
+  Stage 4 (SQLite) can't use F9 until F9 loads packages; the fallback is compiling Tally's sources into a test assembly.
+- **Packages.** The generators have no package of their own: `RadSharp.Core.nupkg` carries `RadSharp.Generators.dll` in
+  `analyzers/dotnet/cs` and `RadSharp.Core.targets` in `build/` and `buildTransitive/`, so a project that references only
+  `RadSharp.Platform.Sdl` still gets form generation. `RadProject.Create`'s `nuget.config` points at the folder typed in
+  New Application (the designer defaults it to the repository's `artifacts/packages`) and puts restored packages in the
+  project's own `packages/` folder.
+- **Bugs met** (each needed an interim; framework fixes belong to other branches): the menu editor's onClick field writes
+  no handler stub (menu handlers were typed into `MainForm.cs` by hand); New Application writes the package folder as an
+  absolute path into `nuget.config` (hand-edited to `../../artifacts/packages` for the committed app); `Platform.Sdl`'s
+  package depends on the Core version of its own build, so separate `dotnet pack` runs that straddle a minute disagree (the
+  pack test passes one `-p:Version`).
+- `refapp/Directory.Build.props` stops the repository's own props (version stamp, package output) from reaching Tally;
+  it keeps `TreatWarningsAsErrors`.
+- Not yet in MainForm: ImageList toolbar icons (F9 embeds only form files as resources, `LiveRunner.cs`, so an icon
+  stored as an embedded resource would not load under F9: unverified), the PopupMenus, the client detail pane (stage 2),
+  *By year* in the tree (stage 4).
+
 ---
 
 ## 6. Risks and open questions (decisions for you)
