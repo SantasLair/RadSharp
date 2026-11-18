@@ -387,4 +387,55 @@ public class TreeViewTests
         Assert.Same(tree.Nodes[0], tree.Selected);
         Assert.Equal([tree.Nodes[0]], tree.SelectedNodes);   // selected, as a click on its arrow does
     }
+
+    sealed class ProbeTree : TreeView
+    {
+        public bool Busy;
+        protected override void PaintContent(Canvas canvas, Rect visible)
+        {
+            Busy = true;
+            try { base.PaintContent(canvas, visible); }
+            finally { Busy = false; }
+        }
+        protected override void MeasureContent()
+        {
+            Busy = true;
+            try { base.MeasureContent(); }
+            finally { Busy = false; }
+        }
+    }
+
+    [Fact]
+    public void Change_for_a_code_made_tree_change_never_runs_inside_layout_or_paint_and_fires_once()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 300, 300);
+        var tree = new ProbeTree();
+        tree.SetBounds(0, 0, 300, 300);
+        f.Add(tree);
+        var maps = tree.Add("Maps");
+        maps.Add("a.map");
+        tree.Add("Other");
+        f.PerformLayout();
+        tree.Selected = maps.Nodes[0];
+        int changes = 0, insideBusy = 0;
+        tree.Change += s =>
+        {
+            changes++;
+            if (tree.Busy) insideBusy++;
+            _ = tree.VisibleCount;                 // a handler that inspects the tree ...
+            if (changes == 1) tree.Add("Added in handler");   // ... and changes it
+        };
+        tree.Nodes.Remove(maps);                   // the current node goes: a code-made change, rows rebuild lazily
+        f.PerformLayout();                         // layout and paint are not safe points
+        using (var bmp = FormRenderer.RenderToBitmap(f)) { }
+        Assert.Equal(0, insideBusy);
+        _ = tree.VisibleCount;                     // the next call from outside is
+        Assert.Equal(1, changes);
+        Assert.Equal(0, insideBusy);
+        f.PerformLayout();
+        using (var bmp = FormRenderer.RenderToBitmap(f)) { }
+        _ = tree.VisibleCount;
+        Assert.Equal(1, changes);                  // no repeats without a new change
+    }
 }

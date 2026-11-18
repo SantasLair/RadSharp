@@ -14,7 +14,7 @@ public class RowViewSuiteTests
 
     public RowViewSuiteTests() => Shortcut.CommandModifier = KeyModifiers.Ctrl;
 
-    public static TheoryData<string> Kinds => ["grid", "listview", "treeview", "listbox"];
+    public static TheoryData<string> Kinds => ["grid", "listview", "treeview", "listbox", "checklistbox", "varlistbox"];
 
     /// <summary>One control under test: how its rows map to selection, geometry and keys.</summary>
     abstract class Rows
@@ -135,12 +135,20 @@ public class RowViewSuiteTests
         public override int TopRow => T.TopIndex;
     }
 
-    sealed class ListBoxRows : Rows
+    /// <summary>The list box, plain, as a check list box, or in variable-height style (every row 24 px, through MeasureItem).</summary>
+    sealed class ListBoxRows(bool check = false, bool variable = false) : Rows
     {
         ListBox B => (ListBox)View;
         public override void Build(int rows, bool multi, bool @virtual = false)
         {
-            var lb = Put(new ListBox { Items = [.. Enumerable.Range(0, rows).Select(i => $"Item {i}")], MultiSelect = multi });
+            var lb = Put(check ? new CheckListBox() : new ListBox());
+            lb.Items = [.. Enumerable.Range(0, rows).Select(i => $"Item {i}")];
+            lb.MultiSelect = multi;
+            if (variable)
+            {
+                lb.MeasureItem += (_, e) => e.Height = 24;
+                lb.Style = ListBoxStyle.Variable;
+            }
             if (@virtual) lb.DrawItem += (_, _, index, _, _) => Touched.Add(index);
             Form.PerformLayout();
         }
@@ -156,6 +164,8 @@ public class RowViewSuiteTests
         "listview" => new ListViewRows(),
         "treeview" => new TreeRows(),
         "listbox" => new ListBoxRows(),
+        "checklistbox" => new ListBoxRows(check: true),
+        "varlistbox" => new ListBoxRows(variable: true),
         _ => throw new ArgumentException(kind),
     };
 

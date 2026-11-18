@@ -33,6 +33,17 @@ public sealed class ListViewItemEventArgs(int index) : EventArgs
 
 public delegate void ListViewItemEvent(Control sender, ListViewItemEventArgs e);
 
+/// <summary>Virtual mode type-ahead: find the item whose caption starts with <see cref="Text"/>, searching from <see cref="StartIndex"/> (wrapping); set <see cref="Index"/>.</summary>
+public sealed class ListViewFindEventArgs(string text, int startIndex) : EventArgs
+{
+    public string Text { get; } = text;
+    public int StartIndex { get; } = startIndex;
+    /// <summary>The matching item's index, or -1 (the default).</summary>
+    public int Index { get; set; } = -1;
+}
+
+public delegate void ListViewFindEvent(Control sender, ListViewFindEventArgs e);
+
 /// <summary>Two items compared while a <see cref="ListView"/> sorts; set <see cref="Result"/> (negative, 0, positive).</summary>
 public sealed class ListViewCompareEventArgs(int column, ListViewItem item1, ListViewItem item2, int result) : EventArgs
 {
@@ -187,6 +198,12 @@ public class ListView : ScrollView, ICollectionOwner, IColumnHost, IFormCollecti
     [Published] public event ColumnClickEvent? ColumnClick;
     /// <summary>Virtual mode: supplies the row being painted (or read); the view keeps no items of its own.</summary>
     [Published] public event ListViewItemEvent? GetItem;
+    /// <summary>
+    /// Virtual mode: type-ahead asks for the item whose caption starts with <see cref="ListViewFindEventArgs.Text"/>, searching
+    /// from <see cref="ListViewFindEventArgs.StartIndex"/> and wrapping (Delphi's OnDataFind); set <c>Index</c> (-1: none).
+    /// Without a handler a virtual list scans at most 1000 rows after the current one per key.
+    /// </summary>
+    [Published] public event ListViewFindEvent? FindItem;
     /// <summary>Compares two items while sorting; the default compares numbers by value, otherwise text ignoring case.</summary>
     [Published] public event ListViewCompareEvent? Compare;
     /// <summary>The user toggled a check box (a click on it, or Space); in virtual mode the handler stores the new state.</summary>
@@ -627,6 +644,16 @@ public class ListView : ScrollView, ICollectionOwner, IColumnHost, IFormCollecti
         return true;
     }
 
+    /// <summary>Virtual mode without a <see cref="FindItem"/> handler: type-ahead examines at most this many rows per key.</summary>
+    internal const int MaxVirtualFindScan = 1000;
+
+    int AskFindItem(string prefix, int start)
+    {
+        var args = new ListViewFindEventArgs(prefix, start);
+        FindItem?.Invoke(this, args);
+        return args.Index >= 0 && args.Index < ItemCount ? args.Index : -1;
+    }
+
     /// <summary>Typing moves to the next item whose caption starts with the typed text (typed within a second).</summary>
     protected internal override void OnTextInput(TextInputEventArgs e)
     {
@@ -635,7 +662,8 @@ public class ListView : ScrollView, ICollectionOwner, IColumnHost, IFormCollecti
         SyncCount();
         int count = ItemCount;
         if (count == 0 || (_typeAhead.IsIdle(OwningForm?.Now ?? 0) && string.IsNullOrWhiteSpace(e.Text))) return;
-        int i = _typeAhead.Find(e.Text, OwningForm?.Now ?? 0, count, Selection.Current, n => FetchItem(n)?.Caption ?? "");
+        int i = _typeAhead.Find(e.Text, OwningForm?.Now ?? 0, count, Selection.Current, n => FetchItem(n)?.Caption ?? "",
+            MaxVirtualFindScan, IsVirtual && FindItem != null ? AskFindItem : null);
         if (i >= 0) Selection.MoveTo(i);
         e.Handled = true;
     }
@@ -765,7 +793,10 @@ internal sealed class TypeAhead
     public void Reset() => _buffer = "";
 
     /// <summary>Adds typed text and returns the item to move to, or -1.</summary>
-    public int Find(string text, double now, int count, int current, Func<int, string> textOf)
+    /// <param name="limit">At most this many items are examined (virtual lists).</param>
+    /// <param name="finder">Answers the search itself (prefix, first index to examine) instead of the scan; -1: none.</param>
+    public int Find(string text, double now, int count, int current, Func<int, string> textOf, int limit = int.MaxValue,
+        Func<string, int, int>? finder = null)
     {
         if (now - _last > TimeoutMs) _buffer = "";
         _last = now;
@@ -775,7 +806,8 @@ internal sealed class TypeAhead
         string prefix = repeat ? _buffer[..1] : _buffer;
         // A new search, or a cycle, starts after the current item; a longer prefix may stay on it.
         int start = fresh || repeat || current < 0 ? 1 : 0;
-        for (int n = start; n < count + start; n++)
+        if (finder != null) return finder(prefix, ((current + start) % count + count) % count);
+        for (int n = start; n < Math.Min(count, limit) + start; n++)
         {
             int i = ((current + n) % count + count) % count;
             if (textOf(i).StartsWith(prefix, StringComparison.CurrentCultureIgnoreCase)) return i;
@@ -1383,8 +1415,40 @@ public class TreeView : ScrollView, ICollectionOwner, IFormCollections
         set => ScrollY = Math.Max(0, value) * RowHeight;
     }
 
+    // A rebuild's Change never runs inside layout or paint: it stays due until a safe point (a queued flush, or the next
+    // call from outside).
+    int _painting;
+    bool _changeDue, _flushQueued;
+
+    void RaiseRowsChange()
+    {
+        _changeDue = true;
+        if (_inMeasure || _painting > 0) { QueueFlush(); return; }
+        FlushChange();
+    }
+
+    void FlushChange()
+    {
+        if (!_changeDue || _inMeasure || _painting > 0 || _updating > 0) return;
+        _changeDue = false;
+        Change?.Invoke(this);
+    }
+
+    void QueueFlush()
+    {
+        if (_flushQueued || PlatformHost.Current == null) return;
+        _flushQueued = true;
+        Application.Queue(() =>
+        {
+            _flushQueued = false;
+            EnsureRows();
+            FlushChange();
+        });
+    }
+
     void EnsureRows()
     {
+        if (!_rowsDirty && _changeDue) FlushChange();
         if (!_rowsDirty || _updating > 0) return;
         _rowsDirty = false;
         // The selection by node, before the rows change.
@@ -1444,7 +1508,7 @@ public class TreeView : ScrollView, ICollectionOwner, IFormCollections
         });
         if (!_inMeasure) Remeasure();
         CloseEditorIfMoved();
-        if (currentAfter != current || Selection.SelectedCount != selectedBefore) Change?.Invoke(this);
+        if (currentAfter != current || Selection.SelectedCount != selectedBefore) RaiseRowsChange();
     }
 
     void MarkRowsDirty()
@@ -1997,6 +2061,13 @@ public class TreeView : ScrollView, ICollectionOwner, IFormCollections
     protected override Color GetBorderColor(Theme theme) => Focused || _editor is { Focused: true } ? theme.Accent : theme.InputBorder;
 
     protected override void PaintContent(Canvas canvas, Rect visible)
+    {
+        _painting++;
+        try { PaintRows(canvas, visible); }
+        finally { _painting--; }
+    }
+
+    void PaintRows(Canvas canvas, Rect visible)
     {
         EnsureRows();
         var t = canvas.Theme;

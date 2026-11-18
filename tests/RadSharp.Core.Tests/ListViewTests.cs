@@ -204,6 +204,54 @@ public class ListViewTests
         Assert.True(checks[4]);
     }
 
+
+    [Fact]
+    public void Type_ahead_in_a_100000_row_virtual_list_asks_for_a_bounded_number_of_rows()
+    {
+        var (f, lv) = Make();
+        int calls = 0;
+        lv.GetItem += (_, e) => { calls++; e.Item.Caption = $"Row {e.Index}"; };
+        lv.ItemCount = 100_000;
+        f.PerformLayout();
+        lv.Focus();
+        calls = 0;
+        f.Simulate.Type("z");                      // matches nothing: the whole list would be scanned
+        Assert.InRange(calls, 0, 5_000);
+        Assert.Equal(-1, lv.ItemIndex);
+    }
+
+    [Fact]
+    public void Type_ahead_in_a_virtual_list_still_finds_a_near_match_with_a_bounded_scan()
+    {
+        var (f, lv) = Make();
+        int calls = 0;
+        lv.GetItem += (_, e) => { calls++; e.Item.Caption = $"Row {e.Index}"; };
+        lv.ItemCount = 100_000;
+        f.PerformLayout();
+        lv.Focus();
+        calls = 0;
+        f.Simulate.Type("r");
+        Assert.InRange(calls, 0, 5_000);
+        Assert.Equal(0, lv.ItemIndex);
+    }
+
+    [Fact]
+    public void A_FindItem_handler_answers_type_ahead_in_a_virtual_list_without_scanning()
+    {
+        var (f, lv) = Make();
+        int calls = 0;
+        lv.GetItem += (_, e) => { calls++; e.Item.Caption = $"Row {e.Index}"; };
+        lv.ItemCount = 100_000;
+        var asked = new List<(string, int)>();
+        lv.FindItem += (_, e) => { asked.Add((e.Text, e.StartIndex)); e.Index = 77_777; };
+        f.PerformLayout();
+        lv.Focus();
+        calls = 0;
+        f.Simulate.Type("r");
+        Assert.Equal(77_777, lv.ItemIndex);
+        Assert.Equal([("r", 0)], asked);
+        Assert.InRange(calls, 0, 100);             // painting the new view only
+    }
     [Fact]
     public void Images_come_from_the_named_image_list()
     {

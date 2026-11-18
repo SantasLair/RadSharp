@@ -12,4 +12,11 @@ public class CheckListBoxEventTests
         Assert.Equal(CodeIntegration.DefaultEvent(new ListBox())!.Name, ev.Name);
         Assert.NotNull(ComponentRegistry.Find("CheckListBox")!.FindEvent("onClickCheck"));
     }
+
+    [Fact]
+    public void Every_M14_list_control_has_onChange_as_its_default_event()
+    {
+        foreach (Control c in new Control[] { new ListBox(), new ComboBox(), new CheckListBox(), new ListView(), new TreeView(), new StringGrid(), new DrawGrid() })
+            Assert.Equal("onChange", CodeIntegration.DefaultEvent(c)!.Name);
+    }
 }
