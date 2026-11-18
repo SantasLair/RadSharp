@@ -133,6 +133,23 @@ like `anchors`: `[0, 3]` on one line, `[]` when empty (a default-valued property
 | `font` | `{family, size, bold, italic, underline}` or absent | absent (*ParentFont*: inherit) |
 | `onClick`, `onMouseDown`, `onMouseUp`, `onMouseMove`, `onMouseEnter`, `onMouseLeave`, `onMouseWheel`, `onKeyDown`, `onKeyUp`, `onFocus`, `onBlur`, `onChange`, `onResize` | event | none |
 
+**Form properties** (the root node; besides the base properties, `caption` and `color`):
+
+| Property | Type | Default |
+|---|---|---|
+| `windowState` | enum `normal, maximized, minimized, fullScreen` | `normal` |
+| `startPosition` | enum `default, centerScreen, centerOwner, manual` | `default` (a modal form then centres on its owner) |
+| `borderStyle` | enum `sizable, single, dialog, tool, none` | `sizable` (a modal form then gets a dialog frame) |
+| `resizable` | bool | true; the user can resize only a `sizable` or `tool` frame, and only while this is true |
+| `topMost` | bool | false |
+| `icon` | picture source (data URI, resource name or path, as `Image`'s `picture`) | "" |
+| `darkTitleBar`, `keyPreview` | bool | false |
+| `onCloseQuery`, `onShow`, `onClose` | event | none |
+
+**Label mnemonic properties:** `focusControl` (the name of a control on the form whose focus an Alt+letter mnemonic on
+the label moves to; default "") and `showAccelChar` (bool, default true; false draws the caption literally and
+disables its mnemonic).
+
 **Fonts** (Delphi's `TFont`/*ParentFont*). A control's `font` is optional; when absent the control
 inherits its parent's *effective* font, and the root form falls back to the theme's default (family
 `"Inter"`, the bundled Regular/Bold/Italic/Bold-Italic faces). Setting `font` on a container does not
@@ -168,6 +185,13 @@ is placed. Divisions are real divisions (`aW / 2` of `241` is `120.5`).
 **Scaling.** The runtime multiplies every stored length (`left`, `top`, `width`, `height`, margins,
 padding, constraints) by the scale factor and rounds it **before** layout; layout then runs in physical
 pixels. Conformance vectors are at scale 1.
+
+**Changing the scale at run time** (`Form.ChangeScale`, and a window moved to a display with another scale). Every
+length is recomputed from its 100 % value: the value it was scaled from while the stored pixel value still equals
+`round(design × oldScale)`, otherwise `pixels / oldScale` (a length set from code since). Anchor captures (`aL, aT, aW,
+aH, PW0, PH0`) are converted the same way rather than captured again; when the parent's size comes from layout (it is
+aligned), the next layout takes `PW0`/`PH0` from the parent's laid-out size. Scroll positions keep the same content in
+view. So a change from s1 to s2 gives the layout of loading at s2, and s1 → s2 → s1 restores the s1 layout exactly.
 
 **Constraints.** A control's size is constrained by `max*` (only when > 0), then `min*`, so `min` wins
 if they conflict. Sizes are never negative.
@@ -256,6 +280,23 @@ Absolute positions are refreshed for the whole tree every pass.
   control had its chance. Shortcut text uses **`Mod`** for the platform command key (Ctrl on
   Windows/Linux, ⌘ on macOS): `"Mod+Shift+Z"`. `Ctrl` means the Control key on every OS; `Alt` is
   Option on macOS. A menu bar matches its items' `shortcut` text.
+- **Mnemonics:** in the `caption` of a label, button, check box, radio button, group box or tab sheet, `&` marks
+  the next character as an access key and `&&` is a literal `&` (the same syntax as menu items). **Alt+letter**
+  (or digit; plain Alt only, so AltGr never matches) is offered after the menu bar: a menu item's access key or
+  shortcut wins over a control with the same letter. Then, on the form that has the key, the shown, enabled
+  controls with that letter are collected in tab order (only the active page of a page control, plus the page
+  control's tabs).
+  - One match is activated: a button clicks, a check box toggles, a radio button checks (each also takes
+    focus), a label moves focus to its `focusControl`, a group box focuses its first focusable child, a tab sheet
+    becomes the active page and focuses its first focusable control.
+  - Several matches take focus in turn (the next after the one holding focus, wrapping) without activating.
+  - A label needs a visible, enabled `focusControl`, and a group box a focusable child, to count as a match.
+  - The letter is underlined only while Alt is held or the menu bar is in keyboard mode; losing window focus
+    clears that state. An app may turn control mnemonics off (the default on macOS, where Option types
+    characters): captions then still hide the `&`, but nothing is underlined or activated. Menu bars are
+    unaffected.
+- **Pointer kind:** mouse events carry the device that produced them (`mouse`, `touch`, `pen`). Touch and pen taps
+  arrive as ordinary left-button press/move/release, so no control needs special handling.
 - **Popup layer** (menus, dropdown lists, colour pickers):
   - Open popups are hit-tested before the form and drawn after it, above everything.
   - A press **outside every popup closes all of them and is consumed** (nothing underneath receives it).

@@ -215,13 +215,16 @@ Inherits from `FileDialog` (abstract; its members are listed here).
 
 | Property | Type | Default | Category |
 |---|---|---|---|
+| `borderStyle` | enum: sizable, single, dialog, tool, none | `sizable` | Window |
 | `caption` | string | "" | Appearance |
 | `color` | color | "" | Appearance |
 | `darkTitleBar` | bool | `false` | Window |
+| `icon` | string | "" | Window |
 | `keyPreview` | bool | `false` | Behavior |
 | `resizable` | bool | `true` | Window |
 | `startPosition` | enum: default, centerScreen, centerOwner, manual | `default` | Window |
-| `windowState` | enum: normal, maximized, minimized | `normal` | Window |
+| `topMost` | bool | `false` | Window |
+| `windowState` | enum: normal, maximized, minimized, fullScreen | `normal` | Window |
 
 | Event | Handler parameters |
 |---|---|
@@ -260,11 +263,13 @@ Inherits from `Component` (abstract; its members are listed here).
 | `alignment` | enum: left, center, right | `left` | Appearance |
 | `caption` | string | "" | Appearance |
 | `ellipsis` | bool | `false` | Appearance |
+| `focusControl` | string | "" | Behavior |
 | `fontBold` | bool | `false` | Appearance |
 | `fontColor` | color | "" | Appearance |
 | `fontSize` | int | `0` | Appearance |
 | `layout` | enum: top, center, bottom | `top` | Appearance |
 | `muted` | bool | `false` | Appearance |
+| `showAccelChar` | bool | `true` | Appearance |
 | `wordWrap` | bool | `false` | Appearance |
 
 ## ListBox

@@ -297,6 +297,40 @@ Still open: `&` mnemonics on Label (`FocusControl`)/Button/CheckBox/RadioButton/
 `SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED`; `Screen`, starting on a chosen monitor, saving/restoring placement;
 FullScreen, `BorderStyle`, `TopMost`, `Icon`; `Application.Title`/`OnIdle`/`Terminate`; `PointerKind` (item 6).
 
+**Status (2026-11-17): M13 done.** Built in two parallel tracks (each reviewed by a separate agent that proved its
+findings with failing tests), merged on branch `m13`.
+- **Item 1, window model:** `WindowState.FullScreen`; `Form.BorderStyle` (sizable/single/dialog/tool/none; the user can
+  resize only sizable and tool frames, and only while `Resizable`); `TopMost`; `Icon` (`icon` in form files: a picture
+  source). Modal forms left at the defaults open centred on their owner with a dialog frame (message boxes and the
+  designer's dialogs included). `Screen`/`Display` (bounds, work area, scale, primary, id, name); `Form.StartDisplay`,
+  `Display`, `MoveToDisplay`; three new `IPlatformServices` members with default implementations, so existing hosts
+  still compile. Placement: `WindowPlacement` (capture/apply/JSON, falls back when the display is gone or the rect is
+  off screen; a garbled file is ignored) and `WindowPlacement.Remember(form, path)`. The plan's `Position.Remembered`
+  became this explicit helper, so the framework never picks a file location itself.
+- **Item 2, runtime scale change:** no drift. Each control remembers the 100 % value behind every scaled length and
+  recomputes from it (`ScaleChange.Apply`); lengths set from code convert to design units; anchor captures convert
+  instead of being recaptured; scroll positions keep their content in view. `RescaleOwnLengths(ScaleChange)` for
+  control authors. The SDL host handles `SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED` (SDL 3.5 has no separate
+  pixel-density event); `Form.ScaleChanged`, `DisplayChanged`, `ScaleWithDisplay`. Tests: 100 → 150 → 100 % equals a
+  fresh load, 100 → 150 matches the 150 % golden of a fresh load, any chain of changes matches a fresh load at the
+  last scale (`RescaleTests`).
+- **Item 3, mnemonics:** `&` captions on Label (`FocusControl`, `ShowAccelChar`), Button, CheckBox, RadioButton,
+  GroupBox and TabSheet; the menu bar wins a shared letter; same-letter controls take focus in turn; underline only
+  while Alt is held; `Mnemonics.Enabled` (off on macOS). Message boxes show `&` literally.
+- **Item 5:** `Application.Title` (window title of a form without caption, `ShowMessage` caption), `Application.Idle`
+  (Delphi's OnIdle with `Done`; the loop only spins when a handler clears `Done`), `Application.Terminate([code])`
+  (closes every form through CloseQuery: modal forms first, the main form last); `SdlHost.Run` returns the exit code.
+- **Item 6:** `PointerKind` (mouse/touch/pen) on mouse events, from SDL's touch and pen mouse ids.
+- Also fixed on the way: closing a form from a `Timer` crashed in the SDL renderer.
+- **Done-when:** a form starts maximized on a chosen monitor (`StartDisplay` + `WindowState`), remembers its placement
+  (`WindowPlacement.Remember`), survives being dragged between monitors of different scale (checked by hand by the
+  user in `samples/WindowsDemo` on a 200 % and a 100 % display, 2026-11-17), opens dialogs centred on their owner,
+  activates buttons with Alt+letter, and accepts a dropped file (2026-09-28). Tests: 89 new in `RadSharp.Core.Tests`
+  (both tracks and their reviews); full suite 846 with the `itemIndex` fix.
+- Left: the form's own `Left`/`Top` are scaled with everything else, which a Manual-positioned form re-shown after a
+  scale change can notice; Edit/Memo text scroll offsets stay in pixels until the next caret move; Linux and macOS
+  not checked by hand; real touch and pen input untested.
+
 ## M14: Data controls (L; the largest single piece)
 
 *Closes gaps 3 and 4.* Build one shared scrolling/selection foundation first, then rebuild the controls on it.
@@ -534,7 +568,7 @@ document them as known limits on the M17 page.
 |---|---|
 | M10 finds real cross-OS pixel differences | it's first on purpose; the fix (or policy) lands before more goldens exist |
 | M14 is bigger than it looks (grids are a product of their own) | shared foundation first; ship ListView/TreeView v2 before the grid; virtual mode from day one |
-| Runtime rescale (M13) needs a deeper change to how lengths are stored | spike at the start of the milestone; a wrong choice is cheap to reverse then, expensive later |
+| Runtime rescale (M13) needs a deeper change to how lengths are stored | spike at the start of the milestone; a wrong choice is cheap to reverse then, expensive later. **Resolved (2026-11-17):** remembered 100 % values per length; storage unchanged |
 | Binding design leaks into reflection | binding resolved by the source generator; AOT publish is part of "done" |
 | Scope creep from Delphi's long tail | the reference app is the filter: a feature ships in 1.0 only if the app needs it or it's in a P0/P1 row of the gap analysis |
 

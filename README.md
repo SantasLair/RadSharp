@@ -92,6 +92,7 @@ dotnet run --project src/RadSharp.Designer    # the designer
 dotnet run --project samples/TileEditor       # a sample app
 dotnet run --project samples/ControlsDemo     # ListView, TreeView, list controls and DrawGrid
 dotnet run --project samples/GridDemo         # a 100 000-row virtual StringGrid
+dotnet run --project samples/WindowsDemo      # displays, per-monitor scale, placement, window styles, Alt keys
 dotnet test                                   # the test suite
 ```
 
