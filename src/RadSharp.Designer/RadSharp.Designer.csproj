@@ -6,6 +6,8 @@
     <!-- The designer compiles projects with Roslyn (live run), so it runs on the JIT, not NativeAOT. -->
     <RootNamespace>RadSharp.Designer</RootNamespace>
     <AssemblyName>RadSharpDesigner</AssemblyName>
+    <!-- Size (docs/distribution.md): Roslyn ships a resource assembly per UI language (6 MB); the designer is English-only. -->
+    <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
   </PropertyGroup>
 
   <ItemGroup>

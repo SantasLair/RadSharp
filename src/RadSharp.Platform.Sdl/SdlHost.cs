@@ -101,6 +101,21 @@ public static unsafe class SdlHost
         _initialized = false;
     }
 
+    static bool _startupTraced;
+
+    /// <summary>
+    /// Opt-in start-up measurement: with RADSHARP_STARTUP_TRACE=1, the first presented frame prints
+    /// "startup: N ms" (process start to first present) to stderr. Off by default; costs one flag check per frame.
+    /// </summary>
+    internal static void TraceFirstPresent()
+    {
+        if (_startupTraced) return;
+        _startupTraced = true;
+        if (Environment.GetEnvironmentVariable("RADSHARP_STARTUP_TRACE") != "1") return;
+        using var self = System.Diagnostics.Process.GetCurrentProcess();
+        Console.Error.WriteLine($"startup: {(DateTime.Now - self.StartTime).TotalMilliseconds:0} ms");
+    }
+
     /// <summary>Posts an action to run on the UI thread during the next loop iteration.</summary>
     public static void PostToUiThread(Action action) => MainThread.Enqueue(action);
 
@@ -680,6 +695,7 @@ internal sealed unsafe class FormWindow : IDisposable
         SDL_RenderClear(_renderer);
         SDL_RenderTexture(_renderer, _texture, null, null);
         SDL_RenderPresent(_renderer);
+        SdlHost.TraceFirstPresent();
     }
 
     /// <summary>Takes the window's current size, lays the form out and presents a frame immediately.</summary>

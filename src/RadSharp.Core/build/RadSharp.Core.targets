@@ -22,4 +22,16 @@
     <CompilerVisibleProperty Include="RootNamespace" />
   </ItemGroup>
 
+  <!--
+    SkiaSharp/HarfBuzzSharp's NuGet packages ship their native .pdb files (about 116 MB for win-x64). They only help someone
+    debugging Skia itself, so they stay out of a publish. The app's own and RadSharp's .pdb files are not NuGet files and stay.
+    Set RadSharpKeepPackagePdbs=true to keep them.
+  -->
+  <Target Name="RadSharpDropPackagePdbs" AfterTargets="ComputeResolvedFilesToPublishList" Condition="'$(RadSharpKeepPackagePdbs)' != 'true'">
+    <ItemGroup>
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)"
+                             Condition="'%(Extension)' == '.pdb' And $([System.String]::Copy('%(FullPath)').StartsWith('$(NuGetPackageRoot)', System.StringComparison.OrdinalIgnoreCase))" />
+    </ItemGroup>
+  </Target>
+
 </Project>
