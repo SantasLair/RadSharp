@@ -138,7 +138,7 @@
           {
             "class": "Label",
             "name": "lblDialog",
-            "caption": "It opens centred on this window, as a dialog.",
+            "caption": "It opens centred on this window. Alt shows the access keys.",
             "left": 164,
             "top": 130,
             "width": 380,
@@ -148,7 +148,7 @@
           {
             "class": "Label",
             "name": "lblHint",
-            "caption": "Drag the window to a display with another scale: the form rescales to it. Hold Alt to see the access keys.",
+            "caption": "Drag the window to a display with another scale: the form rescales to it.",
             "wordWrap": true,
             "left": 16,
             "top": 170,
