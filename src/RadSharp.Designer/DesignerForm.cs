@@ -14,7 +14,7 @@ public partial class DesignerForm : Form
     /// <summary>A form open in the designer: its file, document and design surface on a tab.</summary>
     public sealed class OpenForm(string path, DesignDocument doc, DesignSurface surface, TabSheet sheet)
     {
-        public string Path { get; } = path;
+        public string Path { get; internal set; } = path;
         public DesignDocument Document { get; } = doc;
         public DesignSurface Surface { get; } = surface;
         public TabSheet Sheet { get; } = sheet;
@@ -446,7 +446,7 @@ public partial class DesignerForm : Form
         if (Document is not { } doc) return;
         var menu = doc.Primary as IMenuOwner ?? doc.Form.Descendants().OfType<IMenuOwner>().FirstOrDefault();
         if (menu == null) { Dialogs.ShowMessage("Add a MainMenu or PopupMenu to the form first.", this); return; }
-        MenuEditor.Edit(doc, menu, this);
+        MenuEditor.Edit(doc, menu, this, EditMenuHandlers);
     }
 
     void mnuTabOrder_Click(object sender)

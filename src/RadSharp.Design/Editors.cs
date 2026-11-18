@@ -34,11 +34,53 @@ public sealed class MenuEditor
     readonly DesignDocument _doc;
     readonly IMenuOwner _menu;
     readonly TreeView _tree;
-    readonly Edit _caption, _name, _shortcut, _handler;
+    readonly Edit _caption, _name, _shortcut, _altShortcut, _handler;
     readonly CheckBox _enabled, _checked;
+    readonly HashSet<MenuItem> _handlerEdited = [];
     bool _loading;
 
     public Form Form { get; }
+
+    /// <summary>
+    /// The code side, wired by the designer (the editor itself can't reach the code-behind). Called with the items whose
+    /// <see cref="MenuItem.ClickHandler"/> is set and whether to open the handler in the code editor: <c>false</c> when
+    /// the editor closes after fields were edited (create the stubs quietly, all in one call), <c>true</c> with the one
+    /// item of a double-click.
+    /// </summary>
+    public Action<IReadOnlyList<MenuItem>, bool>? HandlerRequested { get; set; }
+
+    /// <summary>The conventional handler name, as the Object Inspector proposes: <c>mniExit_Click</c> (the caption's letters when the item has no name).</summary>
+    public static string DefaultHandlerName(MenuItem item)
+    {
+        var name = item.Name.Length > 0 ? item.Name : "mni" + new string([.. item.Caption.Where(char.IsLetterOrDigit)]);
+        return name + "_Click";
+    }
+
+    /// <summary>
+    /// Double-click on an item or on the onClick field: gives the item a handler (the default name if it has none) and asks
+    /// the designer to create the stub and show it. Does nothing for separators.
+    /// </summary>
+    public void EditHandler(MenuItem? item = null)
+    {
+        item ??= SelectedItem;
+        if (item == null || item.IsSeparator) return;
+        if (item.ClickHandler.Length == 0)
+        {
+            item.ClickHandler = DefaultHandlerName(item);
+            if (item == SelectedItem) LoadFields();
+            _doc.NotifyChanged();
+        }
+        _handlerEdited.Remove(item);
+        HandlerRequested?.Invoke([item], true);
+    }
+
+    /// <summary>Creates the stubs of the handlers typed during the session (on close).</summary>
+    void FlushHandlers()
+    {
+        var items = _handlerEdited.Where(i => i.ClickHandler.Length > 0).ToList();
+        _handlerEdited.Clear();
+        if (items.Count > 0) HandlerRequested?.Invoke(items, false);
+    }
 
     public MenuEditor(DesignDocument doc, IMenuOwner menu, Form? owner = null)
     {
@@ -53,10 +95,12 @@ public sealed class MenuEditor
         _name = EditorLayout.Put(f, new Edit { Name = "edtName" }, 360, 46, 184, 26);
         EditorLayout.Put(f, new Label { Caption = "Shortcut" }, 268, 82, 90, 22);
         _shortcut = EditorLayout.Put(f, new Edit { Name = "edtShortcut", Placeholder = "Mod+S" }, 360, 80, 184, 26);
-        EditorLayout.Put(f, new Label { Caption = "onClick" }, 268, 116, 90, 22);
-        _handler = EditorLayout.Put(f, new Edit { Name = "edtHandler" }, 360, 114, 184, 26);
-        _enabled = EditorLayout.Put(f, new CheckBox { Name = "chkEnabled", Caption = "Enabled" }, 360, 150, 184, 22);
-        _checked = EditorLayout.Put(f, new CheckBox { Name = "chkChecked", Caption = "Checked" }, 360, 176, 184, 22);
+        EditorLayout.Put(f, new Label { Caption = "Alt shortcut" }, 268, 116, 90, 22);
+        _altShortcut = EditorLayout.Put(f, new Edit { Name = "edtAltShortcut", Placeholder = "Ctrl+Y" }, 360, 114, 184, 26);
+        EditorLayout.Put(f, new Label { Caption = "onClick" }, 268, 150, 90, 22);
+        _handler = EditorLayout.Put(f, new Edit { Name = "edtHandler" }, 360, 148, 184, 26);
+        _enabled = EditorLayout.Put(f, new CheckBox { Name = "chkEnabled", Caption = "Enabled" }, 360, 182, 184, 22);
+        _checked = EditorLayout.Put(f, new CheckBox { Name = "chkChecked", Caption = "Checked" }, 360, 208, 184, 22);
 
         Button B(string name, string caption, int x, int y, Action action)
         {
@@ -64,20 +108,24 @@ public sealed class MenuEditor
             b.Click += _ => action();
             return b;
         }
-        B("btnAdd", "Add", 268, 220, () => AddItem("New item"));
-        B("btnAddSub", "Add sub", 360, 220, () => AddSubItem("New item"));
-        B("btnDelete", "Delete", 452, 220, DeleteSelected);
-        B("btnUp", "Up", 268, 256, () => MoveSelected(-1));
-        B("btnDown", "Down", 360, 256, () => MoveSelected(1));
+        B("btnAdd", "Add", 268, 244, () => AddItem("New item"));
+        B("btnAddSub", "Add sub", 360, 244, () => AddSubItem("New item"));
+        B("btnDelete", "Delete", 452, 244, DeleteSelected);
+        B("btnUp", "Up", 268, 280, () => MoveSelected(-1));
+        B("btnDown", "Down", 360, 280, () => MoveSelected(1));
+        B("btnSeparator", "Separator", 452, 280, () => AddSeparator());
         var close = B("btnClose", "Close", 456, 356, () => { });
         close.ModalResult = ModalResult.Ok;
         close.Default = true;
 
         _tree.Change += _ => LoadFields();
-        _caption.Change += _ => Store(i => i.Caption = _caption.Text);
+        _caption.Change += _ => Store(i => { i.Caption = _caption.Text; i.Separator = i.Caption == "-"; });
         _name.Change += _ => Store(i => i.Name = _name.Text.Trim());
         _shortcut.Change += _ => Store(i => i.Shortcut = _shortcut.Text.Trim());
-        _handler.Change += _ => Store(i => i.ClickHandler = _handler.Text.Trim());
+        _altShortcut.Change += _ => Store(i => i.AltShortcut = _altShortcut.Text.Trim());
+        _handler.Change += _ => Store(i => { i.ClickHandler = _handler.Text.Trim(); _handlerEdited.Add(i); });
+        _handler.MouseDown += (_, e) => { if (e.Clicks == 2) EditHandler(); };
+        _tree.DoubleClick += _ => EditHandler();
         _enabled.Change += _ => Store(i => i.Enabled = _enabled.Checked);
         _checked.Change += _ => Store(i => i.Checked = _checked.Checked);
 
@@ -86,11 +134,14 @@ public sealed class MenuEditor
     }
 
     /// <summary>Opens the editor modally on <paramref name="menu"/>; the whole session is one undo step.</summary>
-    public static void Edit(DesignDocument doc, IMenuOwner menu, Form? owner)
+    /// <param name="handlers">Creates a handler stub in the code-behind (see <see cref="HandlerRequested"/>); null when there is no code side.</param>
+    public static void Edit(DesignDocument doc, IMenuOwner menu, Form? owner, Action<IReadOnlyList<MenuItem>, bool>? handlers = null)
     {
         doc.Snapshot();
-        new MenuEditor(doc, menu, owner).Form.ShowModal();
+        var editor = new MenuEditor(doc, menu, owner) { HandlerRequested = handlers };
+        editor.Form.ShowModal();
         doc.NotifyChanged();
+        editor.FlushHandlers();
     }
 
     public MenuItem? SelectedItem => _tree.Selected?.Tag as MenuItem;
@@ -111,6 +162,20 @@ public sealed class MenuEditor
     public MenuItem AddItem(string caption)
     {
         var item = new MenuItem { Caption = caption };
+        if (SelectedItem is { } sel)
+        {
+            var list = OwnerList(sel);
+            list.Insert(list.IndexOf(sel) + 1, item);
+        }
+        else _menu.Items.Add(item);
+        Changed(item);
+        return item;
+    }
+
+    /// <summary>Adds a separator (caption <c>-</c>, <c>"separator": true</c> in the form file) after the selected item.</summary>
+    public MenuItem AddSeparator()
+    {
+        var item = new MenuItem { Caption = "-", Separator = true };
         if (SelectedItem is { } sel)
         {
             var list = OwnerList(sel);
@@ -193,7 +258,7 @@ public sealed class MenuEditor
         _tree.Invalidate();
     }
 
-    static string Label(MenuItem i) => i.IsSeparator ? "────" : i.Caption + (i.Shortcut.Length > 0 ? "   " + i.Shortcut : "");
+    static string Label(MenuItem i) => i.IsSeparator ? "────" : i.Caption + (i.Shortcut.Length > 0 ? "   " + i.Shortcut : "") + (i.AltShortcut.Length > 0 ? "   (" + i.AltShortcut + ")" : "");
 
     void LoadFields()
     {
@@ -202,6 +267,7 @@ public sealed class MenuEditor
         _caption.Text = i?.Caption ?? "";
         _name.Text = i?.Name ?? "";
         _shortcut.Text = i?.Shortcut ?? "";
+        _altShortcut.Text = i?.AltShortcut ?? "";
         _handler.Text = i?.ClickHandler ?? "";
         _enabled.Checked = i?.Enabled ?? true;
         _checked.Checked = i?.Checked ?? false;

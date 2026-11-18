@@ -101,6 +101,42 @@ public sealed class NewApplicationDialog : Form
     }
 }
 
+/// <summary>File › New Form / Project › Rename Form: asks for a form's class name and says what is wrong with it.</summary>
+public sealed class FormNameDialog : Form
+{
+    readonly RadProject _project;
+    readonly Edit _name;
+    readonly Label _problem;
+    readonly string? _current;
+
+    public FormNameDialog(RadProject project, string caption, string initial, string? current, Form? owner)
+    {
+        _project = project;
+        _current = current;
+        DialogLayout.Setup(this, caption, 440, 170, owner);
+        DialogLayout.Put(this, new Label { Caption = "Class name" }, 16, 20, 100, 24);
+        _name = DialogLayout.Put(this, new Edit { Name = "edtFormName", Text = initial }, 120, 18, 300, 26);
+        _problem = DialogLayout.Put(this, new Label { Name = "lblProblem", WordWrap = true, FontColor = Drawing.Color.FromHex("#B91C1C") }, 120, 52, 300, 40);
+        DialogLayout.Put(this, new Button { Name = "btnOk", Caption = "OK", Default = true }, 236, 120, 90, 30).Click += _ => Accept();
+        DialogLayout.Put(this, new Button { Name = "btnCancel", Caption = "Cancel", Cancel = true, ModalResult = ModalResult.Cancel }, 334, 120, 86, 30);
+        _name.Change += _ => _problem.Caption = Problem() ?? "";
+        PerformLayout();
+        Shown += _ => { _name.Focus(); _name.SelectAll(); };
+    }
+
+    /// <summary>The entered class name.</summary>
+    public string FormName => _name.Text.Trim();
+
+    string? Problem() => FormName == _current ? null : _project.ValidateFormName(FormName, _current == null ? null : _project.FormFileFor(_current));
+
+    void Accept()
+    {
+        if (FormName == _current) { ModalResult = ModalResult.Cancel; return; }
+        if (Problem() is { } problem) { _problem.Caption = problem; return; }
+        ModalResult = ModalResult.Ok;
+    }
+}
+
 /// <summary>Tools › Options: the code editor (Unity-style choice of detected IDEs) and project defaults.</summary>
 public sealed class OptionsDialog : Form
 {

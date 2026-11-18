@@ -142,4 +142,21 @@ public class CodeIntegrationTests
         Assert.True(exit == 0, string.Join("\n", log.TakeLast(30)));
         Assert.True(File.Exists(Path.Combine(output!, OperatingSystem.IsWindows() ? "BuiltApp.exe" : "BuiltApp")));
     }
+
+    [Fact]
+    public void New_application_writes_the_package_folder_into_nuget_config_relative_to_the_project()
+    {
+        var root = TempDir();
+        var packages = Path.Combine(root, "artifacts", "packages");
+        Directory.CreateDirectory(packages);
+        var project = RadProject.Create(Path.Combine(root, "apps", "Rel"), "Rel", packageSource: packages);
+        var config = System.Xml.Linq.XDocument.Load(Path.Combine(project.Directory, "nuget.config"));
+        var value = config.Descendants("add").Single(a => (string?)a.Attribute("key") == "radsharp-local").Attribute("value")!.Value;
+        Assert.Equal("../../artifacts/packages", value);
+        Assert.Equal(Path.GetFullPath(packages), Path.GetFullPath(Path.Combine(project.Directory, value)));
+
+        // A URL feed is kept as given.
+        var web = RadProject.Create(Path.Combine(root, "apps", "Web"), "Web", packageSource: "https://example.com/v3/index.json");
+        Assert.Contains("value=\"https://example.com/v3/index.json\"", File.ReadAllText(Path.Combine(web.Directory, "nuget.config")));
+    }
 }
