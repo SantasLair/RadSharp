@@ -258,7 +258,7 @@ public sealed class MenuEditor
         _tree.Invalidate();
     }
 
-    static string Label(MenuItem i) => i.IsSeparator ? "────" : i.Caption + (i.Shortcut.Length > 0 ? "   " + i.Shortcut : "") + (i.AltShortcut.Length > 0 ? "   (" + i.AltShortcut + ")" : "");
+    static string Label(MenuItem i) => i.IsSeparator ? "————" : i.Caption + (i.Shortcut.Length > 0 ? "   " + i.Shortcut : "") + (i.AltShortcut.Length > 0 ? "   (" + i.AltShortcut + ")" : "");
 
     void LoadFields()
     {

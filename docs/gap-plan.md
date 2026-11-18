@@ -154,6 +154,17 @@ CI matrix remains desirable but is no longer the gate for calling this milestone
   run: no remote", which is now stale since a remote exists) — small copy fix, not blocking.
 - `dotnet test` result upload / NativeAOT publish artifacts in CI: still open, but not required for the reduced
   local-verification bar.
+- **CI (2026-11-17):** CI on `main` had been red on Linux and macOS since M14: TreeView drew its expanders as "▾"/"▸",
+  which the bundled Inter font lacks, so each OS drew them from its own fallback font (Linux drew missing-glyph boxes).
+  TreeView expanders and the Object Inspector's anchors disclosure are now drawn as paths (`ViewDrawing.DrawExpander`);
+  the `treeviews` goldens were regenerated once (only the triangles changed) and Linux matches them exactly.
+  `BundledGlyphTests` fails on any character in `src/` or a form file that Inter lacks. Mnemonic tests now turn
+  mnemonics on explicitly (they're off by default on macOS). CI builds the whole solution, samples included, before
+  testing: two samples had stopped compiling after M13 added `Form.Display` and `Form.Icon`, and CI never compiled them.
+- **Build (2026-11-17):** NuGet flagged `Microsoft.DotNet.ILCompiler` 10.0.12 (NU1903), which the SDK 10.0.401 pulls in
+  implicitly for NativeAOT, and warnings-as-errors failed the samples and `RadSharp.Design.Tests`. `global.json` now asks for
+  SDK 10.0.404 (.NET 10.0.15, ILCompiler 10.0.15), so CI's `setup-dotnet` gets it too; the `-p:NuGetAudit=false` workaround
+  is gone.
 
 **Done when (reduced bar):** tests + golden images pass on native Windows and on Linux via WSL2. **Met
 (2026-09-28)** — see Linux verification above and the native Windows run in the same session (`dotnet build`/
@@ -276,9 +287,56 @@ monitors of different scale, opens dialogs centered on their owner, activates bu
 dropped file.
 
 **Status:** items 4's two halves (in-app drag-and-drop, files dropped) are done, pulled forward 2026-09-28 ahead of
-the rest of the milestone — see the addenda near the top of this document. Items 1–3, 5 and 6 (window model,
-runtime scale change, mnemonics, application basics, pointer kind) are untouched; this milestone is not close to
-its own "done when" yet.
+the rest of the milestone — see the addenda near the top of this document.
+
+**Status (corrected 2026-11-17):** the note above was written on 2026-09-28 and missed later work. Since then, these
+landed (commits of 2026-11-10 and 2026-11-13):
+- Item 1, in part: `Form.WindowState` (Normal/Maximized/Minimized; no FullScreen yet), `Form.StartPosition`
+  (Default/CenterScreen/CenterOwner/Manual), `Form.Resizable`, the minimum size passed to the OS from
+  `MinWidth`/`MinHeight`, `Form.RestoredBounds` (the normal rect, also while maximized), and `Form.DarkTitleBar`.
+- Item 2, in part: `Form.ApplyScale` and `Form.ChangeScale` for code-built forms and dialogs that match their owner,
+  plus public `Control.ScaleLengths`/`Px`. `ChangeScale` multiplies by new/old scale, so a round trip can drift by a
+  pixel; it does not meet item 2's test, and display-scale changes are not handled.
+- Item 3, menus only: access keys, Alt / F10 menu mode and keyboard navigation of the menu bar.
+- Item 5, in part: `Application.ExitCode` exists (no `Terminate`, `Title` or `OnIdle`).
+
+Still open: `&` mnemonics on Label (`FocusControl`)/Button/CheckBox/RadioButton/GroupBox/TabSheet; drift-free rescale and
+`SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED`; `Screen`, starting on a chosen monitor, saving/restoring placement;
+FullScreen, `BorderStyle`, `TopMost`, `Icon`; `Application.Title`/`OnIdle`/`Terminate`; `PointerKind` (item 6).
+
+**Status (2026-11-17): M13 done.** Built in two parallel tracks (each reviewed by a separate agent that proved its
+findings with failing tests), merged on branch `m13`.
+- **Item 1, window model:** `WindowState.FullScreen`; `Form.BorderStyle` (sizable/single/dialog/tool/none; the user can
+  resize only sizable and tool frames, and only while `Resizable`); `TopMost`; `Icon` (`icon` in form files: a picture
+  source). Modal forms left at the defaults open centred on their owner with a dialog frame (message boxes and the
+  designer's dialogs included). `Screen`/`Display` (bounds, work area, scale, primary, id, name); `Form.StartDisplay`,
+  `Display`, `MoveToDisplay`; three new `IPlatformServices` members with default implementations, so existing hosts
+  still compile. Placement: `WindowPlacement` (capture/apply/JSON, falls back when the display is gone or the rect is
+  off screen; a garbled file is ignored) and `WindowPlacement.Remember(form, path)`. The plan's `Position.Remembered`
+  became this explicit helper, so the framework never picks a file location itself.
+- **Item 2, runtime scale change:** no drift. Each control remembers the 100 % value behind every scaled length and
+  recomputes from it (`ScaleChange.Apply`); lengths set from code convert to design units; anchor captures convert
+  instead of being recaptured; scroll positions keep their content in view. `RescaleOwnLengths(ScaleChange)` for
+  control authors. The SDL host handles `SDL_EVENT_WINDOW_DISPLAY_SCALE_CHANGED` (SDL 3.5 has no separate
+  pixel-density event); `Form.ScaleChanged`, `DisplayChanged`, `ScaleWithDisplay`. Tests: 100 → 150 → 100 % equals a
+  fresh load, 100 → 150 matches the 150 % golden of a fresh load, any chain of changes matches a fresh load at the
+  last scale (`RescaleTests`).
+- **Item 3, mnemonics:** `&` captions on Label (`FocusControl`, `ShowAccelChar`), Button, CheckBox, RadioButton,
+  GroupBox and TabSheet; the menu bar wins a shared letter; same-letter controls take focus in turn; underline only
+  while Alt is held; `Mnemonics.Enabled` (off on macOS). Message boxes show `&` literally.
+- **Item 5:** `Application.Title` (window title of a form without caption, `ShowMessage` caption), `Application.Idle`
+  (Delphi's OnIdle with `Done`; the loop only spins when a handler clears `Done`), `Application.Terminate([code])`
+  (closes every form through CloseQuery: modal forms first, the main form last); `SdlHost.Run` returns the exit code.
+- **Item 6:** `PointerKind` (mouse/touch/pen) on mouse events, from SDL's touch and pen mouse ids.
+- Also fixed on the way: closing a form from a `Timer` crashed in the SDL renderer.
+- **Done-when:** a form starts maximized on a chosen monitor (`StartDisplay` + `WindowState`), remembers its placement
+  (`WindowPlacement.Remember`), survives being dragged between monitors of different scale (checked by hand by the
+  user in `samples/WindowsDemo` on a 200 % and a 100 % display, 2026-11-17), opens dialogs centred on their owner,
+  activates buttons with Alt+letter, and accepts a dropped file (2026-09-28). Tests: 89 new in `RadSharp.Core.Tests`
+  (both tracks and their reviews); full suite 846 with the `itemIndex` fix.
+- Left: the form's own `Left`/`Top` are scaled with everything else, which a Manual-positioned form re-shown after a
+  scale change can notice; Edit/Memo text scroll offsets stay in pixels until the next caret move; Linux and macOS
+  not checked by hand; real touch and pen input untested.
 
 ## M14: Data controls (L; the largest single piece)
 
@@ -384,6 +442,13 @@ controls don't need yet.
 
 **M14 status:** items 1–6 done; item 7 (DateTimePicker, Calendar, MaskEdit) deferred to the reference app as the plan says. Done-when met: see `GridTests` (100 000-row virtual grid) and `RowViewSuiteTests`.
 
+**Status (2026-11-17): a saved `itemIndex` now loads.** `ListBox`, `CheckListBox` and `ComboBox` lost a saved `itemIndex`,
+because the writer puts it before `items` and the reader clamped it against an empty list; `PageControl.activePageIndex`
+was lost the same way (its pages are children, read after it). Fixed in the reader without a format change: new
+`Control.Loading` (true while the reader applies a node) and `Control.Loaded()` (after its members and children,
+Delphi's `Loaded`); the index properties hold their value while loading and apply it, clamped, in `Loaded`. Files saved
+earlier now load correctly. Spec: "Index members apply after what they index". Tests: `LoadOrderTests`.
+
 ## M15: Reuse and data (L)
 
 *Closes gaps 9 and 11.*
@@ -443,6 +508,24 @@ under NativeAOT.
   updated entry above) — §3.7 is fully closed, not "all but" as this bullet said when first written.
 - **Debugging story:** make F5-in-the-IDE the documented way, add a launch profile to created projects, and write the
   "attach to the live run" instructions; a VS Code extension is post-1.0.
+
+**Status (2026-11-17): the designer items the reference app needs.** The 1.0 cut (from `docs/reference-app-scope.md`,
+approved by the user) keeps from M16: menu-editor fields, F9 with the project's dependencies, the debugging story, and
+project controls on the palette; it drops FlowPanel/GridPanel, AutoSize, zoom, in-place PageControl editing and the
+generic collection editor (the bespoke Columns/Nodes/Menu editors stay). Done on branch `m16-designer`:
+- Menu editor: an Alt shortcut field and a Separator button (typing `-` as a caption also makes one); a handler typed
+  into onClick gets its `(MenuItem sender)` stub when the editor closes, and double-clicking an item proposes
+  `<name>_Click`, writes the stub and opens it.
+- An event name typed into an Object Inspector Events row gets its stub quietly (shared handlers are left alone).
+  Stubs and usings use the file's own newline.
+- File › New Form asks for and validates the class name (identifier, not a keyword or a name that can't be a class,
+  not a RadSharp type, no clash with project forms, files or types); Project › Rename Form renames files, class and
+  every textual reference (case-only renames work; a failure rolls everything back).
+- Debugging: New Application writes `.vscode/launch.json`, `.vscode/tasks.json` and `Properties/launchSettings.json`
+  so F5 debugs in VS Code and Visual Studio; `docs/debugging.md`.
+- New Application writes a relative package path into `nuget.config`; `pack.ps1`/`pack.sh` pack every package with one
+  version (CI uses it).
+Most of these were found by building the reference app; each came with a failing test first.
 
 **Done when:** a localized form that grows with its text lays out correctly in the flow/grid panels at 100 % and
 150 %; the designer's alignment tools are covered by a scripted-rebuild test like `RebuildTileEditorTests`; the
@@ -510,7 +593,7 @@ document them as known limits on the M17 page.
 |---|---|
 | M10 finds real cross-OS pixel differences | it's first on purpose; the fix (or policy) lands before more goldens exist |
 | M14 is bigger than it looks (grids are a product of their own) | shared foundation first; ship ListView/TreeView v2 before the grid; virtual mode from day one |
-| Runtime rescale (M13) needs a deeper change to how lengths are stored | spike at the start of the milestone; a wrong choice is cheap to reverse then, expensive later |
+| Runtime rescale (M13) needs a deeper change to how lengths are stored | spike at the start of the milestone; a wrong choice is cheap to reverse then, expensive later. **Resolved (2026-11-17):** remembered 100 % values per length; storage unchanged |
 | Binding design leaks into reflection | binding resolved by the source generator; AOT publish is part of "done" |
 | Scope creep from Delphi's long tail | the reference app is the filter: a feature ships in 1.0 only if the app needs it or it's in a P0/P1 row of the gap analysis |
 

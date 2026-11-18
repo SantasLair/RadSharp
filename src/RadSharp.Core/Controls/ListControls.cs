@@ -90,8 +90,37 @@ public class ListBox : ScrollView
     [Published(Category = "Behavior")]
     public int ItemIndex
     {
-        get => Selection.Current;
-        set => Selection.Select(Math.Clamp(value, -1, _items.Count - 1));
+        get => _loadedItemIndex is int held ? Math.Clamp(held, -1, _items.Count - 1) : Selection.Current;
+        set
+        {
+            if (Loading) { _loadedItemIndex = value; return; }   // items may come later in the file; applied in Loaded
+            Selection.Select(Math.Clamp(value, -1, _items.Count - 1));
+        }
+    }
+
+    int? _loadedItemIndex;
+
+    protected internal override void Loaded()
+    {
+        base.Loaded();
+        if (_loadedItemIndex is int index)
+        {
+            _loadedItemIndex = null;
+            // Scrolling now would use the unscaled, unarranged size; do it at the first arrange instead.
+            int at = Math.Clamp(index, -1, _items.Count - 1);
+            _lastCurrent = at;
+            _scrollCurrentPending = at >= 0;
+            Selection.Select(at);
+        }
+    }
+
+    bool _scrollCurrentPending;
+
+    protected override bool AfterArrange()
+    {
+        bool again = base.AfterArrange();
+        if (_scrollCurrentPending) { _scrollCurrentPending = false; ScrollIntoView(Selection.Current); }
+        return again;
     }
 
     /// <summary>Several items can be selected at once (Delphi's MultiSelect); <see cref="ExtendedSelect"/> says how.</summary>
@@ -562,6 +591,18 @@ public class ComboBox : Control
 {
     string[] _items = [];
     int _itemIndex = -1;
+    int? _loadedItemIndex;
+
+    protected internal override void Loaded()
+    {
+        base.Loaded();
+        // In a drop-down (editable) box the file's text wins over an index that disagrees with it.
+        bool textRead = _textRead;
+        _textRead = false;
+        if (_loadedItemIndex is int index) { _loadedItemIndex = null; if (!(Editable && textRead)) ItemIndex = index; }
+    }
+
+    bool _textRead;   // a text was read while loading
     ListBox? _dropDown;
     ComboBoxStyle _style;
     ComboEdit? _edit;
@@ -592,9 +633,10 @@ public class ComboBox : Control
     [Published(Category = "Behavior")]
     public int ItemIndex
     {
-        get => _itemIndex;
+        get => _loadedItemIndex is int held ? Math.Clamp(held, -1, _items.Length - 1) : _itemIndex;
         set
         {
+            if (Loading) { _loadedItemIndex = value; return; }   // items may come later in the file; applied in Loaded
             value = Math.Clamp(value, -1, _items.Length - 1);
             if (value == _itemIndex) return;
             _itemIndex = value;
@@ -647,6 +689,7 @@ public class ComboBox : Control
         set
         {
             _text = value ?? "";
+            if (Loading) _textRead = true;
             if (Editable) SetEditText(_text);
         }
     }
