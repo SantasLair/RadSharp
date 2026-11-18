@@ -52,7 +52,10 @@ public partial class DesignerForm : Form
         gridEvents.EventDoubleClick += (_, ev) => { if (Document is { } d) EditHandler(d.Primary, ev); };
         gridProps.CollectionEditRequested += (_, target, name) =>
         {
-            if (Document is { } d && name == "columns" && target is CustomGrid g) GridColumnsEditor.Edit(d, g, this);
+            if (Document is not { } d) return;
+            if (name == "columns" && target is CustomGrid g) GridColumnsEditor.Edit(d, g, this);
+            else if (name == "columns" && target is ListView lv) GridColumnsEditor.Edit(d, lv, this);
+            else if (name == "nodes" && target is TreeView tv) TreeNodesEditor.Edit(d, tv, this);
         };
         gridProps.Arrangement = PropertyGridArrangement.Categorized;   // matches cboPropsArrange's default selection
 

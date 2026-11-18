@@ -77,7 +77,7 @@ public static class FormWriter
             : ComponentRegistry.Of(control);
         var prototype = cls.Prototype;
 
-        // Members other than class/name/caption/text/items/children, in ordinal key order.
+        // Members other than class/name/caption/text/items/columns/nodes/children, in ordinal key order.
         var rest = new SortedDictionary<string, Action>(StringComparer.Ordinal);
         Action? caption = null, text = null;
 
@@ -111,7 +111,7 @@ public static class FormWriter
         text?.Invoke();
         foreach (var write in rest.Values) write();
         if (control is IMenuOwner menu) MenuItem.WriteItems(w, menu.Items);
-        if (control is CustomGrid grid) grid.WriteColumns(w);
+        if (control is IFormCollections collections) collections.WriteCollections(w);
         if (control.Children.Any(c => !c.IsTransient))
         {
             w.Key("children");

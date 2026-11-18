@@ -1,0 +1,130 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmViews",
+    "height": 320,
+    "width": 640,
+    "children": [
+      {
+        "class": "ImageList",
+        "name": "imgIcons",
+        "left": 600,
+        "top": 10
+      },
+      {
+        "class": "ListView",
+        "name": "lvDefaults",
+        "left": 10,
+        "top": 10
+      },
+      {
+        "class": "ListView",
+        "name": "lvOld",
+        "height": 110,
+        "left": 10,
+        "top": 200,
+        "columns": [
+          {
+            "title": "Name",
+            "width": 120
+          },
+          {
+            "title": "Size",
+            "width": 60
+          },
+          {
+            "title": "Kind"
+          }
+        ]
+      },
+      {
+        "class": "ListView",
+        "name": "lvFiles",
+        "autoSort": true,
+        "borderStyle": "none",
+        "checkboxes": true,
+        "images": "imgIcons",
+        "left": 320,
+        "multiSelect": true,
+        "onColumnClick": "lvFiles_ColumnClick",
+        "onCompare": "lvFiles_Compare",
+        "onGetItem": "lvFiles_GetItem",
+        "onItemChecked": "lvFiles_ItemChecked",
+        "sortColumn": 1,
+        "sortDescending": true,
+        "top": 10,
+        "columns": [
+          {
+            "title": "Name",
+            "width": 140
+          },
+          {
+            "alignment": "right",
+            "minWidth": 40,
+            "title": "Size",
+            "width": 70
+          },
+          {}
+        ]
+      },
+      {
+        "class": "TreeView",
+        "name": "tvEmpty",
+        "height": 110,
+        "left": 320,
+        "top": 200,
+        "width": 140
+      },
+      {
+        "class": "TreeView",
+        "name": "tvAssets",
+        "checkboxes": true,
+        "height": 110,
+        "images": "imgIcons",
+        "left": 470,
+        "multiSelect": true,
+        "onCollapsing": "tvAssets_Collapsing",
+        "onEdited": "tvAssets_Edited",
+        "onEditing": "tvAssets_Editing",
+        "onExpanding": "tvAssets_Expanding",
+        "onNodeChecked": "tvAssets_NodeChecked",
+        "readOnly": false,
+        "top": 200,
+        "width": 160,
+        "nodes": [
+          {
+            "text": "Maps",
+            "expanded": true,
+            "imageIndex": 1,
+            "nodes": [
+              {
+                "text": "level1.map",
+                "checked": true
+              },
+              {
+                "text": "level2.map",
+                "imageIndex": 0
+              }
+            ]
+          },
+          {
+            "text": "Remote",
+            "hasChildren": true
+          },
+          {},
+          {
+            "text": "Sounds",
+            "nodes": [
+              {
+                "text": "click.wav"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

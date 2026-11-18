@@ -448,4 +448,49 @@ public class ProjectWorkflowTests
         Assert.Equal(DesignerSettings.MaxRecent, loaded.RecentProjects.Count);
         Assert.EndsWith("P11.csproj", loaded.RecentProjects[0]);
     }
+
+    [Fact]
+    public void The_inspectors_columns_and_nodes_rows_open_the_list_view_and_tree_editors()
+    {
+        var project = RadProject.Create(TempDir(), "Views");
+        var (d, host) = Start();
+        Assert.True(d.OpenProject(project.ProjectFile));
+        var doc = d.Document!;
+        var props = (PropertyGrid)d.FindControl("gridProps")!;
+
+        var lv = (ListView)doc.Create(ComponentRegistry.Find("ListView")!, doc.Form, 20, 20);
+        doc.Select(lv);
+        int row = props.IndexOf("columns");
+        Assert.Equal("(0 columns)", props.RowValue(row));
+        host.AnswerModal = form =>
+        {
+            Assert.Equal($"Columns: {lv.Name}", form.Caption);
+            form.Simulate.Click(form.FindControl("btnAdd")!);
+            ((Edit)form.FindControl("edtTitle")!).Text = "Name";
+            return "btnClose";
+        };
+        props.BeginEdit(row);
+        Assert.Equal(["Name"], lv.Columns.Select(c => c.Title));
+        Assert.Equal("(1 column)", props.RowValue(row));
+
+        var tree = (TreeView)doc.Create(ComponentRegistry.Find("TreeView")!, doc.Form, 20, 220);
+        doc.Select(tree);
+        row = props.IndexOf("nodes");
+        Assert.Equal("(0 nodes)", props.RowValue(row));
+        host.AnswerModal = form =>
+        {
+            Assert.Equal($"Nodes: {tree.Name}", form.Caption);
+            form.Simulate.Click(form.FindControl("btnAdd")!);
+            form.Simulate.Click(form.FindControl("btnAddChild")!);
+            ((Edit)form.FindControl("edtText")!).Text = "Leaf";
+            return "btnClose";
+        };
+        props.BeginEdit(row);
+        Assert.Equal("Leaf", tree.Nodes[0].Nodes[0].Text);
+        Assert.Equal("(2 nodes)", props.RowValue(row));
+        Assert.Contains("\"text\": \"Leaf\"", doc.Save());
+
+        Assert.True(doc.Undo());                      // the nodes session
+        Assert.Empty(((TreeView)doc.Form.FindControl(tree.Name)!).Nodes);
+    }
 }

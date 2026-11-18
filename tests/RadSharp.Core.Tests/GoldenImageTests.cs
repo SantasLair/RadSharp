@@ -250,7 +250,7 @@ public class GoldenImageTests
         CompareOrUpdate(actual, $"grids@{scale * 100:0}%-{form.Width}x{form.Height}.png");
     }
 
-    static void CompareOrUpdate(SKBitmap actual, string imageName, [CallerFilePath] string testFile = "")
+    internal static void CompareOrUpdate(SKBitmap actual, string imageName, [CallerFilePath] string testFile = "")
     {
         var sourceGoldenDir = Path.Combine(Path.GetDirectoryName(testFile)!, "Golden");
         var expectedPath = Path.Combine(OutputGoldenDir, imageName);
