@@ -253,4 +253,34 @@ public class DesignerTests
         tabs.Apply();
         Assert.Equal([b, a], doc.Form.GetTabOrderList());
     }
+
+    [Fact]
+    public void Names_that_hide_an_inherited_form_member_are_refused_and_never_generated_for_new_controls()
+    {
+        var doc = new DesignDocument();
+        var button = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 10, 10);
+        foreach (var bad in new[] { "Monitor", "Icon", "Close", "Caption", "ToString" })
+        {
+            Assert.NotNull(doc.NameProblem(button, bad));
+            Assert.False(doc.Rename(button, bad));
+            Assert.Equal("Button1", button.Name);
+        }
+        Assert.Contains("Form.Monitor", doc.NameProblem(button, "Monitor"));
+        Assert.Null(doc.NameProblem(button, "btnMonitor"));
+        Assert.True(doc.Rename(button, "btnMonitor"));
+        Assert.Null(doc.NameProblem(button, "btnMonitor"));              // its own name is fine
+        Assert.NotNull(doc.NameProblem(button, "9lives"));               // still the identifier check
+
+        // The form's own name is a class name, not a field.
+        Assert.Null(doc.NameProblem(doc.Form, "Monitor2"));
+
+        // A document that knows a user base class: its members clash, Form's no longer have to.
+        doc.InheritedMemberLookup = n => n == "Counter" ? "BaseForm.Counter" : null;
+        Assert.Contains("BaseForm.Counter", doc.NameProblem(button, "Counter"));
+        Assert.Null(doc.NameProblem(button, "Monitor"));
+
+        // UniqueName skips names that would hide a member.
+        doc.InheritedMemberLookup = n => n == "Button1" ? "Form.Button1" : null;
+        Assert.Equal("Button2", doc.UniqueName("Button"));
+    }
 }

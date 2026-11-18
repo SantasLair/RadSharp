@@ -329,11 +329,17 @@ findings with failing tests), merged on branch `m13`.
   (closes every form through CloseQuery: modal forms first, the main form last); `SdlHost.Run` returns the exit code.
 - **Item 6:** `PointerKind` (mouse/touch/pen) on mouse events, from SDL's touch and pen mouse ids.
 - Also fixed on the way: closing a form from a `Timer` crashed in the SDL renderer.
-- **Done-when:** a form starts maximized on a chosen monitor (`StartDisplay` + `WindowState`), remembers its placement
+- **Done-when:** a form starts maximized on a chosen monitor (`StartMonitor` + `WindowState`), remembers its placement
   (`WindowPlacement.Remember`), survives being dragged between monitors of different scale (checked by hand by the
   user in `samples/WindowsDemo` on a 200 % and a 100 % display, 2026-11-17), opens dialogs centred on their owner,
   activates buttons with Alt+letter, and accepts a dropped file (2026-09-28). Tests: 89 new in `RadSharp.Core.Tests`
   (both tracks and their reviews); full suite 846 with the `itemIndex` fix.
+- **2026-11-17, API renamed** (unreleased, no shims) to Delphi's monitor names: `Display` -> `MonitorInfo`,
+  `Screen.Displays` -> `Screen.Monitors`, `Form.Display`/`StartDisplay`/`MoveToDisplay`/`DisplayChanged`/
+  `ScaleWithDisplay` -> `Form.Monitor`/`StartMonitor`/`MoveToMonitor`/`MonitorChanged`/`ScaleWithMonitor`,
+  `IPlatformServices.GetDisplays`/`GetDisplayOf` -> `GetMonitors`/`GetMonitorOf`; `WindowPlacement` writes `monitor`/
+  `monitorBounds` and still reads `display`/`displayBounds`. The text above is as written at the time. New generator
+  error RAD1006: a control named like an inherited form member (such as `Monitor`) is refused.
 - Left: the form's own `Left`/`Top` are scaled with everything else, which a Manual-positioned form re-shown after a
   scale change can notice; Edit/Memo text scroll offsets stay in pixels until the next caret move; Linux and macOS
   not checked by hand; real touch and pen input untested.

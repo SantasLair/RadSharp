@@ -25,7 +25,7 @@ public static unsafe class SdlHost
 
     /// <summary>
     /// Initializes SDL, installs the platform services, and sets <see cref="Form.DefaultScale"/> to
-    /// <see cref="Scale"/>, so forms created afterwards load at the display's scale. Call before creating forms.
+    /// <see cref="Scale"/>, so forms created afterwards load at the monitor's scale. Call before creating forms.
     /// </summary>
     public static void Initialize()
     {
@@ -55,7 +55,7 @@ public static unsafe class SdlHost
     }
 
     /// <summary>
-    /// The UI scale factor to load forms with: the primary display's content scale, or the
+    /// The UI scale factor to load forms with: the primary monitor's content scale, or the
     /// RADSHARP_SCALE environment variable if set.
     /// </summary>
     public static double Scale
@@ -157,29 +157,29 @@ public static unsafe class SdlHost
 
     internal static bool OpenUrl(string url) => SDL_OpenURL(url);
 
-    // ---- Displays ----
+    // ---- Monitors ----
 
-    /// <summary>True when RADSHARP_SCALE forces the scale: forms then keep it on every display.</summary>
+    /// <summary>True when RADSHARP_SCALE forces the scale: forms then keep it on every monitor.</summary>
     internal static bool ScaleForced =>
         double.TryParse(Environment.GetEnvironmentVariable("RADSHARP_SCALE"), System.Globalization.CultureInfo.InvariantCulture, out var forced) && forced > 0;
 
     /// <summary>
-    /// The displays attached now, the primary one first. Bounds are SDL's (points) times the display's pixel density,
+    /// The monitors attached now, the primary one first. Bounds are SDL's (points) times the monitor's pixel density,
     /// so they are in the units of <see cref="Form.RestoredBounds"/> (on Windows both are pixels).
     /// </summary>
-    internal static List<Display> GetDisplays()
+    internal static List<MonitorInfo> GetMonitors()
     {
-        var list = new List<Display>();
+        var list = new List<MonitorInfo>();
         if (!_initialized) return list;
         var primary = SDL_GetPrimaryDisplay();
         using var ids = SDL_GetDisplays();
         for (int i = 0; ids != null && i < ids.Count; i++)
-            if (DisplayFor(ids[i], primary) is { } d) list.Add(d);
+            if (MonitorFor(ids[i], primary) is { } d) list.Add(d);
         list.Sort((a, b) => b.IsPrimary.CompareTo(a.IsPrimary));   // stable enough: at most one primary
         return list;
     }
 
-    internal static Display? DisplayFor(SDL_DisplayID id, SDL_DisplayID primary)
+    internal static MonitorInfo? MonitorFor(SDL_DisplayID id, SDL_DisplayID primary)
     {
         if (id == 0) return null;
         SDL_Rect bounds, usable;
@@ -188,7 +188,7 @@ public static unsafe class SdlHost
         float density = DensityOf(id);
         float scale = SDL_GetDisplayContentScale(id);
         static Rect R(SDL_Rect r, float k) => new((int)MathF.Round(r.x * k), (int)MathF.Round(r.y * k), (int)MathF.Round(r.w * k), (int)MathF.Round(r.h * k));
-        return new Display((uint)id, SDL_GetDisplayName(id) ?? $"Display {(uint)id}", R(bounds, density), R(usable, density),
+        return new MonitorInfo((uint)id, SDL_GetDisplayName(id) ?? $"Monitor {(uint)id}", R(bounds, density), R(usable, density),
             scale > 0 && float.IsFinite(scale) ? scale : 1, id == primary);
     }
 
@@ -198,7 +198,7 @@ public static unsafe class SdlHost
         return mode != null && mode->pixel_density > 0 ? mode->pixel_density : 1;
     }
 
-    /// <summary>The usable bounds (points) of the display with this id, if it is still attached.</summary>
+    /// <summary>The usable bounds (points) of the monitor with this id, if it is still attached.</summary>
     internal static bool UsableBounds(uint id, out SDL_Rect area)
     {
         area = default;
@@ -209,15 +209,15 @@ public static unsafe class SdlHost
         return true;
     }
 
-    /// <summary>The pixel density of the display a screen rect (in <see cref="GetDisplays"/> units) is on, to convert it to points.</summary>
+    /// <summary>The pixel density of the monitor a screen rect (in <see cref="GetMonitors"/> units) is on, to convert it to points.</summary>
     internal static float DensityAt(Rect rect)
     {
-        var displays = GetDisplays();
-        return Screen.FromRectIn(displays, rect) is { } d ? DensityOf((SDL_DisplayID)d.Id) : 1;
+        var monitors = GetMonitors();
+        return Screen.FromRectIn(monitors, rect) is { } d ? DensityOf((SDL_DisplayID)d.Id) : 1;
     }
 
-    internal static Display? DisplayOf(Form form) =>
-        WindowOf(form) is { } w ? DisplayFor(w.DisplayId, SDL_GetPrimaryDisplay()) : null;
+    internal static MonitorInfo? MonitorOf(Form form) =>
+        WindowOf(form) is { } w ? MonitorFor(w.DisplayId, SDL_GetPrimaryDisplay()) : null;
 
     internal static bool MoveForm(Form form, Rect bounds)
     {
@@ -448,8 +448,8 @@ internal sealed class SdlPlatform : IPlatformServices
     public void PostToUiThread(Action action) => SdlHost.PostToUiThread(action);
     public void ShowModal(Form form, Action onClosed) => SdlHost.ShowModalNonBlocking(form, onClosed);
     public bool OpenUrl(string url) => SdlHost.OpenUrl(url);
-    public IReadOnlyList<Display> GetDisplays() => SdlHost.GetDisplays();
-    public Display? GetDisplayOf(Form form) => SdlHost.DisplayOf(form);
+    public IReadOnlyList<MonitorInfo> GetMonitors() => SdlHost.GetMonitors();
+    public MonitorInfo? GetMonitorOf(Form form) => SdlHost.MonitorOf(form);
     public bool MoveForm(Form form, Rect bounds) => SdlHost.MoveForm(form, bounds);
 }
 
@@ -493,7 +493,7 @@ internal sealed unsafe class FormWindow : IDisposable
         _logicalW = form.Width / form.Scale;
         _logicalH = form.Height / form.Scale;
         PlaceWindow(owner);
-        // On a display with another scale than the form was loaded at (a second monitor, a remembered placement),
+        // On a monitor with another scale than the form was loaded at (a second monitor, a remembered placement),
         // rescale now, before the first frame, and centre again at the new size.
         if (SyncScaleToDisplay() && _form.EffectiveStartPosition != FormStartPosition.Manual) PlaceWindow(owner);
         RecordRestoredBounds();   // before ApplyWindowState maximises the window
@@ -676,8 +676,8 @@ internal sealed unsafe class FormWindow : IDisposable
         _form.NotifyRestoredBounds(new Rect(Px(x), Px(y), Px(w), Px(h)));
     }
 
-    /// <summary>The UI scale of the display the window is on: what the form should be at (the host loads forms at the display's content scale).</summary>
-    double DisplayScale
+    /// <summary>The UI scale of the monitor the window is on: what the form should be at (the host loads forms at the monitor's content scale).</summary>
+    double MonitorScale
     {
         get
         {
@@ -687,15 +687,15 @@ internal sealed unsafe class FormWindow : IDisposable
     }
 
     /// <summary>
-    /// If the window is now on a display with another scale than the form's, rescales the form there
+    /// If the window is now on a monitor with another scale than the form's, rescales the form there
     /// (<see cref="Form.ChangeScale"/>, drift-free) and, for a normal window, resizes it so it keeps its size in design
     /// units: Windows already does that while the user drags a resizable window across, so usually nothing is left to
     /// do; a fixed-size window, or one moved from code, is resized here. Returns true if the scale changed.
     /// </summary>
     bool SyncScaleToDisplay()
     {
-        if (!_form.FollowsDisplayScale || SdlHost.ScaleForced) return false;
-        double scale = DisplayScale;
+        if (!_form.FollowsMonitorScale || SdlHost.ScaleForced) return false;
+        double scale = MonitorScale;
         if (Math.Abs(scale - _form.Scale) < 1e-6) return false;
         bool normal = IsNormalState();
         _form.ChangeScale(scale);
@@ -722,12 +722,12 @@ internal sealed unsafe class FormWindow : IDisposable
         {
             if ((SDL_GetWindowFlags(_window) & SDL_WindowFlags.SDL_WINDOW_FULLSCREEN) != 0) SDL_SetWindowFullscreen(_window, false);
             SDL_RestoreWindow(_window);
-            _appliedState = WindowState.Normal;   // Tick gives the form its state back, on the new display
+            _appliedState = WindowState.Normal;   // Tick gives the form its state back, on the new monitor
         }
         float density = SdlHost.DensityAt(bounds);
         SDL_SetWindowPosition(_window, (int)MathF.Round(bounds.X / density), (int)MathF.Round(bounds.Y / density));
-        // The size is meant for the display the window lands on.
-        double scale = _form.FollowsDisplayScale && !SdlHost.ScaleForced ? DisplayScale : _form.Scale;
+        // The size is meant for the monitor the window lands on.
+        double scale = _form.FollowsMonitorScale && !SdlHost.ScaleForced ? MonitorScale : _form.Scale;
         _logicalW = bounds.Width / scale;
         _logicalH = bounds.Height / scale;
         if (!SyncScaleToDisplay())
@@ -735,22 +735,22 @@ internal sealed unsafe class FormWindow : IDisposable
         if (_disposed) return;
         SyncSizeToWindow();
         RecordRestoredBounds();
-        // Maximise (or go full screen) again, now on the new display. The RESTORED event queued above is read after
+        // Maximise (or go full screen) again, now on the new monitor. The RESTORED event queued above is read after
         // this, when SDL's flags already say maximised, so it doesn't overwrite the form's state.
         if (wanted is WindowState.Maximized or WindowState.FullScreen && _form.WindowState != wanted) _form.WindowState = wanted;
         ApplyWindowState();
     }
 
-    /// <summary>The display the window is on.</summary>
+    /// <summary>The monitor the window is on.</summary>
     public SDL_DisplayID DisplayId => SDL_GetDisplayForWindow(_window);
 
-    /// <summary>Positions the (still hidden) window per <see cref="Form.EffectiveStartPosition"/> and <see cref="Form.StartDisplay"/>.</summary>
+    /// <summary>Positions the (still hidden) window per <see cref="Form.EffectiveStartPosition"/> and <see cref="Form.StartMonitor"/>.</summary>
     void PlaceWindow(FormWindow? owner)
     {
         int w, h;
         SDL_GetWindowSize(_window, &w, &h);
         SDL_Rect area = default;
-        bool onDisplay = _form.StartDisplay is { } start && SdlHost.UsableBounds(start.Id, out area);
+        bool onMonitor = _form.StartMonitor is { } start && SdlHost.UsableBounds(start.Id, out area);
         switch (_form.EffectiveStartPosition)
         {
             case FormStartPosition.CenterOwner when owner != null:
@@ -764,11 +764,11 @@ internal sealed unsafe class FormWindow : IDisposable
                 break;
             case FormStartPosition.CenterScreen:
             case FormStartPosition.CenterOwner:
-                if (onDisplay) SDL_SetWindowPosition(_window, area.x + (area.w - w) / 2, area.y + Math.Max(0, (area.h - h) / 2));
+                if (onMonitor) SDL_SetWindowPosition(_window, area.x + (area.w - w) / 2, area.y + Math.Max(0, (area.h - h) / 2));
                 else SDL_SetWindowPosition(_window, unchecked((int)SDL_WINDOWPOS_CENTERED), unchecked((int)SDL_WINDOWPOS_CENTERED));
                 break;
             default:
-                if (onDisplay) SDL_SetWindowPosition(_window, area.x + (area.w - w) / 2, area.y + Math.Max(0, (area.h - h) / 2));
+                if (onMonitor) SDL_SetWindowPosition(_window, area.x + (area.w - w) / 2, area.y + Math.Max(0, (area.h - h) / 2));
                 break;
         }
     }
@@ -822,7 +822,7 @@ internal sealed unsafe class FormWindow : IDisposable
                 break;
             case SDL_EventType.SDL_EVENT_WINDOW_DISPLAY_CHANGED:
                 Guard.Run(() => SyncScaleToDisplay());
-                Guard.Run(_form.NotifyDisplayChanged);
+                Guard.Run(_form.NotifyMonitorChanged);
                 break;
             case SDL_EventType.SDL_EVENT_MOUSE_MOTION:
                 Guard.Run(() => _form.ProcessMouseMove(Px(e.motion.x), Px(e.motion.y), SdlInput.Modifiers(SDL_GetModState()), SdlInput.Pointer((uint)e.motion.which)));
@@ -936,15 +936,15 @@ internal sealed unsafe class FormWindow : IDisposable
         SDL_GetWindowSizeInPixels(_window, &w, &h);
         w = Math.Max(1, w);
         h = Math.Max(1, h);
-        // While the scale matches the display, the window's size in design units is what a later scale change keeps.
-        if (IsNormalState() && (!_form.FollowsDisplayScale || Math.Abs(DisplayScale - _form.Scale) < 1e-6))
+        // While the scale matches the monitor, the window's size in design units is what a later scale change keeps.
+        if (IsNormalState() && (!_form.FollowsMonitorScale || Math.Abs(MonitorScale - _form.Scale) < 1e-6))
         {
             _logicalW = w / _form.Scale;
             _logicalH = h / _form.Scale;
         }
         if (_backBuffer != null && _backBuffer.Width == w && _backBuffer.Height == h)
         {
-            // Same window size, but the form may have been rescaled (a maximised window moved to another display).
+            // Same window size, but the form may have been rescaled (a maximised window moved to another monitor).
             if (_form.Width != w || _form.Height != h) { _form.Resize(w, h); _form.InvalidateAll(); }
             return;
         }
