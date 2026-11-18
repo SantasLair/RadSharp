@@ -5,10 +5,12 @@ Every control also has the [common properties and events](#common-to-every-contr
 Defaults are the class defaults at 100 % scale; only values that differ are written to form files.
 
 - [Button](#button)
+- [Calendar](#calendar)
 - [CheckBox](#checkbox)
 - [CheckListBox](#checklistbox)
 - [ColorBox](#colorbox)
 - [ComboBox](#combobox)
+- [DateTimePicker](#datetimepicker)
 - [DrawGrid](#drawgrid)
 - [Edit](#edit)
 - [FolderDialog](#folderdialog) (non-visual)
@@ -61,6 +63,21 @@ Defaults are the class defaults at 100 % scale; only values that differ are writ
 | `images` | string | "" | Appearance |
 | `modalResult` | enum: none, ok, cancel, abort, retry, ignore, yes, no, close | `none` | Behavior |
 | `primary` | bool | `false` | Appearance |
+
+## Calendar
+
+
+| Property | Type | Default | Category |
+|---|---|---|---|
+| `date` | date | "" | Behavior |
+| `firstDayOfWeek` | enum: default, sunday, monday, tuesday, wednesday, thursday, friday, saturday | `default` | Behavior |
+| `maxDate` | date | `9999-12-31` | Behavior |
+| `minDate` | date | `0001-01-01` | Behavior |
+
+| Event | Handler parameters |
+|---|---|
+| `onChange` | `(Control sender)` |
+| `onDateClick` | `(Control sender)` |
 
 ## CheckBox
 
@@ -135,6 +152,23 @@ Inherits from [ComboBox](#combobox).
 | `items` | strings | "" | Behavior |
 | `style` | enum: dropDownList, dropDown | `dropDownList` | Behavior |
 | `text` | string | "" | Behavior |
+
+| Event | Handler parameters |
+|---|---|
+| `onChange` | `(Control sender)` |
+
+## DateTimePicker
+
+
+| Property | Type | Default | Category |
+|---|---|---|---|
+| `checked` | bool | `true` | Behavior |
+| `date` | date | "" | Behavior |
+| `firstDayOfWeek` | enum: default, sunday, monday, tuesday, wednesday, thursday, friday, saturday | `default` | Behavior |
+| `format` | string | "" | Appearance |
+| `maxDate` | date | `9999-12-31` | Behavior |
+| `minDate` | date | `0001-01-01` | Behavior |
+| `showCheckbox` | bool | `false` | Behavior |
 
 | Event | Handler parameters |
 |---|---|
@@ -215,13 +249,16 @@ Inherits from `FileDialog` (abstract; its members are listed here).
 
 | Property | Type | Default | Category |
 |---|---|---|---|
+| `borderStyle` | enum: sizable, single, dialog, tool, none | `sizable` | Window |
 | `caption` | string | "" | Appearance |
 | `color` | color | "" | Appearance |
 | `darkTitleBar` | bool | `false` | Window |
+| `icon` | string | "" | Window |
 | `keyPreview` | bool | `false` | Behavior |
 | `resizable` | bool | `true` | Window |
 | `startPosition` | enum: default, centerScreen, centerOwner, manual | `default` | Window |
-| `windowState` | enum: normal, maximized, minimized | `normal` | Window |
+| `topMost` | bool | `false` | Window |
+| `windowState` | enum: normal, maximized, minimized, fullScreen | `normal` | Window |
 
 | Event | Handler parameters |
 |---|---|
@@ -260,11 +297,13 @@ Inherits from `Component` (abstract; its members are listed here).
 | `alignment` | enum: left, center, right | `left` | Appearance |
 | `caption` | string | "" | Appearance |
 | `ellipsis` | bool | `false` | Appearance |
+| `focusControl` | string | "" | Behavior |
 | `fontBold` | bool | `false` | Appearance |
 | `fontColor` | color | "" | Appearance |
 | `fontSize` | int | `0` | Appearance |
 | `layout` | enum: top, center, bottom | `top` | Appearance |
 | `muted` | bool | `false` | Appearance |
+| `showAccelChar` | bool | `true` | Appearance |
 | `wordWrap` | bool | `false` | Appearance |
 
 ## ListBox

@@ -399,6 +399,31 @@ public class HostTests
         Assert.DoesNotContain("Button1_Click", File.ReadAllText(code));
     }
 
+    [Fact]
+    public void Typing_a_handler_name_into_an_event_row_requests_a_quiet_stub()
+    {
+        var (client, panes, project, code) = OpenNavProject();
+        using var _ = client;
+        var onDisk = File.ReadAllText(code);
+
+        client.Ui(() =>
+        {
+            var doc = client.Server!.Document(Doc)!;
+            doc.InspectorPages!.ActivePageIndex = 1;
+            doc.InspectorPages.OwningForm!.PerformLayout();
+            var grid = doc.GridEvents!;
+            grid.BeginEdit(grid.IndexOf("onClick"));
+            doc.InspectorPages.OwningForm!.Simulate.Type("Shared_Click");
+            doc.InspectorPages.OwningForm!.Simulate.Key(Key.Enter);
+        });
+        var request = client.Expect<P.CodeRequest>();
+        client.Send(new P.CodeResponse { RequestId = request.RequestId, Found = true, Text = onDisk });
+        var edit = client.Expect<P.ApplyCodeEdit>();
+        Assert.Contains("void Shared_Click(Control sender)", edit.Text);
+        Assert.Equal("Shared_Click", client.Ui(() => client.Server!.Document(Doc)!.Doc.Form.FindControl("Button1")!.EventHandlers["onClick"]));
+        Assert.Equal(onDisk, File.ReadAllText(code));
+    }
+
     static string Sha256Hex(string text) =>
         Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(text))).ToLowerInvariant();
 

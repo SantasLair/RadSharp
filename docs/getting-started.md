@@ -5,7 +5,8 @@ a handler, press F9 to run it, press Build to get a native executable for Window
 
 ## What you need
 
-- The **.NET 10 SDK** (`dotnet --list-sdks` should list a 10.x version).
+- The **.NET 10 SDK**, 10.0.404 or later (`dotnet --list-sdks` should list one). Older 10.0 SDKs bring a NativeAOT compiler
+  package that NuGet flags as vulnerable, and the build fails on that warning.
 - For native builds (**Build**): the platform linker NativeAOT uses — on Windows the *Desktop development with
   C++* workload of Visual Studio or its Build Tools; on Linux `clang` and `zlib1g-dev`; on macOS the Xcode
   command-line tools. On Windows, run from a *Developer Command Prompt/PowerShell*, or make sure

@@ -14,6 +14,7 @@ public enum PropertyGridArrangement { Declared, Alphabetical, Categorized }
 
 public delegate void PropertyChangedEvent(PropertyGrid sender, string propertyName);
 public delegate void EventRowEvent(PropertyGrid sender, EventMeta ev);
+public delegate void EventHandlerAssignedEvent(PropertyGrid sender, EventMeta ev, string handler);
 public delegate void CollectionRowEvent(PropertyGrid sender, Control target, string name);
 
 /// <summary>
@@ -68,6 +69,11 @@ public class PropertyGrid : Control
     public event PropertyChangedEvent? PropertyChanged;
     /// <summary>Raised when an event row is double-clicked (the designer creates the handler).</summary>
     public event EventRowEvent? EventDoubleClick;
+    /// <summary>
+    /// Raised once after the user committed a non-empty handler name into an event row (however many targets
+    /// there are), so the host can make sure the method exists. Clearing a row does not raise it.
+    /// </summary>
+    public event EventHandlerAssignedEvent? EventHandlerAssigned;
     /// <summary>
     /// Raised when the row of a collection (<see cref="ICollectionOwner"/>, e.g. a grid's columns) is activated: a click on
     /// the selected row's value, Enter or F2. The host opens its editor; the grid shows nothing for these rows otherwise.
@@ -390,6 +396,7 @@ public class PropertyGrid : Control
         Invalidate();
         PropertyChanged?.Invoke(this, name);
         Change?.Invoke(this);
+        if (ev != null && text.Length > 0) EventHandlerAssigned?.Invoke(this, ev, text);
         return true;
     }
 
@@ -520,7 +527,13 @@ public class PropertyGrid : Control
             if (selected) canvas.FillRect(nameRect, Focused || IsEditing ? t.Selection : t.SelectionInactive);
             int nameIndent = canvas.Px(8) + (isAnchorFlag ? canvas.Px(14) : 0);
             string nameText = _rows[i].Name;
-            if (isAnchorsParent) nameText = (_expandedAnchors.Contains(nameText) ? "▾ " : "▸ ") + nameText;
+            if (isAnchorsParent)
+            {
+                // Drawn, not a "▾"/"▸" prefix: the bundled font lacks those glyphs (see ViewDrawing.DrawExpander).
+                int slot = canvas.Px(12);
+                ViewDrawing.DrawExpander(canvas, new Rect(nameRect.X + nameIndent, row.Y, slot, row.Height), _expandedAnchors.Contains(nameText), t.Text);
+                nameIndent += slot + canvas.Px(2);
+            }
             else if (isAnchorFlag) nameText = nameText[(nameText.LastIndexOf('.') + 1)..];   // "anchors.left" → "left"
             canvas.DrawText(nameText, font, t.Text, new Rect(nameRect.X + nameIndent, row.Y, nameRect.Width - nameIndent - canvas.Px(2), row.Height), TextAlign.Left, VerticalAlign.Center);
 

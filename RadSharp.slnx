@@ -7,6 +7,7 @@
     <Project Path="samples/SettingsDialog/SettingsDialog.csproj" />
     <Project Path="samples/TextEditor/TextEditor.csproj" />
     <Project Path="samples/TileEditor/TileEditor.csproj" />
+    <Project Path="samples/WindowsDemo/WindowsDemo.csproj" />
   </Folder>
   <Folder Name="/src/">
     <Project Path="src/RadSharp.Core/RadSharp.Core.csproj" />

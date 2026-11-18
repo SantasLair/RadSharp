@@ -3,6 +3,7 @@ using RadSharp.Drawing;
 namespace RadSharp.Tests;
 
 /// <summary>Windows, dialogs, the property grid and the view controls. Uses a fake platform host.</summary>
+[Collection("PlatformHost")]   // installs a fake PlatformHost.Current, like WindowModelTests and ApplicationAndPointerTests
 public class DialogAndInspectorTests
 {
     /// <summary>A platform host whose modal loop runs a script instead of waiting for a user.</summary>
@@ -200,6 +201,26 @@ public class DialogAndInspectorTests
         var cell = grid.ValueRect(click);
         f.Simulate.DoubleClick(grid.AbsoluteLeft + cell.X + 10, grid.AbsoluteTop + cell.Y + 5);
         Assert.Equal("onClick", doubleClicked?.Name);
+    }
+
+    [Fact]
+    public void PropertyGrid_raises_EventHandlerAssigned_once_for_a_non_empty_name()
+    {
+        var (f, grid, target) = Inspector();
+        grid.Mode = PropertyGridMode.Events;
+        int click = grid.IndexOf("onClick");
+        var assigned = new List<string>();
+        grid.EventHandlerAssigned += (_, ev, handler) => assigned.Add(ev.Name + ":" + handler);
+
+        grid.BeginEdit(click);
+        f.Simulate.Type("btnGo_Click");
+        f.Simulate.Key(Key.Enter);
+        Assert.Equal(["onClick:btnGo_Click"], assigned);
+
+        grid.Apply(click, "");   // clearing is not an assignment
+        grid.Apply(click, "btnGo_Click");
+        Assert.Equal(["onClick:btnGo_Click", "onClick:btnGo_Click"], assigned);
+        Assert.False(target.EventHandlers.ContainsKey("onClick") && target.EventHandlers["onClick"] == "");
     }
 
     [Fact]
@@ -428,5 +449,39 @@ public class DialogAndInspectorTests
         Assert.NotNull(paintedRect);
         Assert.True(paintedRect!.Value.Width > 0 && paintedRect.Value.Height > 0);
         Assert.Null(plain.Icon);   // a node with no icon set stays that way; Paint didn't invent one
+    }
+
+    [Fact]
+    public void A_close_that_CloseQuery_refuses_leaves_no_ModalResult_behind()
+    {
+        // Delphi resets ModalResult to mrNone when CloseQuery refuses; otherwise a later title-bar close
+        // would report the refused result (e.g. Ok for a dialog that never saved).
+        var host = Install();
+        var form = new Form();
+        bool allow = false;
+        form.CloseQuery += (_, e) => e.CanClose = allow;
+        ModalResult afterRefusal = ModalResult.Ok;
+        host.OnModal = f =>
+        {
+            f.ModalResult = ModalResult.Ok;      // refused
+            afterRefusal = f.ModalResult;
+            allow = true;                        // the host then closes the window (title bar)
+        };
+        Assert.Equal(ModalResult.Cancel, form.ShowModal());
+        Assert.Equal(ModalResult.None, afterRefusal);
+    }
+
+    [Fact]
+    public void Setting_ModalResult_inside_CloseQuery_closes_once()
+    {
+        var host = Install();
+        var form = new Form();
+        int queries = 0, closed = 0;
+        form.CloseQuery += (_, e) => { queries++; if (form.ModalResult == ModalResult.None) form.ModalResult = ModalResult.Ok; };
+        form.Closed += _ => closed++;
+        host.OnModal = f => f.Close();
+        Assert.Equal(ModalResult.Ok, form.ShowModal());
+        Assert.Equal(1, queries);
+        Assert.Equal(1, closed);
     }
 }

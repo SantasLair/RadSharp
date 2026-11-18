@@ -16,8 +16,13 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+      # A separate build: `dotnet test` only builds the test projects and what they reference, so a sample that no
+      # longer compiles (e.g. a member that now hides a new Form member) would only show up in the publish step below,
+      # and only for the samples that step publishes.
+      - name: Build (the whole solution, samples included)
+        run: dotnet build RadSharp.slnx --configuration Release
       - name: Test (layout vectors, golden images, input, editors, generators, designer)
-        run: dotnet test --configuration Release
+        run: dotnet test RadSharp.slnx --configuration Release --no-build
       - name: Upload golden-image failures
         if: failure()
         uses: actions/upload-artifact@v4

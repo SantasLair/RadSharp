@@ -1,3 +1,4 @@
+using System.Reflection;
 namespace RadSharp.Design;
 
 /// <summary>
@@ -141,7 +142,55 @@ public sealed class DesignDocument
     {
         var used = new HashSet<string>(Form.Descendants().Select(c => c.Name).Append(Form.Name), StringComparer.OrdinalIgnoreCase);
         for (int n = 1; ; n++)
-            if (!used.Contains(className + n)) return className + n;
+            if (!used.Contains(className + n) && HiddenMember(className + n) == null) return className + n;
+    }
+
+    /// <summary>
+    /// Finds the member of the edited form's base class that a control named <c>name</c> would hide (the generator
+    /// reports that as error RAD1006): returns "Type.Member", or null if there is none. Defaults to the members of
+    /// <see cref="RadSharp.Form"/>; set it when the form derives from a base class the designer knows about.
+    /// </summary>
+    public Func<string, string?> InheritedMemberLookup { get; set; } = FormMemberLookup;
+
+    /// <summary>The member of the form's base class a control of this name would hide, or null (see <see cref="InheritedMemberLookup"/>).</summary>
+    public string? HiddenMember(string name) => InheritedMemberLookup(name);
+
+    /// <summary>The inherited members of <see cref="RadSharp.Form"/> that code in another assembly can see (public, protected).</summary>
+    static string? FormMemberLookup(string name)
+    {
+        const BindingFlags flags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Instance | BindingFlags.Static | BindingFlags.FlattenHierarchy;
+        {
+            foreach (var m in typeof(RadSharp.Form).GetMember(name, flags))
+            {
+                bool visible = m switch
+                {
+                    MethodBase { IsSpecialName: true } => false,
+                    MethodBase b => b.IsPublic || b.IsFamily || b.IsFamilyOrAssembly,
+                    FieldInfo f => f.IsPublic || f.IsFamily || f.IsFamilyOrAssembly,
+                    PropertyInfo p => p.GetMethod is { } g && (g.IsPublic || g.IsFamily || g.IsFamilyOrAssembly)
+                        || p.SetMethod is { } st && (st.IsPublic || st.IsFamily || st.IsFamilyOrAssembly),
+                    EventInfo e => e.AddMethod is { } a && (a.IsPublic || a.IsFamily || a.IsFamilyOrAssembly),
+                    Type n => n.IsNestedPublic || n.IsNestedFamily || n.IsNestedFamORAssem,
+                    _ => false,
+                };
+                if (visible) return $"{(m.DeclaringType ?? typeof(RadSharp.Form)).Name}.{m.Name}";
+            }
+        }
+        return null;
+    }
+
+    /// <summary>
+    /// Why <paramref name="name"/> can't be <paramref name="control"/>'s name, or null if it can: not a valid
+    /// identifier, already used, or hiding an inherited member of the form (RAD1006). The form's own name is exempt from
+    /// the last rule: it names the class, not a field.
+    /// </summary>
+    public string? NameProblem(Control control, string name)
+    {
+        if (name.Length == 0 || !IsIdentifier(name) || (Form.FindControl(name) is { } other && other != control))
+            return $"\"{name}\" is not a valid, unused name";
+        if (control != Form && HiddenMember(name) is { } hidden)
+            return $"\"{name}\" would hide the inherited member {hidden}; choose another name";
+        return null;
     }
 
     /// <summary>Whether <paramref name="container"/> can hold a new control of <paramref name="cls"/>.</summary>
@@ -202,7 +251,7 @@ public sealed class DesignDocument
     /// <summary>Renames a control (the form generator turns the name into a field).</summary>
     public bool Rename(Control control, string name)
     {
-        if (name.Length == 0 || !IsIdentifier(name) || (Form.FindControl(name) is { } other && other != control)) return false;
+        if (NameProblem(control, name) != null) return false;
         Snapshot();
         control.Name = name;
         NotifyChanged();
