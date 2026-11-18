@@ -14,7 +14,7 @@ public partial class DesignerForm : Form
     /// <summary>A form open in the designer: its file, document and design surface on a tab.</summary>
     public sealed class OpenForm(string path, DesignDocument doc, DesignSurface surface, TabSheet sheet)
     {
-        public string Path { get; } = path;
+        public string Path { get; internal set; } = path;
         public DesignDocument Document { get; } = doc;
         public DesignSurface Surface { get; } = surface;
         public TabSheet Sheet { get; } = sheet;

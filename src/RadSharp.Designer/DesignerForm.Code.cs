@@ -36,17 +36,64 @@ public partial class DesignerForm
         OpenProject(dlgOpenProject.FileName);
     }
 
-    /// <summary>Project › Add New Form: <c>FormN.radform.json</c> + <c>FormN.cs</c>, opened in a new tab.</summary>
-    public OpenForm? NewForm()
+    /// <summary>
+    /// File › New Form: asks for the class name (default the next free <c>FormN</c>), then creates
+    /// <c>Name.radform.json</c> + <c>Name.cs</c> and opens it in a new tab. With <paramref name="name"/> it skips the
+    /// question (the name must still be valid, else null). Null too if cancelled.
+    /// </summary>
+    public OpenForm? NewForm(string? name = null)
     {
         if (_project == null) return null;
-        int n = 2;
-        while (File.Exists(Path.Combine(_project.Directory, $"Form{n}.radform.json"))) n++;
-        var file = _project.AddForm($"Form{n}");
+        if (name == null)
+        {
+            var dialog = new FormNameDialog(_project, "New Form", _project.NextFreeFormName(), null, this);
+            if (dialog.ShowModal() != ModalResult.Ok) return null;
+            name = dialog.FormName;
+        }
+        if (_project.ValidateFormName(name) is { } problem) { Dialogs.ShowMessage(problem, this); return null; }
+        string file;
+        try { file = _project.AddForm(name); }
+        catch (IOException e) { Dialogs.MessageDlg($"Could not create the form:\n{e.Message}", MessageType.Error, owner: this); return null; }
         var form = OpenFormFile(file);
         UpdateUi();
         return form;
     }
+
+    /// <summary>
+    /// Project › Rename Form: renames the active form's class (files, code-behind, every reference in the project's
+    /// sources, its tab and the project list). The form is saved first. Returns false if cancelled, invalid or
+    /// failed (nothing is changed then).
+    /// </summary>
+    public bool RenameForm(string? newName = null)
+    {
+        if (_project == null || _active is not { } form) return false;
+        var oldName = form.ClassName;
+        if (newName == null)
+        {
+            var dialog = new FormNameDialog(_project, "Rename Form", oldName, oldName, this);
+            if (dialog.ShowModal() != ModalResult.Ok) return false;
+            newName = dialog.FormName;
+        }
+        if (newName == oldName) return false;
+        if (_project.ValidateFormName(newName, form.Path) is { } problem) { Dialogs.ShowMessage(problem, this); return false; }
+        // Other open forms' tabs only show a class name, but unsaved edits to this form must reach the renamed file.
+        if (form.Document.Modified) Save(form);
+        string newFile;
+        try { newFile = _project.RenameForm(form.Path, newName); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Dialogs.MessageDlg($"Could not rename {oldName}; nothing was changed:\n{e.Message}", MessageType.Error, owner: this);
+            return false;
+        }
+        form.Path = newFile;
+        form.Document.FileName = newFile;
+        form.Sheet.Caption = form.ClassName + (form.Document.Modified ? " *" : "");
+        Output($"Renamed {oldName} to {newName} (files and references in the project's source files).");
+        UpdateUi();
+        return true;
+    }
+
+    void mnuRenameForm_Click(object sender) => RenameForm();
 
     void mnuNewForm_Click(object sender) => NewForm();
 

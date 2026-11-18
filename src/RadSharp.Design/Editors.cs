@@ -34,7 +34,7 @@ public sealed class MenuEditor
     readonly DesignDocument _doc;
     readonly IMenuOwner _menu;
     readonly TreeView _tree;
-    readonly Edit _caption, _name, _shortcut, _handler;
+    readonly Edit _caption, _name, _shortcut, _altShortcut, _handler;
     readonly CheckBox _enabled, _checked;
     bool _loading;
 
@@ -53,10 +53,12 @@ public sealed class MenuEditor
         _name = EditorLayout.Put(f, new Edit { Name = "edtName" }, 360, 46, 184, 26);
         EditorLayout.Put(f, new Label { Caption = "Shortcut" }, 268, 82, 90, 22);
         _shortcut = EditorLayout.Put(f, new Edit { Name = "edtShortcut", Placeholder = "Mod+S" }, 360, 80, 184, 26);
-        EditorLayout.Put(f, new Label { Caption = "onClick" }, 268, 116, 90, 22);
-        _handler = EditorLayout.Put(f, new Edit { Name = "edtHandler" }, 360, 114, 184, 26);
-        _enabled = EditorLayout.Put(f, new CheckBox { Name = "chkEnabled", Caption = "Enabled" }, 360, 150, 184, 22);
-        _checked = EditorLayout.Put(f, new CheckBox { Name = "chkChecked", Caption = "Checked" }, 360, 176, 184, 22);
+        EditorLayout.Put(f, new Label { Caption = "Alt shortcut" }, 268, 116, 90, 22);
+        _altShortcut = EditorLayout.Put(f, new Edit { Name = "edtAltShortcut", Placeholder = "Ctrl+Y" }, 360, 114, 184, 26);
+        EditorLayout.Put(f, new Label { Caption = "onClick" }, 268, 150, 90, 22);
+        _handler = EditorLayout.Put(f, new Edit { Name = "edtHandler" }, 360, 148, 184, 26);
+        _enabled = EditorLayout.Put(f, new CheckBox { Name = "chkEnabled", Caption = "Enabled" }, 360, 182, 184, 22);
+        _checked = EditorLayout.Put(f, new CheckBox { Name = "chkChecked", Caption = "Checked" }, 360, 208, 184, 22);
 
         Button B(string name, string caption, int x, int y, Action action)
         {
@@ -64,19 +66,21 @@ public sealed class MenuEditor
             b.Click += _ => action();
             return b;
         }
-        B("btnAdd", "Add", 268, 220, () => AddItem("New item"));
-        B("btnAddSub", "Add sub", 360, 220, () => AddSubItem("New item"));
-        B("btnDelete", "Delete", 452, 220, DeleteSelected);
-        B("btnUp", "Up", 268, 256, () => MoveSelected(-1));
-        B("btnDown", "Down", 360, 256, () => MoveSelected(1));
+        B("btnAdd", "Add", 268, 244, () => AddItem("New item"));
+        B("btnAddSub", "Add sub", 360, 244, () => AddSubItem("New item"));
+        B("btnDelete", "Delete", 452, 244, DeleteSelected);
+        B("btnUp", "Up", 268, 280, () => MoveSelected(-1));
+        B("btnDown", "Down", 360, 280, () => MoveSelected(1));
+        B("btnSeparator", "Separator", 452, 280, () => AddSeparator());
         var close = B("btnClose", "Close", 456, 356, () => { });
         close.ModalResult = ModalResult.Ok;
         close.Default = true;
 
         _tree.Change += _ => LoadFields();
-        _caption.Change += _ => Store(i => i.Caption = _caption.Text);
+        _caption.Change += _ => Store(i => { i.Caption = _caption.Text; i.Separator = i.Caption == "-"; });
         _name.Change += _ => Store(i => i.Name = _name.Text.Trim());
         _shortcut.Change += _ => Store(i => i.Shortcut = _shortcut.Text.Trim());
+        _altShortcut.Change += _ => Store(i => i.AltShortcut = _altShortcut.Text.Trim());
         _handler.Change += _ => Store(i => i.ClickHandler = _handler.Text.Trim());
         _enabled.Change += _ => Store(i => i.Enabled = _enabled.Checked);
         _checked.Change += _ => Store(i => i.Checked = _checked.Checked);
@@ -111,6 +115,20 @@ public sealed class MenuEditor
     public MenuItem AddItem(string caption)
     {
         var item = new MenuItem { Caption = caption };
+        if (SelectedItem is { } sel)
+        {
+            var list = OwnerList(sel);
+            list.Insert(list.IndexOf(sel) + 1, item);
+        }
+        else _menu.Items.Add(item);
+        Changed(item);
+        return item;
+    }
+
+    /// <summary>Adds a separator (caption <c>-</c>, <c>"separator": true</c> in the form file) after the selected item.</summary>
+    public MenuItem AddSeparator()
+    {
+        var item = new MenuItem { Caption = "-", Separator = true };
         if (SelectedItem is { } sel)
         {
             var list = OwnerList(sel);
@@ -193,7 +211,7 @@ public sealed class MenuEditor
         _tree.Invalidate();
     }
 
-    static string Label(MenuItem i) => i.IsSeparator ? "────" : i.Caption + (i.Shortcut.Length > 0 ? "   " + i.Shortcut : "");
+    static string Label(MenuItem i) => i.IsSeparator ? "────" : i.Caption + (i.Shortcut.Length > 0 ? "   " + i.Shortcut : "") + (i.AltShortcut.Length > 0 ? "   (" + i.AltShortcut + ")" : "");
 
     void LoadFields()
     {
@@ -202,6 +220,7 @@ public sealed class MenuEditor
         _caption.Text = i?.Caption ?? "";
         _name.Text = i?.Name ?? "";
         _shortcut.Text = i?.Shortcut ?? "";
+        _altShortcut.Text = i?.AltShortcut ?? "";
         _handler.Text = i?.ClickHandler ?? "";
         _enabled.Checked = i?.Enabled ?? true;
         _checked.Checked = i?.Checked ?? false;

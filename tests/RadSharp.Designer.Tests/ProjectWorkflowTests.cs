@@ -75,7 +75,8 @@ public class ProjectWorkflowTests
     public void New_form_opens_in_a_tab_and_can_become_the_main_form()
     {
         var project = RadProject.Create(TempDir(), "Tabs");
-        var (d, _) = Start(project.ProjectFile);
+        var (d, host) = Start(project.ProjectFile);
+        host.AnswerModal = form => { Assert.Equal("Form2", ((Edit)form.FindControl("edtFormName")!).Text); return "btnOk"; };
         d.Simulate.Key("Mod+N");
         Assert.Equal(["MainForm", "Form2"], d.OpenForms.Select(f => f.ClassName));
         Assert.Equal("Form2", d.ActiveForm!.ClassName);
@@ -492,5 +493,131 @@ public class ProjectWorkflowTests
 
         Assert.True(doc.Undo());                      // the nodes session
         Assert.Empty(((TreeView)doc.Form.FindControl(tree.Name)!).Nodes);
+    }
+
+    static string? AskName(Form dialog, string name)
+    {
+        ((Edit)dialog.FindControl("edtFormName")!).Text = name;
+        return "btnOk";
+    }
+
+    static string ListText(DesignerForm d) => string.Join("|", ((ListBox)d.FindControl("lstForms")!).Items);
+
+    [Fact]
+    public void New_form_asks_for_the_class_name_and_creates_both_files()
+    {
+        var project = RadProject.Create(TempDir(), "Named");
+        var (d, host) = Start(project.ProjectFile);
+        host.AnswerModal = form => AskName(form, "SettingsForm");
+        d.Simulate.Key("Mod+N");
+        Assert.Equal("SettingsForm", d.ActiveForm!.ClassName);
+        Assert.True(File.Exists(Path.Combine(project.Directory, "SettingsForm.radform.json")));
+        Assert.Contains("partial class SettingsForm : Form", File.ReadAllText(Path.Combine(project.Directory, "SettingsForm.cs")));
+        Assert.Contains("SettingsForm", ListText(d));
+    }
+
+    [Theory]
+    [InlineData("class")]          // keyword
+    [InlineData("2Fast")]          // not an identifier
+    [InlineData("My Form")]
+    [InlineData("MainForm")]       // already a form
+    [InlineData("Taken")]          // a code file is in the way
+    [InlineData("Helper")]         // a type already declared in the project
+    [InlineData("")]
+    public void New_form_rejects_invalid_names(string name)
+    {
+        var project = RadProject.Create(TempDir(), "Invalid");
+        File.WriteAllText(Path.Combine(project.Directory, "Taken.cs"), "// x");
+        File.WriteAllText(Path.Combine(project.Directory, "Other.cs"), "class Helper { }");
+        var (d, host) = Start(project.ProjectFile);
+        string? problem = null;
+        host.AnswerModal = form =>
+        {
+            AskName(form, name);
+            form.Simulate.Click((Button)form.FindControl("btnOk")!);   // refused: the dialog stays open
+            problem = ((Label)form.FindControl("lblProblem")!).Caption;
+            return "btnCancel";
+        };
+        var before = project.FormFiles.Count;
+        Assert.Null(d.NewForm());
+        Assert.False(string.IsNullOrEmpty(problem));
+        Assert.Equal(before, project.FormFiles.Count);
+        Assert.Single(d.OpenForms);
+    }
+
+    [Fact]
+    public void Rename_form_updates_files_references_tab_and_project_list()
+    {
+        var project = RadProject.Create(TempDir(), "Ren");
+        var (d, host) = Start(project.ProjectFile);
+        var main = d.ActiveForm!;
+        var doc = d.Document!;
+        doc.Create(ComponentRegistry.Find("Label")!, doc.Form, 10, 10);   // an unsaved change must survive the rename
+        File.WriteAllText(Path.Combine(project.Directory, "Other.cs"), "class Other { object Make() => new MainForm(); }");
+
+        var menu = (MainMenu)d.FindControl("mnuMain")!;
+        var item = menu.Items.Single(m => m.Caption == "Project").Items.Single(m => m.Caption == "Rename Form…");
+        host.AnswerModal = form => AskName(form, "ShellForm");
+        item.PerformClick();
+
+        Assert.Equal("ShellForm", main.ClassName);
+        Assert.Equal("ShellForm", main.Sheet.Caption);
+        Assert.Equal(project.FormFiles.Single(), main.Path);
+        Assert.False(File.Exists(Path.Combine(project.Directory, "MainForm.radform.json")));
+        Assert.False(File.Exists(Path.Combine(project.Directory, "MainForm.cs")));
+        Assert.Contains("\"class\": \"Label\"", File.ReadAllText(main.Path));
+        var code = File.ReadAllText(Path.Combine(project.Directory, "ShellForm.cs"));
+        Assert.Contains("partial class ShellForm : Form", code);
+        Assert.Contains("public ShellForm()", code);
+        Assert.Contains("new ShellForm()", File.ReadAllText(Path.Combine(project.Directory, "Other.cs")));
+        Assert.Equal("ShellForm", project.MainFormClass);
+        Assert.Contains("ShellForm", ListText(d));
+        Assert.DoesNotContain("MainForm", ListText(d));
+        Assert.Contains("ShellForm", d.Caption);
+    }
+
+    [Fact]
+    public void Rename_form_fails_safely_when_a_target_file_exists()
+    {
+        var project = RadProject.Create(TempDir(), "Clash");
+        var (d, _) = Start(project.ProjectFile);
+        var codeBefore = File.ReadAllText(Path.Combine(project.Directory, "MainForm.cs"));
+        File.WriteAllText(Path.Combine(project.Directory, "Taken.radform.json"), "{}");   // the code file is free, the form file is not
+        Assert.False(d.RenameForm("Taken"));
+        Assert.Equal("MainForm", d.ActiveForm!.ClassName);
+        Assert.Equal(codeBefore, File.ReadAllText(Path.Combine(project.Directory, "MainForm.cs")));
+        Assert.True(File.Exists(Path.Combine(project.Directory, "MainForm.radform.json")));
+        Assert.False(File.Exists(Path.Combine(project.Directory, "Taken.cs")));
+
+        // RadProject refuses too and leaves everything alone, even when called directly.
+        Assert.Throws<IOException>(() => project.RenameForm(d.ActiveForm.Path, "Taken"));
+        Assert.True(File.Exists(Path.Combine(project.Directory, "MainForm.cs")));
+    }
+
+    [Fact]
+    public void New_application_writes_debug_files_for_VS_Code_and_Visual_Studio()
+    {
+        var project = RadProject.Create(TempDir(), "Dbg");
+        string Read(string rel) => File.ReadAllText(Path.Combine(project.Directory, rel));
+
+        var launch = System.Text.Json.JsonDocument.Parse(Read(".vscode/launch.json")).RootElement.GetProperty("configurations")[0];
+        Assert.Equal("coreclr", launch.GetProperty("type").GetString());
+        Assert.Equal("${workspaceFolder}/bin/Debug/net10.0/Dbg.dll", launch.GetProperty("program").GetString());
+        Assert.Equal("build", launch.GetProperty("preLaunchTask").GetString());
+
+        var tasks = System.Text.Json.JsonDocument.Parse(Read(".vscode/tasks.json")).RootElement.GetProperty("tasks");
+        Assert.Equal("build", tasks[0].GetProperty("label").GetString());
+        Assert.Equal("${workspaceFolder}/Dbg.csproj", tasks[0].GetProperty("args")[1].GetString());
+
+        var profiles = System.Text.Json.JsonDocument.Parse(Read("Properties/launchSettings.json")).RootElement.GetProperty("profiles");
+        Assert.Equal("Project", profiles.GetProperty("Dbg").GetProperty("commandName").GetString());
+    }
+
+    [Fact]
+    public void Form_name_dialog_wraps_long_problems_instead_of_clipping_them()
+    {
+        var project = RadProject.Create(TempDir(), "Wrap");
+        var dialog = new FormNameDialog(project, "New Form", "Form2", null, null);
+        Assert.True(((Label)dialog.FindControl("lblProblem")!).WordWrap);
     }
 }
