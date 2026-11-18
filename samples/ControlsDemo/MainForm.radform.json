@@ -1,0 +1,197 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "hand-written",
+  "root": {
+    "class": "Form",
+    "name": "frmControls",
+    "caption": "RadSharp - list, tree and grid controls",
+    "width": 900,
+    "height": 620,
+    "children": [
+      { "class": "ImageList", "name": "imgIcons", "left": 0, "top": 0 },
+      {
+        "class": "PageControl",
+        "name": "pgMain",
+        "align": "client",
+        "margin": { "l": 8, "t": 8, "r": 8, "b": 8 },
+        "children": [
+          {
+            "class": "TabSheet",
+            "name": "tsListView",
+            "caption": "ListView",
+            "children": [
+              {
+                "class": "Panel", "name": "pnlLvTop", "align": "top", "height": 32,
+                "children": [
+                  { "class": "Label", "name": "lblLvHelp", "align": "client", "layout": "center", "margin": { "l": 8, "t": 0, "r": 8, "b": 0 },
+                    "caption": "Click a header to sort, Ctrl/Shift+click selects, type to jump to a name, Space ticks a row." }
+                ]
+              },
+              {
+                "class": "Panel", "name": "pnlLvStatus", "align": "bottom", "height": 26,
+                "children": [
+                  { "class": "Label", "name": "lblLvStatus", "align": "client", "layout": "center", "margin": { "l": 8, "t": 0, "r": 8, "b": 0 }, "caption": "Ready" }
+                ]
+              },
+              {
+                "class": "ListView",
+                "name": "lvFiles",
+                "align": "client",
+                "margin": { "l": 8, "t": 8, "r": 8, "b": 8 },
+                "autoSort": true,
+                "checkboxes": true,
+                "images": "imgIcons",
+                "multiSelect": true,
+                "sortColumn": 0,
+                "columns": [
+                  { "title": "Name", "width": 220 },
+                  { "title": "Kind", "width": 100 },
+                  { "title": "Size (KB)", "width": 100, "alignment": "right" },
+                  { "title": "Modified", "width": 120, "alignment": "center" },
+                  { "title": "Id", "width": 90, "alignment": "right" }
+                ],
+                "onChange": "lvFiles_Change",
+                "onColumnClick": "lvFiles_ColumnClick",
+                "onFindItem": "lvFiles_FindItem",
+                "onGetItem": "lvFiles_GetItem",
+                "onItemChecked": "lvFiles_ItemChecked"
+              }
+            ]
+          },
+          {
+            "class": "TabSheet",
+            "name": "tsTree",
+            "caption": "TreeView",
+            "children": [
+              {
+                "class": "Panel", "name": "pnlTvTop", "align": "top", "height": 32,
+                "children": [
+                  { "class": "Label", "name": "lblTvHelp", "align": "client", "layout": "center", "margin": { "l": 8, "t": 0, "r": 8, "b": 0 },
+                    "caption": "Expand the lazy nodes. F2 or a slow second click renames (empty names are refused); the boxes tick nodes." }
+                ]
+              },
+              {
+                "class": "Panel", "name": "pnlTvStatus", "align": "bottom", "height": 26,
+                "children": [
+                  { "class": "Label", "name": "lblTvStatus", "align": "client", "layout": "center", "margin": { "l": 8, "t": 0, "r": 8, "b": 0 }, "caption": "Selected: (none)" }
+                ]
+              },
+              {
+                "class": "TreeView",
+                "name": "tvTree",
+                "align": "client",
+                "margin": { "l": 8, "t": 8, "r": 8, "b": 8 },
+                "checkboxes": true,
+                "images": "imgIcons",
+                "readOnly": false,
+                "nodes": [
+                  {
+                    "text": "Project", "expanded": true, "imageIndex": 0,
+                    "nodes": [
+                      {
+                        "text": "Sources", "expanded": true, "imageIndex": 0,
+                        "nodes": [
+                          { "text": "Program.cs", "imageIndex": 2 },
+                          { "text": "MainForm.cs", "imageIndex": 2, "checked": true }
+                        ]
+                      },
+                      { "text": "Docs", "imageIndex": 0, "nodes": [ { "text": "readme.md", "imageIndex": 2 } ] }
+                    ]
+                  },
+                  { "text": "Network share (lazy)", "hasChildren": true, "imageIndex": 1 },
+                  { "text": "Empty drive (lazy, finds nothing)", "hasChildren": true, "imageIndex": 1 }
+                ],
+                "onChange": "tvTree_Change",
+                "onEdited": "tvTree_Edited",
+                "onExpanding": "tvTree_Expanding",
+                "onNodeChecked": "tvTree_NodeChecked"
+              }
+            ]
+          },
+          {
+            "class": "TabSheet",
+            "name": "tsLists",
+            "caption": "Lists",
+            "children": [
+              { "class": "Label", "name": "lblCheck", "caption": "CheckListBox (allowGrayed)", "left": 12, "top": 10, "width": 220, "height": 20 },
+              {
+                "class": "CheckListBox", "name": "clbOptions", "left": 12, "top": 32, "width": 220, "height": 150,
+                "allowGrayed": true,
+                "checked": [ 0, 2 ],
+                "items": [ "Syntax highlighting", "Word wrap", "Line numbers", "Auto save", "Spell check", "Minimap" ],
+                "onClickCheck": "clbOptions_ClickCheck"
+              },
+              { "class": "Label", "name": "lblChecks", "caption": "", "left": 12, "top": 188, "width": 220, "height": 60 },
+              { "class": "Label", "name": "lblCombo", "caption": "ComboBox: dropDown + autoComplete", "left": 250, "top": 10, "width": 210, "height": 20 },
+              {
+                "class": "ComboBox", "name": "cboFruit", "left": 250, "top": 32, "width": 200, "height": 26,
+                "autoComplete": true,
+                "style": "dropDown",
+                "items": [ "Apple", "Apricot", "Banana", "Cherry", "Fig", "Grape", "Kiwi", "Lemon", "Mango", "Orange", "Peach", "Pear", "Plum" ],
+                "onChange": "combo_Change"
+              },
+              { "class": "Label", "name": "lblCombo2", "caption": "ComboBox: dropDownList", "left": 250, "top": 74, "width": 210, "height": 20 },
+              {
+                "class": "ComboBox", "name": "cboCountry", "left": 250, "top": 96, "width": 200, "height": 26,
+                "itemIndex": 0,
+                "items": [ "Argentina", "Belgium", "Canada", "Denmark", "Estonia", "Finland", "Ghana", "Hungary", "Iceland", "Japan" ],
+                "onChange": "combo_Change"
+              },
+              { "class": "Label", "name": "lblCombos", "caption": "", "left": 250, "top": 134, "width": 210, "height": 60 },
+              { "class": "Label", "name": "lblVar", "caption": "ListBox style: variable, owner-drawn", "left": 470, "top": 10, "width": 210, "height": 20 },
+              {
+                "class": "ListBox", "name": "lstSections", "left": 470, "top": 32, "width": 200, "height": 230,
+                "itemHeight": 22,
+                "items": [ "# Fruit", "Apple", "Apricot", "Banana", "# Vegetables", "Carrot", "Leek", "Pea", "# Grains", "Oat", "Rye" ],
+                "style": "variable",
+                "onDrawItem": "lstSections_DrawItem",
+                "onMeasureItem": "lstSections_MeasureItem"
+              },
+              { "class": "Label", "name": "lblMulti", "caption": "ListBox multiSelect", "left": 690, "top": 10, "width": 180, "height": 20 },
+              {
+                "class": "ListBox", "name": "lstMulti", "left": 690, "top": 32, "width": 170, "height": 230,
+                "items": [ "Red", "Orange", "Yellow", "Green", "Blue", "Indigo", "Violet", "Black", "White" ],
+                "multiSelect": true,
+                "onChange": "lstMulti_Change"
+              },
+              { "class": "Label", "name": "lblMulti2", "caption": "", "left": 690, "top": 268, "width": 170, "height": 60 }
+            ]
+          },
+          {
+            "class": "TabSheet",
+            "name": "tsGrid",
+            "caption": "DrawGrid",
+            "children": [
+              {
+                "class": "Panel", "name": "pnlDgTop", "align": "top", "height": 32,
+                "children": [
+                  { "class": "Label", "name": "lblDgHelp", "align": "client", "layout": "center", "margin": { "l": 8, "t": 0, "r": 8, "b": 0 },
+                    "caption": "Click or drag cells, Shift/Ctrl+click for ranges, arrows move, Ctrl+A selects all." }
+                ]
+              },
+              {
+                "class": "Panel", "name": "pnlDgStatus", "align": "bottom", "height": 26,
+                "children": [
+                  { "class": "Label", "name": "lblDgStatus", "align": "client", "layout": "center", "margin": { "l": 8, "t": 0, "r": 8, "b": 0 }, "caption": "Selection: (none)" }
+                ]
+              },
+              {
+                "class": "DrawGrid", "name": "dgPalette", "left": 16, "top": 48, "width": 340, "height": 260,
+                "colCount": 8,
+                "defaultColWidth": 40,
+                "defaultRowHeight": 40,
+                "fixedCols": 0,
+                "fixedRows": 0,
+                "multiSelect": true,
+                "rowCount": 6,
+                "onChange": "dgPalette_Change",
+                "onDrawCell": "dgPalette_DrawCell"
+              }
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
