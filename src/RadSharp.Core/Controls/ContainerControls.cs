@@ -13,6 +13,25 @@ public class TabSheet : Control
     public string Caption { get => _caption; set { _caption = value; Parent?.Invalidate(); } }
 
     protected override void Paint(Canvas canvas) => canvas.FillRect(new Rect(0, 0, Width, Height), canvas.Theme.FormBackground);
+
+    protected internal override bool CanTakeMnemonic => Parent is PageControl pc && pc.Pages.Contains(this);
+
+    protected internal override string? MnemonicCaption => Caption;
+
+    /// <summary>Selects this page and moves focus to its first focusable control (if it has one).</summary>
+    protected internal override void ActivateMnemonic()
+    {
+        FocusMnemonic();
+        FirstFocusableChild()?.Focus();
+    }
+
+    /// <summary>Selects this page.</summary>
+    protected internal override void FocusMnemonic()
+    {
+        if (Parent is PageControl pc && pc.Pages.ToList().IndexOf(this) is var i and >= 0) pc.ActivePageIndex = i;
+    }
+
+    protected internal override bool HoldsMnemonicFocus(Control focused) => focused.IsSelfOrDescendantOf(this);
 }
 
 /// <summary>Tabbed pages (Delphi's TPageControl): its TabSheet children, one shown at a time.</summary>
@@ -27,9 +46,10 @@ public class PageControl : Control
     [Published(Category = "Behavior")]
     public int ActivePageIndex
     {
-        get => Math.Clamp(_active, 0, Math.Max(0, Pages.Count - 1));
+        get => Math.Clamp(_loadedActivePage ?? _active, 0, Math.Max(0, Pages.Count - 1));
         set
         {
+            if (Loading) { _loadedActivePage = value; return; }   // the pages are children, read after it; see Loaded
             var pages = Pages;
             value = Math.Clamp(value, 0, Math.Max(0, pages.Count - 1));
             if (value == _active) return;
@@ -39,6 +59,14 @@ public class PageControl : Control
             if (old != null) OwningForm?.ControlBecameUnavailable(old);  // focus can't stay on a hidden page
             Change?.Invoke(this);
         }
+    }
+
+    int? _loadedActivePage;
+
+    protected internal override void Loaded()
+    {
+        base.Loaded();
+        if (_loadedActivePage is int index) { _loadedActivePage = null; ActivePageIndex = index; }
     }
 
     public TabSheet? ActivePage => Pages.Count > 0 ? Pages[ActivePageIndex] : null;
@@ -61,7 +89,7 @@ public class PageControl : Control
         int x = 0;
         foreach (var page in Pages)
         {
-            int w = (int)Math.Ceiling(font.MeasureWidth(page.Caption)) + Px(24);
+            int w = (int)Math.Ceiling(font.MeasureWidth(Mnemonics.Display(page.Caption))) + Px(24);
             list.Add(new Rect(x, 0, w, StripHeight));
             x += w;
         }
@@ -108,8 +136,8 @@ public class PageControl : Control
                 canvas.FillRect(new Rect(r.X, r.Y, canvas.Px(1), r.Height), t.PanelBorder);
                 canvas.FillRect(new Rect(r.X + r.Width - canvas.Px(1), r.Y, canvas.Px(1), r.Height), t.PanelBorder);
             }
-            canvas.DrawText(pages[i].Caption, active ? EffectiveFont with { Bold = true } : EffectiveFont,
-                IsEffectivelyEnabled ? t.Text : t.TextDisabled, r, TextAlign.Center, VerticalAlign.Center);
+            Mnemonics.Draw(canvas, pages[i].Caption, active ? EffectiveFont with { Bold = true } : EffectiveFont,
+                IsEffectivelyEnabled ? t.Text : t.TextDisabled, r, TextAlign.Center, VerticalAlign.Center, ShowMnemonics);
         }
     }
 }
@@ -182,6 +210,9 @@ public class ToolButton : Button
         SetDefaultSize(64, 28);
         TabStop = false;
     }
+
+    /// <summary>A toolbar button draws its caption as written (no mnemonic).</summary>
+    protected internal override string? MnemonicCaption => null;
 
     /// <summary>Clicking toggles <see cref="Down"/>.</summary>
     [Published(Category = "Behavior")] public bool AllowToggle { get; set; }

@@ -265,6 +265,7 @@ public class ScrollBox : Control
 
     protected override bool AfterArrange()
     {
+        var before = (_h.Position, _v.Position);
         int extentW = 0, extentH = 0;
         foreach (var c in Children)
         {
@@ -285,7 +286,35 @@ public class ScrollBox : Control
         _v.Max = Math.Max(extentH, view.Height); _v.PageSize = view.Height;
         _h.Clamp();
         _v.Clamp();
+        ApplyRescaledScroll(ref _rescaledScroll, before, _h, _v, changed);
         return changed;
+    }
+
+    double _scrollXDesign = double.NaN, _scrollYDesign = double.NaN;
+    RescaledScroll? _rescaledScroll;
+
+    /// <summary>Keeps the same part of the content in view when the form's scale changes (applied by the next layout).</summary>
+    protected override void RescaleOwnLengths(ScaleChange change)
+    {
+        _rescaledScroll = new(_h.Position, _v.Position, change.Apply(_h.Position, ref _scrollXDesign), change.Apply(_v.Position, ref _scrollYDesign));
+        base.RescaleOwnLengths(change);
+    }
+
+    /// <summary>A scroll position to restore after a scale change, valid while the position is still <c>Expect</c>.</summary>
+    internal record struct RescaledScroll(int ExpectX, int ExpectY, int ToX, int ToY);
+
+    /// <summary>
+    /// After a scale change, once the content has its extent at the new scale: scrolls to the converted position, unless
+    /// something else scrolled since. Kept until the scroll bars settle (<paramref name="barsChanged"/> false).
+    /// Returns true if the position moved.
+    /// </summary>
+    internal static bool ApplyRescaledScroll(ref RescaledScroll? pending, (int X, int Y) before, ScrollAxis h, ScrollAxis v, bool barsChanged)
+    {
+        if (pending is not { } p) return false;
+        if (before != (p.ExpectX, p.ExpectY)) { pending = null; return false; }
+        bool moved = h.SetPosition(p.ToX) | v.SetPosition(p.ToY);
+        pending = barsChanged ? p with { ExpectX = h.Position, ExpectY = v.Position } : null;
+        return moved;
     }
 
     protected internal override void OnMouseDown(MouseEventArgs e)
@@ -561,9 +590,23 @@ public class ScrollView : Control
 
     protected override bool AfterArrange() => UpdateBars();
 
+    double _scrollXDesign = double.NaN, _scrollYDesign = double.NaN;
+    ScrollBox.RescaledScroll? _rescaledScroll;
+
+    /// <summary>
+    /// Keeps the same part of the content in view when the form's scale changes (the content is measured again at the
+    /// new scale by the next layout, which applies the position). Overrides call the base.
+    /// </summary>
+    protected override void RescaleOwnLengths(ScaleChange change)
+    {
+        _rescaledScroll = new(_h.Position, _v.Position, change.Apply(_h.Position, ref _scrollXDesign), change.Apply(_v.Position, ref _scrollYDesign));
+        base.RescaleOwnLengths(change);
+    }
+
     /// <summary>Recomputes which bars show and the scroll ranges from the content and control size; true if a bar appeared or went.</summary>
     bool UpdateBars()
     {
+        var before = (_h.Position, _v.Position);
         _measuring = true;
         try { MeasureContent(); }
         finally { _measuring = false; }
@@ -579,6 +622,7 @@ public class ScrollView : Control
         _h.Max = Math.Max(_contentWidth, view.Width); _h.PageSize = view.Width;
         _v.Max = Math.Max(_contentHeight, view.Height); _v.PageSize = view.Height;
         bool moved = _h.Clamp() | _v.Clamp();
+        moved |= ScrollBox.ApplyRescaledScroll(ref _rescaledScroll, before, _h, _v, changed);
         if (moved || changed) Invalidate();
         if (moved) OnScrolled();
         return changed;
