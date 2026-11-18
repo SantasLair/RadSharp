@@ -174,7 +174,7 @@ public sealed class MenuEditor
     void RebuildTree(MenuItem? select)
     {
         _tree.Nodes.Clear();
-        void Add(List<TreeNode> nodes, List<MenuItem> items, TreeNode? parent)
+        void Add(IList<TreeNode> nodes, List<MenuItem> items, TreeNode? parent)
         {
             foreach (var item in items)
             {
@@ -219,14 +219,15 @@ public sealed class MenuEditor
 }
 
 /// <summary>
-/// The grid <c>Columns</c> editor (opened from the Object Inspector's <c>columns</c> row), modelled on the
-/// <see cref="MenuEditor"/>: a list of the columns and fields for the selected one. Changes apply to the grid
-/// immediately; the whole session is one undo step.
+/// The <c>Columns</c> editor of a grid or a <see cref="ListView"/> (opened from the Object Inspector's <c>columns</c>
+/// row), modelled on the <see cref="MenuEditor"/>: a list of the columns and fields for the selected one. Changes apply
+/// to the control immediately; the whole session is one undo step.
 /// </summary>
 public sealed class GridColumnsEditor
 {
     readonly DesignDocument _doc;
-    readonly CustomGrid _grid;
+    readonly CustomGrid? _grid;        // null for a list view
+    readonly GridColumns _columns;
     readonly ListBox _list;
     readonly Edit _title;
     readonly SpinEdit _width, _minWidth;
@@ -236,11 +237,17 @@ public sealed class GridColumnsEditor
 
     public Form Form { get; }
 
-    public GridColumnsEditor(DesignDocument doc, CustomGrid grid, Form? owner = null)
+    public GridColumnsEditor(DesignDocument doc, CustomGrid grid, Form? owner = null) : this(doc, grid, grid.Columns, grid, owner) { }
+
+    /// <summary>The editor for a list view's columns.</summary>
+    public GridColumnsEditor(DesignDocument doc, ListView view, Form? owner = null) : this(doc, view, view.Columns, null, owner) { }
+
+    GridColumnsEditor(DesignDocument doc, Control control, GridColumns columns, CustomGrid? grid, Form? owner)
     {
         _doc = doc;
         _grid = grid;
-        Form = EditorLayout.NewForm($"Columns: {grid.Name}", 520, 380, owner);
+        _columns = columns;
+        Form = EditorLayout.NewForm($"Columns: {control.Name}", 520, 380, owner);
         var f = Form;
         _list = EditorLayout.Put(f, new ListBox { Name = "lstColumns" }, 12, 12, 220, 300);
         EditorLayout.Put(f, new Label { Caption = "Title" }, 248, 14, 80, 22);
@@ -278,16 +285,21 @@ public sealed class GridColumnsEditor
     }
 
     /// <summary>Opens the editor modally on <paramref name="grid"/>; the whole session is one undo step.</summary>
-    public static void Edit(DesignDocument doc, CustomGrid grid, Form? owner)
+    public static void Edit(DesignDocument doc, CustomGrid grid, Form? owner) => Run(doc, new GridColumnsEditor(doc, grid, owner));
+
+    /// <summary>Opens the editor modally on a list view's columns; the whole session is one undo step.</summary>
+    public static void Edit(DesignDocument doc, ListView view, Form? owner) => Run(doc, new GridColumnsEditor(doc, view, owner));
+
+    static void Run(DesignDocument doc, GridColumnsEditor editor)
     {
         doc.Snapshot();
-        new GridColumnsEditor(doc, grid, owner).Form.ShowModal();
+        editor.Form.ShowModal();
         doc.NotifyChanged();
     }
 
-    public IReadOnlyList<GridColumn> Columns => _grid.Columns;
+    public IReadOnlyList<GridColumn> Columns => _columns;
 
-    public GridColumn? SelectedColumn => _list.ItemIndex >= 0 && _list.ItemIndex < _grid.Columns.Count ? _grid.Columns[_list.ItemIndex] : null;
+    public GridColumn? SelectedColumn => _list.ItemIndex >= 0 && _list.ItemIndex < _columns.Count ? _columns[_list.ItemIndex] : null;
 
     public int SelectedIndex => SelectedColumn == null ? -1 : _list.ItemIndex;
 
@@ -299,11 +311,11 @@ public sealed class GridColumnsEditor
     /// </summary>
     public GridColumn AddColumn(string title)
     {
-        if (_grid.Columns.Count == 0)
-            for (int i = 0, n = _grid.ColCount; i < n; i++) _grid.Columns.Add("");   // (the first Add changes ColCount)
+        if (_grid != null && _columns.Count == 0)
+            for (int i = 0, n = _grid.ColCount; i < n; i++) _columns.Add("");   // (the first Add changes ColCount)
         var column = new GridColumn(title);
-        int at = SelectedColumn == null ? _grid.Columns.Count : _list.ItemIndex + 1;
-        _grid.Columns.Insert(at, column);
+        int at = SelectedColumn == null ? _columns.Count : _list.ItemIndex + 1;
+        _columns.Insert(at, column);
         Changed(at);
         return column;
     }
@@ -312,16 +324,16 @@ public sealed class GridColumnsEditor
     {
         if (SelectedColumn == null) return;
         int i = _list.ItemIndex;
-        _grid.Columns.RemoveAt(i);
-        Changed(Math.Min(i, _grid.Columns.Count - 1));
+        _columns.RemoveAt(i);
+        Changed(Math.Min(i, _columns.Count - 1));
     }
 
     public void MoveSelected(int delta)
     {
         if (SelectedColumn == null) return;
-        int i = _list.ItemIndex, j = Math.Clamp(i + delta, 0, _grid.Columns.Count - 1);
+        int i = _list.ItemIndex, j = Math.Clamp(i + delta, 0, _columns.Count - 1);
         if (i == j) return;
-        _grid.Columns.Move(i, j);
+        _columns.Move(i, j);
         Changed(j);
     }
 
@@ -335,11 +347,11 @@ public sealed class GridColumnsEditor
 
     void Rebuild(int select)
     {
-        _list.Items = [.. _grid.Columns.Select((c, i) => Label(i, c))];
-        _list.ItemIndex = Math.Min(select, _grid.Columns.Count - 1);
-        _hint.Caption = _grid.Columns.Count == 0
-            ? $"No columns are defined: the grid has {_grid.ColCount} untitled columns. Add creates them, then the new one."
-            : "";
+        _list.Items = [.. _columns.Select((c, i) => Label(i, c))];
+        _list.ItemIndex = Math.Min(select, _columns.Count - 1);
+        _hint.Caption = _columns.Count > 0 ? ""
+            : _grid != null ? $"No columns are defined: the grid has {_grid.ColCount} untitled columns. Add creates them, then the new one."
+            : "No columns are defined: the list shows one untitled column.";
         LoadFields();
         _list.Invalidate();
     }
@@ -362,6 +374,203 @@ public sealed class GridColumnsEditor
         int i = _list.ItemIndex;
         var items = _list.Items;
         if (i < items.Length) { items[i] = Label(i, column); _list.Items = items; _list.ItemIndex = i; }
+        _doc.NotifyChanged();
+    }
+}
+
+/// <summary>
+/// The TreeView <c>Nodes</c> editor (Delphi's Items editor), opened from the Object Inspector's <c>nodes</c> row and
+/// modelled on the <see cref="MenuEditor"/>: a tree of the nodes and fields for the selected one, with buttons to add
+/// siblings and children, delete, move and indent. Changes apply to the tree immediately; the whole session is one
+/// undo step.
+/// </summary>
+public sealed class TreeNodesEditor
+{
+    readonly DesignDocument _doc;
+    readonly TreeView _target;
+    readonly TreeView _tree;
+    readonly Edit _text;
+    readonly SpinEdit _imageIndex;
+    readonly CheckBox _expanded;
+    bool _loading;
+
+    public Form Form { get; }
+
+    public TreeNodesEditor(DesignDocument doc, TreeView tree, Form? owner = null)
+    {
+        _doc = doc;
+        _target = tree;
+        Form = EditorLayout.NewForm($"Nodes: {tree.Name}", 560, 400, owner);
+        var f = Form;
+        _tree = EditorLayout.Put(f, new TreeView { Name = "tvNodes" }, 12, 12, 260, 330);
+        EditorLayout.Put(f, new Label { Caption = "Text" }, 288, 14, 88, 22);
+        _text = EditorLayout.Put(f, new Edit { Name = "edtText" }, 380, 12, 164, 26);
+        EditorLayout.Put(f, new Label { Caption = "ImageIndex" }, 288, 48, 88, 22);
+        _imageIndex = EditorLayout.Put(f, new SpinEdit { Name = "spnImageIndex", MinValue = -1, MaxValue = 9999, Value = -1 }, 380, 46, 164, 26);
+        _expanded = EditorLayout.Put(f, new CheckBox { Name = "chkExpanded", Caption = "Expanded" }, 380, 82, 164, 22);
+
+        Button B(string name, string caption, int x, int y, Action action)
+        {
+            var b = EditorLayout.Put(f, new Button { Name = name, Caption = caption }, x, y, 84, 28);
+            b.Click += _ => action();
+            return b;
+        }
+        B("btnAdd", "Add", 288, 124, () => AddSibling("New node"));
+        B("btnAddChild", "Add child", 378, 124, () => AddChild("New node"));
+        B("btnDelete", "Delete", 468, 124, DeleteSelected);
+        B("btnUp", "Up", 288, 160, () => MoveSelected(-1));
+        B("btnDown", "Down", 378, 160, () => MoveSelected(1));
+        B("btnIndent", "Indent", 288, 196, Indent);
+        B("btnOutdent", "Outdent", 378, 196, Outdent);
+        var close = B("btnClose", "Close", 460, 356, () => { });
+        close.ModalResult = ModalResult.Ok;
+        close.Default = true;
+
+        _tree.Change += _ => LoadFields();
+        _text.Change += _ => Store(n => n.Text = _text.Text, relabel: true);
+        _imageIndex.ValueChanged += _ => Store(n => n.ImageIndex = _imageIndex.Value);
+        _expanded.Change += _ => Store(n => n.Expanded = _expanded.Checked);
+
+        Rebuild(null);
+        f.PerformLayout();
+    }
+
+    /// <summary>Opens the editor modally on <paramref name="tree"/>'s nodes; the whole session is one undo step.</summary>
+    public static void Edit(DesignDocument doc, TreeView tree, Form? owner)
+    {
+        doc.Snapshot();
+        new TreeNodesEditor(doc, tree, owner).Form.ShowModal();
+        doc.NotifyChanged();
+    }
+
+    /// <summary>The edited tree's node selected in the editor, or null.</summary>
+    public TreeNode? SelectedNode => _tree.Selected?.Tag as TreeNode;
+
+    TreeNodes ListOf(TreeNode node) => node.Parent?.Nodes ?? _target.Nodes;
+
+    /// <summary>Adds a node after the selected one (or at the end of the top level) and selects it.</summary>
+    public TreeNode AddSibling(string text)
+    {
+        var node = new TreeNode(text);
+        if (SelectedNode is { } sel)
+        {
+            var list = ListOf(sel);
+            list.Insert(list.IndexOf(sel) + 1, node);
+        }
+        else _target.Nodes.Add(node);
+        Changed(node);
+        return node;
+    }
+
+    /// <summary>Adds a node as the selected node's last child (or at the top level when nothing is selected).</summary>
+    public TreeNode AddChild(string text)
+    {
+        if (SelectedNode is not { } sel) return AddSibling(text);
+        var node = sel.Add(text);
+        Changed(node);
+        return node;
+    }
+
+    /// <summary>Deletes the selected node and its children; the next sibling (or the previous, or the parent) is selected.</summary>
+    public void DeleteSelected()
+    {
+        if (SelectedNode is not { } sel) return;
+        var list = ListOf(sel);
+        int i = list.IndexOf(sel);
+        var parent = sel.Parent;
+        list.RemoveAt(i);
+        Changed(list.Count > 0 ? list[Math.Min(i, list.Count - 1)] : parent);
+    }
+
+    /// <summary>Moves the selected node among its siblings.</summary>
+    public void MoveSelected(int delta)
+    {
+        if (SelectedNode is not { } sel) return;
+        var list = ListOf(sel);
+        int i = list.IndexOf(sel), j = Math.Clamp(i + delta, 0, list.Count - 1);
+        if (i == j) return;
+        list.Move(i, j);
+        Changed(sel);
+    }
+
+    /// <summary>Makes the selected node the last child of the sibling above it.</summary>
+    public void Indent()
+    {
+        if (SelectedNode is not { } sel) return;
+        var list = ListOf(sel);
+        int i = list.IndexOf(sel);
+        if (i <= 0) return;
+        list[i - 1].Nodes.Add(sel);   // moves it
+        Changed(sel);
+    }
+
+    /// <summary>Moves the selected node out of its parent, to just after it.</summary>
+    public void Outdent()
+    {
+        if (SelectedNode is not { } sel || sel.Parent is not { } parent) return;
+        var outer = ListOf(parent);
+        outer.Insert(outer.IndexOf(parent) + 1, sel);   // moves it
+        Changed(sel);
+    }
+
+    public void Select(TreeNode node)
+    {
+        foreach (var n in AllNodes(_tree.Nodes))
+            if (n.Tag == node) { _tree.Selected = n; return; }
+    }
+
+    static IEnumerable<TreeNode> AllNodes(IEnumerable<TreeNode> nodes)
+    {
+        foreach (var n in nodes)
+        {
+            yield return n;
+            foreach (var c in AllNodes(n.Nodes)) yield return c;
+        }
+    }
+
+    void Changed(TreeNode? select)
+    {
+        Rebuild(select);
+        _doc.NotifyChanged();
+    }
+
+    static string Label(TreeNode n) => n.Text.Length > 0 ? n.Text : "(no text)";
+
+    /// <summary>Mirrors the edited tree's nodes (all expanded) in the editor's own tree, each tagged with its node.</summary>
+    void Rebuild(TreeNode? select)
+    {
+        _tree.Nodes.Clear();
+        void Add(TreeNodes into, TreeNodes from)
+        {
+            foreach (var node in from)
+            {
+                var mirror = new TreeNode(Label(node)) { Tag = node, Expanded = true };
+                Add(mirror.Nodes, node.Nodes);
+                into.Add(mirror);
+            }
+        }
+        Add(_tree.Nodes, _target.Nodes);
+        _tree.Selected = null;
+        if (select != null) Select(select);
+        else if (_tree.Nodes.Count > 0) _tree.Selected = _tree.Nodes[0];
+        LoadFields();
+    }
+
+    void LoadFields()
+    {
+        _loading = true;
+        var n = SelectedNode;
+        _text.Text = n?.Text ?? "";
+        _imageIndex.Value = n?.ImageIndex ?? -1;
+        _expanded.Checked = n?.Expanded ?? false;
+        _loading = false;
+    }
+
+    void Store(Action<TreeNode> set, bool relabel = false)
+    {
+        if (_loading || SelectedNode is not { } node) return;
+        set(node);
+        if (relabel && _tree.Selected is { } mirror) mirror.Text = Label(node);
         _doc.NotifyChanged();
     }
 }

@@ -144,6 +144,8 @@ internal sealed class HostDocument
         gridProps.CollectionEditRequested += (_, target, name) =>
         {
             if (name == "columns" && target is CustomGrid g) GridColumnsEditor.Edit(Doc, g, Surface?.OwningForm);
+            else if (name == "columns" && target is ListView lv) GridColumnsEditor.Edit(Doc, lv, Surface?.OwningForm);
+            else if (name == "nodes" && target is TreeView tv) TreeNodesEditor.Edit(Doc, tv, Surface?.OwningForm);
         };
         GridProps?.SetTargets([]);
         GridEvents?.SetTargets([]);

@@ -1,4 +1,5 @@
 using System.Collections.ObjectModel;
+using System.Runtime.CompilerServices;
 using System.Globalization;
 using System.Text.Json;
 using System.Text;
@@ -63,16 +64,23 @@ public sealed class GridCompareEventArgs(int col, int row1, int row2, string tex
 
 public delegate void GridCompareEvent(Control sender, GridCompareEventArgs e);
 
+/// <summary>What owns a <see cref="GridColumns"/> collection (a grid or a <see cref="ListView"/>) and follows its changes.</summary>
+internal interface IColumnHost
+{
+    void ColumnsChanged(bool widths, bool structure = false, bool adopting = false);
+}
+
 /// <summary>
-/// A column of a grid (like a TDBGrid column): the header title, width, text alignment and the narrowest width
-/// the user can drag it to. Plain properties only, so it can be written to a form file.
+/// A column of a grid or a <see cref="ListView"/> (like a TDBGrid column or a TListColumn): the header title, width,
+/// text alignment and the narrowest width the user can drag it to. Plain properties only, so it can be written to a
+/// form file.
 /// </summary>
 public sealed class GridColumn
 {
     string _title = "";
     int _width, _minWidth;
     TextAlign _alignment;
-    internal CustomGrid? Grid;
+    internal IColumnHost? Host;
 
     public GridColumn() { }
 
@@ -83,17 +91,35 @@ public sealed class GridColumn
         _alignment = alignment;
     }
 
-    /// <summary>The text in the header (the grid's first fixed row).</summary>
-    public string Title { get => _title; set { _title = value ?? ""; Grid?.ColumnsChanged(widths: false); } }
+    /// <summary>The text in the header (a grid's first fixed row, a list view's header).</summary>
+    public string Title { get => _title; set { _title = value ?? ""; Host?.ColumnsChanged(widths: false); } }
 
-    /// <summary>The width at 100 %; 0 uses the grid's <see cref="CustomGrid.DefaultColWidth"/>.</summary>
-    public int Width { get => _width; set { _width = Math.Max(0, value); Grid?.ColumnsChanged(widths: true); } }
+    /// <summary>The width at 100 %; 0 uses the default: a grid's <see cref="CustomGrid.DefaultColWidth"/>, 100 in a list view.</summary>
+    public int Width { get => _width; set { _width = Math.Max(0, value); Host?.ColumnsChanged(widths: true); } }
 
     /// <summary>How the column's text sits in its cells, the header included.</summary>
-    public TextAlign Alignment { get => _alignment; set { _alignment = value; Grid?.ColumnsChanged(widths: false); } }
+    public TextAlign Alignment { get => _alignment; set { _alignment = value; Host?.ColumnsChanged(widths: false); } }
 
-    /// <summary>The narrowest the user can drag the column, at 100 %; 0 means 8.</summary>
+    /// <summary>The narrowest the user can drag the column, at 100 %; 0 means 8 in a grid, 20 in a list view.</summary>
     public int MinWidth { get => _minWidth; set => _minWidth = Math.Max(0, value); }
+
+    /// <summary>
+    /// A column from a <c>"Title:width"</c> string (see <see cref="Parse"/>), the form a <see cref="ListView"/>'s
+    /// <c>Columns</c> used to take, so <c>listView.Columns = ["Name:120", "Kind"]</c> keeps working.
+    /// </summary>
+    public static implicit operator GridColumn(string spec) => Parse(spec);
+
+    /// <summary>
+    /// Parses <c>"Title:width"</c>: the text before the last colon is the title, and the text after it the width if it
+    /// is a number (otherwise the default, 0). Without a colon the whole text is the title.
+    /// </summary>
+    public static GridColumn Parse(string spec)
+    {
+        spec ??= "";
+        int colon = spec.LastIndexOf(':');
+        if (colon < 0) return new GridColumn(spec);
+        return new GridColumn(spec[..colon], int.TryParse(spec[(colon + 1)..], out var w) ? w : 0);
+    }
 
     // ---- Form files: { "alignment", "minWidth", "title", "width" }, only non-default values, in that order ----
 
@@ -130,12 +156,28 @@ public sealed class GridColumn
     }
 }
 
-/// <summary>A grid's <see cref="CustomGrid.Columns"/>: while it holds any, the grid's ColCount follows its count.</summary>
+/// <summary>
+/// A grid's <see cref="CustomGrid.Columns"/> (while it holds any, the grid's ColCount follows its count) or a
+/// <see cref="ListView"/>'s columns. A collection expression builds a free-standing one, to assign to
+/// <see cref="ListView.Columns"/>; its elements may be <c>"Title:width"</c> strings.
+/// </summary>
+[CollectionBuilder(typeof(GridColumns), nameof(Create))]
 public sealed class GridColumns : Collection<GridColumn>
 {
-    readonly CustomGrid _grid;
+    readonly IColumnHost? _host;
 
-    internal GridColumns(CustomGrid grid) => _grid = grid;
+    /// <summary>A free-standing collection, owned by no control (to assign to <see cref="ListView.Columns"/>).</summary>
+    public GridColumns() { }
+
+    internal GridColumns(IColumnHost host) => _host = host;
+
+    /// <summary>The collection-expression builder: <c>GridColumns c = ["Name:120", new GridColumn("Size", 60)];</c></summary>
+    public static GridColumns Create(ReadOnlySpan<GridColumn> columns)
+    {
+        var result = new GridColumns();
+        foreach (var c in columns) result.Add(c);
+        return result;
+    }
 
     /// <summary>Adds a column and returns it.</summary>
     public GridColumn Add(string title, int width = 0, TextAlign alignment = TextAlign.Left)
@@ -157,43 +199,44 @@ public sealed class GridColumns : Collection<GridColumn>
         var column = Items[oldIndex];
         Items.RemoveAt(oldIndex);
         Items.Insert(newIndex, column);
-        _grid.ColumnsChanged(widths: true);
+        _host?.ColumnsChanged(widths: true);
     }
 
     protected override void InsertItem(int index, GridColumn item)
     {
         Adopt(item);
         base.InsertItem(index, item);
-        _grid.ColumnsChanged(widths: true, structure: true, adopting: Count == 1);
+        _host?.ColumnsChanged(widths: true, structure: true, adopting: Count == 1);
     }
 
     protected override void SetItem(int index, GridColumn item)
     {
         Adopt(item);
-        this[index].Grid = null;
+        if (_host != null) this[index].Host = null;
         base.SetItem(index, item);
-        _grid.ColumnsChanged(widths: true);
+        _host?.ColumnsChanged(widths: true);
     }
 
     protected override void RemoveItem(int index)
     {
-        this[index].Grid = null;
+        if (_host != null) this[index].Host = null;
         base.RemoveItem(index);
-        _grid.ColumnsChanged(widths: true, structure: true);
+        _host?.ColumnsChanged(widths: true, structure: true);
     }
 
     protected override void ClearItems()
     {
-        foreach (var c in this) c.Grid = null;
+        if (_host != null) foreach (var c in this) c.Host = null;
         base.ClearItems();
-        _grid.ColumnsChanged(widths: true, structure: true);
+        _host?.ColumnsChanged(widths: true, structure: true);
     }
 
     void Adopt(GridColumn item)
     {
         ArgumentNullException.ThrowIfNull(item);
-        if (item.Grid != null) throw new InvalidOperationException("The column already belongs to a grid.");
-        item.Grid = _grid;
+        if (_host == null) return;   // a free-standing collection doesn't claim its columns
+        if (item.Host != null) throw new InvalidOperationException("The column already belongs to a grid or list view.");
+        item.Host = _host;
     }
 }
 
@@ -227,7 +270,7 @@ public sealed class GridColWidths
 /// tab-separated text, Ctrl/⌘+A selects all. With <see cref="Editing"/>, Enter, F2, a double click or typing opens an
 /// in-place <see cref="Edit"/> on the current cell: Enter commits, Escape cancels, Up/Down/Tab commit and move.</para>
 /// </remarks>
-public abstract class CustomGrid : ScrollView, ICollectionOwner
+public abstract class CustomGrid : ScrollView, ICollectionOwner, IColumnHost, IFormCollections
 {
     int _colCount = 5, _rowCount = 5, _fixedCols = 1, _fixedRows = 1;
     int _defaultColWidth = 64, _defaultRowHeight = 24;
@@ -362,23 +405,30 @@ public abstract class CustomGrid : ScrollView, ICollectionOwner
         name == "columns" ? (Columns.Count == 1 ? "(1 column)" : $"({Columns.Count} columns)") : "";
 
     /// <summary>Writes <c>"columns": [...]</c> (nothing when there are none), one object per column holding only its non-default values.</summary>
-    internal void WriteColumns(FormJsonWriter w)
-    {
-        if (Columns.Count == 0) return;
-        w.Key("columns");
-        w.BeginArray();
-        foreach (var column in Columns) { w.NextElement(); column.Write(w); }
-        w.EndArray();
-    }
+    internal void WriteColumns(FormJsonWriter w) => FormCollections.WriteColumns(w, Columns);
 
     /// <summary>Replaces <see cref="Columns"/> with the columns of a form file's <c>"columns"</c> array; <see cref="ColCount"/> follows their count.</summary>
     internal void ReadColumns(JsonElement json, List<string> warnings, string path)
     {
         Columns.Clear();
-        if (json.ValueKind != JsonValueKind.Array) { warnings.Add($"{path}: expected an array; ignored."); return; }
-        int i = 0;
-        foreach (var item in json.EnumerateArray()) Columns.Add(GridColumn.Read(item, warnings, $"{path}[{i++}]"));
+        foreach (var column in FormCollections.ReadColumns(json, warnings, path, allowSpecs: false)) Columns.Add(column);
     }
+
+    // "columns" and "sortColumn" depend on what the other members set (colCount, fixedCols), so the reader applies them
+    // after all of them, columns first: property order in the file never matters (spec, "Grids").
+    IReadOnlyList<string> IFormCollections.DeferredMembers { get; } = ["columns", "sortColumn"];
+
+    void IFormCollections.ReadDeferred(string name, JsonElement value, List<string> warnings, string here)
+    {
+        if (name == "columns") ReadColumns(value, warnings, $"{here}.columns");
+        else if (name == "sortColumn" && FormCollections.TrySetMember(this, name, value, warnings, here) && SortColumn >= ColCount)
+        {
+            warnings.Add($"{here}.sortColumn: column {SortColumn} doesn't exist (colCount {ColCount}); ignored.");
+            SortColumn = -1;
+        }
+    }
+
+    void IFormCollections.WriteCollections(FormJsonWriter w) => WriteColumns(w);
 
     public override bool AcceptsTab => _wantTabs;
 
@@ -739,6 +789,8 @@ public abstract class CustomGrid : ScrollView, ICollectionOwner
     void UpdateSelectionSize() => Selection.SetSize(Math.Max(0, _colCount - FC), Math.Max(0, _rowCount - FR));
 
     void UpdateMode() => Selection.Mode = _multiSelect ? CellSelectionMode.MultiRange : _rangeSelect ? CellSelectionMode.Range : CellSelectionMode.Single;
+
+    void IColumnHost.ColumnsChanged(bool widths, bool structure, bool adopting) => ColumnsChanged(widths, structure, adopting);
 
     internal void ColumnsChanged(bool widths, bool structure = false, bool adopting = false)
     {
@@ -1294,7 +1346,7 @@ public class StringGrid : CustomGrid
     }
 
     /// <summary>Numbers (in the current or invariant culture) by value and before text; text by the current culture, ignoring case.</summary>
-    static int DefaultCompare(string a, string b)
+    internal static int DefaultCompare(string a, string b)
     {
         bool na = TryNumber(a, out var x), nb = TryNumber(b, out var y);
         if (na && nb) return x.CompareTo(y);

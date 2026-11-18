@@ -6,7 +6,7 @@ using RadSharp.Generators;
 
 namespace RadSharp.Generators.Tests;
 
-public class GeneratorTests
+public partial class GeneratorTests
 {
     sealed class InMemoryText(string path, string text) : AdditionalText
     {

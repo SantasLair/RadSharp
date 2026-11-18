@@ -139,16 +139,17 @@ public static class FormReader
             control.Name = n.GetString()!;
         var here = control.Name.Length > 0 ? control.Name : $"{path} ({cls.Name})";
 
-        // A grid's "columns" and "sortColumn" depend on what the other members set (colCount, fixedCols), so they are
-        // applied after all of them, columns first: property order in the file never matters (spec, "Grids").
-        JsonProperty? gridColumns = null, gridSort = null;
+        // Some members depend on what the others set (a grid's "columns" and "sortColumn" on colCount and fixedCols), so
+        // they are applied after all of them, in the control's order: property order in the file never matters (spec, "Grids").
+        var collections = control as IFormCollections;
+        Dictionary<string, JsonElement>? deferred = null;
         foreach (var prop in node.EnumerateObject())
         {
             if (prop.Name is "class" or "name" or "children") continue;
-            if (control is CustomGrid)
+            if (collections != null && collections.DeferredMembers.Contains(prop.Name))
             {
-                if (prop.Name == "columns") { gridColumns = prop; continue; }
-                if (prop.Name == "sortColumn") { gridSort = prop; continue; }
+                (deferred ??= [])[prop.Name] = prop.Value;
+                continue;
             }
             if (prop.Name == "items" && control is IMenuOwner owner)
             {
@@ -169,23 +170,9 @@ public static class FormReader
             }
         }
 
-        if (control is CustomGrid grid)
-        {
-            if (gridColumns is { } columns) grid.ReadColumns(columns.Value, warnings, $"{here}.columns");
-            if (gridSort is { } sort)
-            {
-                try
-                {
-                    SetProperty(control, cls, "sortColumn", sort.Value);
-                    if (grid.SortColumn >= grid.ColCount)
-                    {
-                        warnings.Add($"{here}.sortColumn: column {grid.SortColumn} doesn't exist (colCount {grid.ColCount}); ignored.");
-                        grid.SortColumn = -1;
-                    }
-                }
-                catch (FormatException e) { warnings.Add($"{here}.sortColumn: {e.Message}; ignored."); }
-            }
-        }
+        if (collections != null && deferred != null)
+            foreach (var name in collections.DeferredMembers)
+                if (deferred.TryGetValue(name, out var value)) collections.ReadDeferred(name, value, warnings, here);
 
         if (node.TryGetProperty("children", out var children) && children.ValueKind == JsonValueKind.Array)
         {

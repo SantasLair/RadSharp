@@ -1,0 +1,23 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "root": {
+    "class": "Form",
+    "name": "frmViews",
+    "width": 640,
+    "height": 320,
+    "children": [
+      { "class": "ImageList", "name": "imgIcons", "left": 600, "top": 10 },
+      { "class": "ListView", "name": "lvDefaults", "sortColumn": -1, "multiSelect": false, "left": 10, "top": 10 },
+      { "class": "ListView", "name": "lvOld", "columns": ["Name:120", "Size:60", "Kind"], "left": 10, "top": 200, "width": 300, "height": 110 },
+      { "class": "ListView", "name": "lvFiles", "sortColumn": 1, "sortDescending": true, "columns": [ { "width": 140, "title": "Name" }, { "title": "Size", "alignment": "right", "minWidth": 40, "width": 70 }, {} ], "autoSort": true, "checkboxes": true, "multiSelect": true, "images": "imgIcons", "borderStyle": "none", "onGetItem": "lvFiles_GetItem", "onItemChecked": "lvFiles_ItemChecked", "onCompare": "lvFiles_Compare", "onColumnClick": "lvFiles_ColumnClick", "left": 320, "top": 10, "width": 300, "height": 180 },
+      { "class": "TreeView", "name": "tvEmpty", "nodes": [], "left": 320, "top": 200, "width": 140, "height": 110 },
+      { "class": "TreeView", "name": "tvAssets", "nodes": [
+          { "nodes": [ { "checked": true, "text": "level1.map" }, { "text": "level2.map", "imageIndex": 0 } ], "expanded": true, "text": "Maps", "imageIndex": 1 },
+          { "text": "Remote", "hasChildren": true, "expanded": false, "checked": false },
+          { "text": "" },
+          { "text": "Sounds", "nodes": [ { "text": "click.wav" } ] }
+        ], "readOnly": false, "checkboxes": true, "multiSelect": true, "images": "imgIcons", "onExpanding": "tvAssets_Expanding", "onEditing": "tvAssets_Editing", "onEdited": "tvAssets_Edited", "onNodeChecked": "tvAssets_NodeChecked", "onCollapsing": "tvAssets_Collapsing", "left": 470, "top": 200, "width": 160, "height": 110 }
+    ]
+  }
+}
