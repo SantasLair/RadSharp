@@ -85,7 +85,7 @@ Every component has a vector icon that stays sharp at any scale and follows the 
 
 ## Quick start
 
-You need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
+You need the [.NET 10 SDK](https://dotnet.microsoft.com/download), 10.0.404 or later (`global.json` asks for it; older 10.0 SDKs bring a NativeAOT compiler package that NuGet flags as vulnerable, which fails the build).
 
 ```sh
 dotnet run --project src/RadSharp.Designer    # the designer
@@ -94,10 +94,6 @@ dotnet run --project samples/ControlsDemo     # ListView, TreeView, list control
 dotnet run --project samples/GridDemo         # a 100 000-row virtual StringGrid
 dotnet test                                   # the test suite
 ```
-
-> **Note:** NuGet currently flags the `Microsoft.DotNet.ILCompiler` package that NativeAOT uses as vulnerable, and the
-> samples treat that warning as an error. Until the package is updated, add `-p:NuGetAudit=false` to `dotnet build`,
-> `dotnet run` and `dotnet test`.
 
 To start your own app, follow [docs/getting-started.md](docs/getting-started.md). It packs the
 [`templates/`](templates) project, installs it, and creates a new app with `dotnet new radsharp-app -n MyApp`.

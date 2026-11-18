@@ -286,6 +286,21 @@ public partial class Control
 
     internal void PaintControl(Canvas canvas) => Paint(canvas);
 
+    // ---- Loading ----
+
+    /// <summary>
+    /// True while the form reader applies this control's members and children (Delphi's <c>csLoading</c>). A property
+    /// that depends on something read later, such as an index into items or pages, can hold its value while this is
+    /// true and apply it in <see cref="Loaded"/>.
+    /// </summary>
+    public bool Loading { get; internal set; }
+
+    /// <summary>
+    /// Called by the form reader once this control's members and children are read, before its parent's
+    /// <see cref="Loaded"/> (Delphi's <c>Loaded</c>). <see cref="Loading"/> is already false. Overrides call the base.
+    /// </summary>
+    protected internal virtual void Loaded() { }
+
     // ---- Scaling ----
 
     /// <summary>
