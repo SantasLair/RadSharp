@@ -359,12 +359,13 @@ public partial class DesignerForm : Form
         var name = edtName.Text.Trim();
         if (name == target.Name) return;
         var old = target.Name;
-        if (!doc.Rename(target, name))
+        if (doc.NameProblem(target, name) is { } problem)
         {
-            sbMain.SimpleText = $"\"{name}\" is not a valid, unused name";
+            sbMain.SimpleText = problem;
             edtName.Text = target.Name;
             return;
         }
+        doc.Rename(target, name);
         if (old.Length > 0) RenameInCode(old, name);
     }
 

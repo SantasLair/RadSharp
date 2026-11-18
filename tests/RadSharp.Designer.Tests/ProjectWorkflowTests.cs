@@ -333,6 +333,31 @@ public class ProjectWorkflowTests
     }
 
     [Fact]
+    public void The_name_box_refuses_a_name_that_hides_an_inherited_form_member()
+    {
+        var project = RadProject.Create(TempDir(), "HiddenName");
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        var button = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 10, 10);
+        doc.Select(button);
+
+        var nameField = (Edit)d.FindControl("edtName")!;
+        nameField.Focus();
+        nameField.SelectAll();
+        d.Simulate.Type("Monitor");
+        d.Simulate.Key(Key.Enter);
+        Assert.Equal("Button1", button.Name);
+        Assert.Equal("Button1", nameField.Text);
+        var status = (StatusBar)d.FindControl("sbMain")!;
+        Assert.Contains("\"Monitor\" would hide the inherited member Form.Monitor", status.SimpleText);
+
+        nameField.SelectAll();
+        d.Simulate.Type("btnMonitor");
+        d.Simulate.Key(Key.Enter);
+        Assert.Equal("btnMonitor", button.Name);
+    }
+
+    [Fact]
     public void Palette_groups_components_into_categories_and_arms_placement_on_selection()
     {
         var project = RadProject.Create(TempDir(), "Palette");

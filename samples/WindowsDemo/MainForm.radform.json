@@ -5,7 +5,7 @@
   "root": {
     "class": "Form",
     "name": "frmMain",
-    "caption": "Windows, displays and scale",
+    "caption": "Windows, monitors and scale",
     "width": 560,
     "height": 470,
     "minWidth": 460,
@@ -35,9 +35,9 @@
       },
       {
         "class": "Label",
-        "name": "lblDisplays",
-        "focusControl": "lstDisplays",
-        "caption": "&Displays",
+        "name": "lblMonitors",
+        "focusControl": "lstMonitors",
+        "caption": "&Monitors",
         "left": 16,
         "top": 70,
         "width": 200,
@@ -45,7 +45,7 @@
       },
       {
         "class": "ListBox",
-        "name": "lstDisplays",
+        "name": "lstMonitors",
         "left": 16,
         "top": 92,
         "width": 528,
@@ -62,7 +62,7 @@
           {
             "class": "Button",
             "name": "btnMove",
-            "caption": "&Move to display",
+            "caption": "&Move to monitor",
             "left": 16,
             "top": 8,
             "width": 140,
@@ -71,7 +71,7 @@
           {
             "class": "Button",
             "name": "btnMaximize",
-            "caption": "Ma&ximize on display",
+            "caption": "Ma&ximize on monitor",
             "left": 164,
             "top": 8,
             "width": 160,
@@ -148,7 +148,7 @@
           {
             "class": "Label",
             "name": "lblHint",
-            "caption": "Drag the window to a display with another scale: the form rescales to it.",
+            "caption": "Drag the window to a monitor with another scale: the form rescales to it.",
             "wordWrap": true,
             "left": 16,
             "top": 170,

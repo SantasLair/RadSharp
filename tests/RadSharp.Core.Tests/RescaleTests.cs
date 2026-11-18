@@ -334,18 +334,18 @@ public class RescaleTests
     }
 
     [Fact]
-    public void A_message_box_built_at_100_percent_follows_the_display_like_one_built_at_150()
+    public void A_message_box_built_at_100_percent_follows_the_monitor_like_one_built_at_150()
     {
         Assert.Equal(1, Form.DefaultScale);
         var f = Dialogs.CreateMessageForm("Saved.", MessageType.Information, MessageButtons.Ok);
-        Assert.True(f.FollowsDisplayScale);      // was false only at 100 %: the host left it small on a 150 % display
+        Assert.True(f.FollowsMonitorScale);      // was false only at 100 %: the host left it small on a 150 % monitor
         var ok = f.FindControl("btnOk")!;
         var before = ok.Bounds;
         f.ChangeScale(1.5);
         Assert.Equal((int)Math.Round(before.Width * 1.5, MidpointRounding.AwayFromZero), ok.Width);
         f.ChangeScale(1);
         Assert.Equal(before, ok.Bounds);
-        Assert.False(new Form().FollowsDisplayScale);   // a code-built form never scaled still doesn't
+        Assert.False(new Form().FollowsMonitorScale);   // a code-built form never scaled still doesn't
     }
 
     [Fact]

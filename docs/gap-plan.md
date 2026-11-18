@@ -329,11 +329,17 @@ findings with failing tests), merged on branch `m13`.
   (closes every form through CloseQuery: modal forms first, the main form last); `SdlHost.Run` returns the exit code.
 - **Item 6:** `PointerKind` (mouse/touch/pen) on mouse events, from SDL's touch and pen mouse ids.
 - Also fixed on the way: closing a form from a `Timer` crashed in the SDL renderer.
-- **Done-when:** a form starts maximized on a chosen monitor (`StartDisplay` + `WindowState`), remembers its placement
+- **Done-when:** a form starts maximized on a chosen monitor (`StartMonitor` + `WindowState`), remembers its placement
   (`WindowPlacement.Remember`), survives being dragged between monitors of different scale (checked by hand by the
   user in `samples/WindowsDemo` on a 200 % and a 100 % display, 2026-11-17), opens dialogs centred on their owner,
   activates buttons with Alt+letter, and accepts a dropped file (2026-09-28). Tests: 89 new in `RadSharp.Core.Tests`
   (both tracks and their reviews); full suite 846 with the `itemIndex` fix.
+- **2026-11-17, API renamed** (unreleased, no shims) to Delphi's monitor names: `Display` -> `MonitorInfo`,
+  `Screen.Displays` -> `Screen.Monitors`, `Form.Display`/`StartDisplay`/`MoveToDisplay`/`DisplayChanged`/
+  `ScaleWithDisplay` -> `Form.Monitor`/`StartMonitor`/`MoveToMonitor`/`MonitorChanged`/`ScaleWithMonitor`,
+  `IPlatformServices.GetDisplays`/`GetDisplayOf` -> `GetMonitors`/`GetMonitorOf`; `WindowPlacement` writes `monitor`/
+  `monitorBounds` and still reads `display`/`displayBounds`. The text above is as written at the time. New generator
+  error RAD1006: a control named like an inherited form member (such as `Monitor`) is refused.
 - Left: the form's own `Left`/`Top` are scaled with everything else, which a Manual-positioned form re-shown after a
   scale change can notice; Edit/Memo text scroll offsets stay in pixels until the next caret move; Linux and macOS
   not checked by hand; real touch and pen input untested.
@@ -441,6 +447,17 @@ controls don't need yet.
 **Status (2026-11-17): merge review of stages 5 and 6.** Two issues the tracks left open are fixed. Virtual-mode type-ahead no longer asks for every row (100 000 rows stalled a key): a new `onFindItem` event (Delphi's OnDataFind) answers it, and without a handler at most 1000 rows after the current one are scanned. `TreeView.Change` for a code-made change (rows rebuild lazily) used to fire inside layout or paint; it is now held until a safe point: the next call from outside that reads the tree, or the UI-thread queue (`Application.Queue`) when a platform host is running, once per change. Seams between the branches checked and tested: `CheckListBox` and a variable-height `ListBox` run in `RowViewSuiteTests`; an editable `ComboBox`'s edit and a TreeView's rename editor are both transient, so the designer's structure tree and `DesignSurface.ControlAt` skip them; every new control has a palette picture, category and `onChange` default event.
 
 **M14 status:** items 1–6 done; item 7 (DateTimePicker, Calendar, MaskEdit) deferred to the reference app as the plan says. Done-when met: see `GridTests` (100 000-row virtual grid) and `RowViewSuiteTests`.
+
+**Status (2026-11-17): item 7, as the reference app decided.** The reference-app study (`docs/reference-app-scope.md`)
+put `DateTimePicker` + `Calendar` (date only) in 1.0 and MaskEdit out. `Calendar` (Delphi's TMonthCalendar, light): month
+grid, today marked, `MinDate`/`MaxDate`, first day of week from the culture or chosen, keyboard (arrows, PageUp/Down,
+Ctrl+PageUp/Down, Home/End, Enter/Space), mouse and wheel, `onChange`/`onDateClick`. `DateTimePicker`: segment editing
+like Windows, a drop-down `Calendar` in the popup layer (F4/Alt+Down or the button), optional `Format`,
+`ShowCheckbox`/`Checked` for "no date" (`Value` is null), `MinDate`/`MaxDate`. Text is always Gregorian, also for
+cultures whose default calendar isn't (Thai Buddhist, Hijri: a review found a mis-typed year and a crash there). Form
+format: new property type `date` (ISO string, nullable variant), vector `dates`; approved by the user. Goldens `dates`,
+`dates-open` at 100 %/150 %; ControlsDemo has a Dates tab; NativeAOT publish warning-free. Not in 1.0: time of day,
+ranges, non-Gregorian display, MaskEdit.
 
 **Status (2026-11-17): a saved `itemIndex` now loads.** `ListBox`, `CheckListBox` and `ComboBox` lost a saved `itemIndex`,
 because the writer puts it before `items` and the reader clamped it against an empty list; `PageControl.activePageIndex`

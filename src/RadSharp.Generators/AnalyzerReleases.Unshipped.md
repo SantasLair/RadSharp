@@ -12,3 +12,4 @@ RAD1002 | RadSharp.Forms | Warning | Unknown control class in the form file
 RAD1003 | RadSharp.Forms | Warning | Unknown event in the form file
 RAD1004 | RadSharp.Forms | Error | Control or handler name is not a valid C# identifier
 RAD1005 | RadSharp.Forms | Error | Duplicate control name in the form file
+RAD1006 | RadSharp.Forms | Error | Control name hides a member inherited from the form's base class
