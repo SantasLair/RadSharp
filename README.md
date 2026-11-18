@@ -20,6 +20,36 @@
   `[Design]` tab with its own Toolbox and Properties windows, much like the WinForms designer.
 - **Light and dark themes,** in the designer and in your apps.
 
+## Controls
+
+About 40 components, each documented in the [control reference](docs/controls.md):
+
+| Group | Components |
+|---|---|
+| Standard | Button, Label, Edit, Memo, CheckBox, RadioButton, GroupBox, Panel, Image, PaintBox |
+| Values | SpinEdit, TrackBar, ProgressBar, ScrollBar, ColorBox |
+| Lists | ListBox, ComboBox, CheckListBox |
+| Data views | StringGrid, DrawGrid, ListView, TreeView |
+| Containers | PageControl, TabSheet, ScrollBox, ScrollView, Splitter, StatusBar, ToolBar |
+| Menus | MainMenu, PopupMenu |
+| Non-visual | Timer, ImageList, OpenDialog, SaveDialog, FolderDialog |
+
+The list and data controls share one scrolling and selection base, built to handle large data:
+
+- **StringGrid and DrawGrid** have fixed header rows and columns, cell, range and row selection, and in-place
+  editing. They also support column resizing, sorting on a header click, Ctrl+C copy as tab-separated text, and a
+  virtual mode (`onGetCell`) that scrolls 100 000 rows while asking only for the cells in view.
+- **ListView** shows a report view with a pinned header, sorting, multi-select, checkboxes, icons from an ImageList and
+  type-ahead. Its virtual mode (`onGetItem`, `onFindItem`) needs no per-row storage.
+- **TreeView** loads children lazily (`onExpanding` with `HasChildren`) and has checkboxes, icons, multi-select,
+  in-place rename with veto, and Windows tree keys.
+- **ListBox** can select several items, carry a tag per item, and give each row its own height (`style: variable`).
+  **ComboBox** has an editable style with autocomplete. **CheckListBox** adds a check box per item, with an optional
+  grayed state.
+
+Grid and ListView columns, and TreeView nodes, are saved in the form file. The designer edits them through
+**Columns** and **Nodes** editors opened from the Object Inspector.
+
 ## Screenshots
 
 ### Visual Studio integration
@@ -60,6 +90,8 @@ You need the [.NET 10 SDK](https://dotnet.microsoft.com/download).
 ```sh
 dotnet run --project src/RadSharp.Designer    # the designer
 dotnet run --project samples/TileEditor       # a sample app
+dotnet run --project samples/ControlsDemo     # ListView, TreeView, list controls and DrawGrid
+dotnet run --project samples/GridDemo         # a 100 000-row virtual StringGrid
 dotnet test                                   # the test suite
 ```
 
@@ -95,19 +127,20 @@ The design, protocol and test checklist are in [docs/vs-designer-plan.md](docs/v
 | `src/RadSharp.Core` | Controls, layout, rendering, text, form reader/writer, component metadata |
 | `src/RadSharp.Generators` | Source generators for component metadata and form code-behind |
 | `src/RadSharp.Platform.Sdl` | The SDL3 host: windows, input, IME, clipboard, dialogs, modal loops |
-| `src/RadSharp.Design` | The design surface, document model, palette and toolbox icons, menu and tab-order editors |
+| `src/RadSharp.Design` | The design surface, document model, palette and toolbox icons, and the menu, tab-order, columns and nodes editors |
 | `src/RadSharp.Design.Code` | Roslyn integration: handler stubs, renames, live run (F9), builds |
 | `src/RadSharp.Designer` | The standalone designer app (itself a RadSharp form) |
 | `src/RadSharp.DesignHost` | The headless design host behind the Visual Studio designer, and its pipe protocol |
 | `vs/` | The Visual Studio extension and its WPF client |
-| `samples/` | Hello, Calculator, TextEditor, SettingsDialog and TileEditor |
+| `samples/` | Hello, Calculator, TextEditor, SettingsDialog, TileEditor, GridDemo, ControlsDemo and Robustness |
 | `spec/` | Conformance vectors for layout and form files |
 | `templates/` | The `dotnet new radsharp-app` template |
 
 ## Status
 
 All roadmap milestones M0–M9 are implemented, and hardening milestones are under way (see
-[RadSharp-roadmap.md](RadSharp-roadmap.md)). RadSharp is a young codebase: it is developed and tested on Windows, and
+[RadSharp-roadmap.md](RadSharp-roadmap.md)). The M14 data controls (grids, ListView/TreeView v2, CheckListBox, the
+editable ComboBox) are done; see [docs/gap-plan.md](docs/gap-plan.md). RadSharp is a young codebase: it is developed and tested on Windows, and
 macOS and Linux run in CI. Known gaps and the plan to close them are in [docs/gap-analysis.md](docs/gap-analysis.md),
 [docs/gap-plan.md](docs/gap-plan.md) and [docs/designer-gap-analysis.md](docs/designer-gap-analysis.md).
 
