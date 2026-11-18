@@ -81,6 +81,20 @@ public sealed class FormJsonWriter
         _sb.Append(']');
     }
 
+    /// <summary><c>[0, 2, 5]</c> on one line.</summary>
+    public void WriteInlineArray(IEnumerable<int> values)
+    {
+        _sb.Append('[');
+        bool first = true;
+        foreach (var v in values)
+        {
+            if (!first) _sb.Append(", ");
+            _sb.Append(v.ToString(CultureInfo.InvariantCulture));
+            first = false;
+        }
+        _sb.Append(']');
+    }
+
     /// <summary><c>{ "l": 6, "t": 0, "r": 6, "b": 48 }</c> on one line.</summary>
     public void WriteInlineObject(IEnumerable<(string Key, int Value)> fields)
     {

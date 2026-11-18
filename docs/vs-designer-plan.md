@@ -214,6 +214,10 @@ button's caption on the surface. Ctrl+A stayed in the text field and did not bec
   the standalone designer; Menu Editor is greyed out when the form has no menu. Tab Order opens as a VS-owned modal
   window centred over the designer. Moving a row and clicking OK marks the tab dirty, and Ctrl+S writes the new
   `tabOrder` values.
+- **Grid Columns (M14 stage 4):** the Object Inspector pane lists a `columns` row for a StringGrid/DrawGrid; clicking it or
+  pressing Enter opens the Columns editor as a modal window over the designer, like Tab Order. Changes mark the tab dirty
+  and Ctrl+S writes the `"columns"` array. No VS-side code was needed (the inspector is a host-rendered pane); covered by
+  the standalone designer's test and `GridDesignTests`, not yet by a VS-client end-to-end test.
 - **Missing host:** with `RADSHARP_DESIGNHOST` pointing at a missing file, the tab says the host wasn't found, shows the
   path, and points to Open With → Source Code (Text) Editor.
 
@@ -221,6 +225,24 @@ button's caption on the surface. Ctrl+A stayed in the text field and did not bec
 from `...\Microsoft Visual Studio\18\Community\Common7\IDE`, then `/updateconfiguration`). The `[Design]` tab and both
 tool windows open. Click-select, arrow nudge (`*` appears), Ctrl+Z back to clean, and double-click → `btnOk_Click` in
 the C# editor with the caret in the body all work.
+
+**WinForms-style navigation (2026-11-13, VS 2026 18.10, live on Biweekly Cash Flow's three forms, then installed in the
+main hive):**
+
+- **Nesting:** `RadSharp.Core.targets` gives each code-behind `DependentUpon="X.radform.json"`, so Solution Explorer
+  shows `X.radform.json` with `X.cs` under it, as WPF shows `MainWindow.xaml` over `MainWindow.xaml.cs`. The form file
+  is the one you double-click to design, so it stays visible. (The first try nested the form under the `.cs`, as
+  WinForms nests `Form1.Designer.cs`. That hid the forms: every `.cs` has an expand arrow, so nothing marked them.)
+- **F7** in a designer tab opens `X.cs` (View Code). Without a code-behind, VS opens the JSON text as before.
+- **Shift+F7 / View Designer** on `X.cs` opens `X.radform.json` in the designer. This works from the C# editor and from
+  the item's Solution Explorer context menu, where "View Designer Shift+F7" now appears. `ViewDesignerCommand` is a
+  priority command target and claims the command only when a form file sits next to the selected `.cs`, so other
+  designers keep theirs. The package now also loads (in the background) when a `.cs` file is selected, so this works
+  before any form has been opened.
+- **Fixed:** opening a second form left RadSharp Properties showing the previous form. The tool window collapses its
+  view while the new form loads. When WPF showed the view again it didn't raise `SizeChanged`, so the new inspector
+  never got a `ResizeWindow`. `RemoteWindowView` now retries after layout until it has a size (client test
+  `A_view_hidden_while_its_next_window_loads_sends_that_window_a_size`).
 
 **Not yet checked live:** switching the VS colour theme while running, the dirty-tab close prompt, and a DPI change
 between monitors.

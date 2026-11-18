@@ -68,10 +68,36 @@ A form file is UTF-8 JSON:
 `{ "caption", "shortcut", "altShortcut", "onClick", "enabled", "checked", "radioItem", "visible", "separator", "items": [...] }`,
 with only non-default values written.
 
+**Grids and list views** (`StringGrid`, `DrawGrid`, `ListView`) save their header columns as a `"columns"` array of objects, one per grid column
+(fixed columns included, by index): `{ "alignment", "minWidth", "title", "width" }` (`alignment`: `left`, `center`,
+`right`; `width` 0 means the grid's `defaultColWidth`, a list view's 100), keys in that order, only non-default values written (a column
+with nothing to say is `{}`). A control without columns writes no `"columns"` key. A `ListView` also still reads the older
+`"Title:width"` strings as column elements (its `"columns"` was once a string array); its items are not saved.
+Load semantics, so that **member order in the file never matters**: a reader applies a grid's other members first
+(`colCount`, `fixedCols`, ... in file order), then `"columns"`, then `sortColumn`. Reading `"columns"` replaces any
+columns and sets `colCount` to the number of columns it lists (an empty array leaves `colCount` alone); a `sortColumn`
+that isn't a column of the final grid (`>= colCount`) is ignored with a warning. Writers emit `colCount` (when not 5)
+alongside `columns`, and `sortColumn` (when not -1), in the usual alphabetical order.
+At run time `SortColumn` is kept as set (even beyond `ColCount`, so it can be set before the columns exist), but
+shrinking `ColCount` to or below it resets it to -1; growing never does.
+
+**Tree views** (`TreeView`) save their nodes as a nested `"nodes"` array after the other members (like `items`/`columns`;
+omitted when empty): `{ "text", "checked", "expanded", "hasChildren", "imageIndex", "nodes": [...] }`, keys in that order, only
+non-default values written (`checked`/`expanded`/`hasChildren` are `true` when present, `imageIndex` is written when not -1). A node
+with nothing to say is `{}`; a non-object element or an unknown key is skipped or ignored with a warning, like a `columns` entry.
+
+**Lists and combo boxes.** `ListBox` gains `style` (`fixed`, the default, or `variable`: row heights come from the
+`onMeasureItem` handler); `ComboBox` gains `style` (`dropDownList`, the default, or `dropDown`: an editable text part),
+`text` (the editable text; written only when not empty) and `autoComplete` (default `true`). `CheckListBox` (a `ListBox`)
+adds `allowGrayed`, `onClickCheck`, and `checked`: the indices of the checked items, ascending, on one line
+(`"checked": [0, 3]`; omitted when none). The grayed state is a run-time state and is not saved. Integer arrays are written
+like `anchors`: `[0, 3]` on one line, `[]` when empty (a default-valued property is not written at all). A reader must accept
+`checked` before or after `items`.
+
 **Deterministic output** (save → load → save is byte-identical, in every runtime)
 - Top-level keys: `format`, `version`, `generator`, `root`.
 - Node keys: `class`, `name`, `caption`, `text`, then the rest in **ordinal (code-point) alphabetical order**,
-  then `items`, then `children`.
+  then `items` (menus), `columns` (grids, list views) or `nodes` (tree views), then `children`.
 - Struct properties are written whole when any field differs from the default, fields in their
   declared order (`margin`/`padding`: `l`, `t`, `r`, `b`; `font`: `family`, `size`, `bold`, `italic`,
   `underline`). `font` is additionally nullable: absent means *ParentFont* (see below), never written

@@ -5,7 +5,7 @@
 > own scripting language, GML). You don't need GMForms or GameMaker to use this document: the parts
 > worth reusing (form file format, layout rules, input/popup rules, conformance tests) are written out
 > in full in [docs/spec.md](docs/spec.md) (formerly Appendices A–D), and the tests also exist as machine-readable vectors in `spec/vectors/`.
-> The GMForms source is at `D:\dev\gamemaker\GMForms` for deeper reference (Appendix E).
+> The GMForms source is available for deeper reference (Appendix E).
 >
 > **Name:** *RadSharp* (chosen 2026-11-11; earlier placeholders: DamonForms, RadSharp as a working title).
 > No NuGet packages use the name; domain and trademark checks are still open (note Telerik's "Rad" control
@@ -219,7 +219,7 @@ The form file format, layout rules, input/focus/popup rules and conformance test
 ## Appendix E: The GMForms reference implementation
 
 The appendices above are enough to start. For anything they don't cover, the working GameMaker
-implementation is on this machine at **`D:\dev\gamemaker\GMForms`** (a git repository; the M1–M6
+implementation is kept in a git repository (the M1–M6
 milestones are committed). It's GML, which reads much like JavaScript.
 
 **Differences from this spec:** GMForms uses `"format": "gmforms"`, an integer `version`, snake_case

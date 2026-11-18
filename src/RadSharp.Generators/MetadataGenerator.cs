@@ -111,6 +111,7 @@ public sealed class MetadataGenerator : IIncrementalGenerator
             case "RadSharp.Thickness": return C + "Thickness";
         }
         if (t is IArrayTypeSymbol { ElementType.SpecialType: SpecialType.System_String }) return C + "Strings";
+        if (t is IArrayTypeSymbol { ElementType.SpecialType: SpecialType.System_Int32 }) return C + "Ints";
         if (t.TypeKind == TypeKind.Enum)
             return $"{C}Enum<{t.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat)}>()";
         return null;

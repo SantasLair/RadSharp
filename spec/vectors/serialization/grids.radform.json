@@ -1,0 +1,85 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmGrids",
+    "height": 300,
+    "width": 640,
+    "children": [
+      {
+        "class": "StringGrid",
+        "name": "grdDefaults",
+        "left": 10,
+        "top": 10
+      },
+      {
+        "class": "StringGrid",
+        "name": "grdData",
+        "autoSort": true,
+        "colCount": 6,
+        "colSizing": true,
+        "defaultColWidth": 90,
+        "defaultRowHeight": 22,
+        "editing": true,
+        "fixedCols": 0,
+        "height": 110,
+        "left": 10,
+        "multiSelect": true,
+        "onColumnClick": "grdData_ColumnClick",
+        "onGetCell": "grdData_GetCell",
+        "onSetEditText": "grdData_SetEditText",
+        "rowCount": 100001,
+        "sortColumn": 2,
+        "sortDescending": true,
+        "top": 180,
+        "wantTabs": true,
+        "width": 300
+      },
+      {
+        "class": "DrawGrid",
+        "name": "grdMap",
+        "borderStyle": "none",
+        "fixedCols": 0,
+        "fixedRows": 0,
+        "gridLines": false,
+        "left": 340,
+        "onDrawCell": "grdMap_DrawCell",
+        "onSelectCell": "grdMap_SelectCell",
+        "rangeSelect": false,
+        "rowSelect": true,
+        "top": 10
+      },
+      {
+        "class": "StringGrid",
+        "name": "grdColumns",
+        "autoSort": true,
+        "colCount": 4,
+        "fixedCols": 0,
+        "height": 110,
+        "left": 340,
+        "sortColumn": 2,
+        "top": 180,
+        "width": 280,
+        "columns": [
+          {
+            "alignment": "right",
+            "title": "#",
+            "width": 28
+          },
+          {
+            "minWidth": 40,
+            "title": "Name"
+          },
+          {},
+          {
+            "alignment": "right",
+            "title": "Cost",
+            "width": 60
+          }
+        ]
+      }
+    ]
+  }
+}

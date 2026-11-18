@@ -31,6 +31,7 @@ public static class Converters
     public static readonly ValueConverter<Anchors> Anchors = new AnchorsConverter();
     public static readonly ValueConverter<Thickness> Thickness = new ThicknessConverter();
     public static readonly ValueConverter<string[]> Strings = new StringsConverter();
+    public static readonly ValueConverter<int[]> Ints = new IntsConverter();
     public static readonly ValueConverter<Font?> NullableFont = new NullableFontConverter();
 
     public static ValueConverter<T> Enum<T>() where T : struct, System.Enum => EnumConverter<T>.Instance;
@@ -173,6 +174,34 @@ public static class Converters
         public override bool TryParse(string text, out string[] value)
         {
             value = text.Length == 0 ? [] : text.Replace("\r\n", "\n").Split('\n');
+            return true;
+        }
+    }
+
+    /// <summary>A list of integers (checked indices...), written on one line: <c>[0, 2, 5]</c>.</summary>
+    sealed class IntsConverter : ValueConverter<int[]>
+    {
+        public override PropertyType Type => PropertyType.Ints;
+
+        public override int[] Read(JsonElement v)
+        {
+            if (v.ValueKind != JsonValueKind.Array) throw Wrong(v, "an array of integers");
+            return [.. v.EnumerateArray().Select(e => e.ValueKind == JsonValueKind.Number && e.TryGetInt32(out var i) ? i : throw Wrong(e, "an integer"))];
+        }
+
+        public override void Write(FormJsonWriter w, int[] value) => w.WriteInlineArray(value ?? []);
+
+        public override bool AreEqual(int[] a, int[] b) => (a ?? []).SequenceEqual(b ?? []);
+        public override string Format(int[] value) => string.Join(", ", (value ?? []).Select(i => i.ToString(CultureInfo.InvariantCulture)));
+        public override bool TryParse(string text, out int[] value)
+        {
+            var list = new List<int>();
+            foreach (var part in text.Split([',', ';', ' ', '\n', '\r'], StringSplitOptions.RemoveEmptyEntries))
+            {
+                if (!int.TryParse(part, NumberStyles.Integer, CultureInfo.InvariantCulture, out var i)) { value = []; return false; }
+                list.Add(i);
+            }
+            value = [.. list];
             return true;
         }
     }

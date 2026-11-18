@@ -139,9 +139,18 @@ public static class FormReader
             control.Name = n.GetString()!;
         var here = control.Name.Length > 0 ? control.Name : $"{path} ({cls.Name})";
 
+        // Some members depend on what the others set (a grid's "columns" and "sortColumn" on colCount and fixedCols), so
+        // they are applied after all of them, in the control's order: property order in the file never matters (spec, "Grids").
+        var collections = control as IFormCollections;
+        Dictionary<string, JsonElement>? deferred = null;
         foreach (var prop in node.EnumerateObject())
         {
             if (prop.Name is "class" or "name" or "children") continue;
+            if (collections != null && collections.DeferredMembers.Contains(prop.Name))
+            {
+                (deferred ??= [])[prop.Name] = prop.Value;
+                continue;
+            }
             if (prop.Name == "items" && control is IMenuOwner owner)
             {
                 owner.Items.Clear();
@@ -160,6 +169,10 @@ public static class FormReader
                 warnings.Add($"{here}.{prop.Name}: {e.Message}; ignored.");
             }
         }
+
+        if (collections != null && deferred != null)
+            foreach (var name in collections.DeferredMembers)
+                if (deferred.TryGetValue(name, out var value)) collections.ReadDeferred(name, value, warnings, here);
 
         if (node.TryGetProperty("children", out var children) && children.ValueKind == JsonValueKind.Array)
         {

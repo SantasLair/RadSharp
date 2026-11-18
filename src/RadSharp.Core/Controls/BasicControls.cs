@@ -36,10 +36,14 @@ public class Label : Control
     [Published(Category = "Appearance")] public int FontSize { get; set; }
     /// <summary>Sugar over <see cref="Control.Font"/>'s Bold, kept for old files: true forces bold on top of it.</summary>
     [Published(Category = "Appearance")] public bool FontBold { get; set; }
-    /// <summary>Text colour; null uses the theme's.</summary>
+    /// <summary>Text colour; null uses the theme's (<see cref="Theme.TextMuted"/> when <see cref="Muted"/>).</summary>
     [Published(Category = "Appearance")] public Color? FontColor { get; set; }
 
-    bool _wordWrap, _ellipsis;
+    bool _wordWrap, _ellipsis, _muted;
+
+    /// <summary>Secondary text (a caption over a field, a hint): drawn in the theme's <see cref="Theme.TextMuted"/>,
+    /// so it follows light and dark themes. <see cref="FontColor"/> still wins when set.</summary>
+    [Published(Category = "Appearance")] public bool Muted { get => _muted; set { _muted = value; Invalidate(); } }
 
     /// <summary>Wraps the caption onto several lines at the label's width (and at explicit newlines).</summary>
     [Published(Category = "Appearance")] public bool WordWrap { get => _wordWrap; set { _wordWrap = value; Invalidate(); } }
@@ -49,7 +53,7 @@ public class Label : Control
 
     protected override void Paint(Canvas canvas)
     {
-        var color = !IsEffectivelyEnabled ? canvas.Theme.TextDisabled : FontColor ?? canvas.Theme.Text;
+        var color = !IsEffectivelyEnabled ? canvas.Theme.TextDisabled : FontColor ?? (Muted ? canvas.Theme.TextMuted : canvas.Theme.Text);
         var font = Font ?? EffectiveFont with
         {
             Size = FontSize > 0 ? FontSize : EffectiveFont.Size,
@@ -81,7 +85,14 @@ public class Button : Control
     /// <summary>Escape clicks this button when no control handled the key (Delphi's <c>Cancel</c>).</summary>
     [Published(Category = "Behavior")] public bool Cancel { get; set; }
 
-    bool _flat;
+    bool _flat, _primary;
+
+    /// <summary>
+    /// The dialog's main action (a "Done" or "Save" button): the theme's <see cref="Theme.Accent"/> face with
+    /// <see cref="Theme.OnAccent"/> text, so it follows light and dark themes. <see cref="Color"/> and
+    /// <see cref="FontColor"/> still win when set. Independent of <see cref="Default"/> (which only binds Enter).
+    /// </summary>
+    [Published(Category = "Appearance")] public bool Primary { get => _primary; set { _primary = value; Invalidate(); } }
 
     /// <summary>
     /// Draws the button without a border and without a face until the pointer is over it or it is pressed
@@ -179,7 +190,7 @@ public class Button : Control
         var r = new Rect(0, 0, Width, Height);
         bool enabled = IsEffectivelyEnabled;
         float radius = canvas.Px(t.ButtonRadius);
-        var custom = Color;
+        var custom = Color ?? (Primary ? t.Accent : null);
         var rest = custom ?? (Flat ? null : t.ButtonFace);
         var hover = HoverColor ?? (custom is { } c ? c.Blend(t.Text, 0.12) : t.ButtonFaceHover);
         var pressed = (HoverColor ?? custom) is { } p ? p.Blend(t.Text, HoverColor is null ? 0.22 : 0.10) : t.ButtonFacePressed;
@@ -187,7 +198,7 @@ public class Button : Control
         if (face is { } f) canvas.FillRoundRect(r, radius, f);
         if (!Flat)
         {
-            var border = enabled && (IsHovered || Default) ? t.Accent : t.ButtonBorder;
+            var border = Primary && Color is null ? t.Accent : enabled && (IsHovered || Default) ? t.Accent : t.ButtonBorder;
             canvas.DrawRoundBorder(r, radius, border, canvas.Px(1));
         }
         if (Focused && OwningForm is { ShowFocusCues: true }) canvas.DrawFocusRing(r, radius);
@@ -199,7 +210,8 @@ public class Button : Control
             canvas.DrawPicture(pic, new Rect(x, (Height - s) / 2, s, s));
             if (Caption.Length > 0) textRect = new Rect(x + s + canvas.Px(6), 0, Width - x - s - canvas.Px(16), Height);
         }
-        canvas.DrawText(Caption, EffectiveFont, enabled ? FontColor ?? t.Text : t.TextDisabled, textRect,
+        var text = FontColor ?? (Primary && Color is null ? t.OnAccent : t.Text);
+        canvas.DrawText(Caption, EffectiveFont, enabled ? text : t.TextDisabled, textRect,
             textRect == r ? TextAlign.Center : TextAlign.Left, VerticalAlign.Center);
     }
 

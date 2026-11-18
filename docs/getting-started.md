@@ -51,7 +51,8 @@ designer detects which are installed), or a custom command with `{file}`, `{line
 VS Code and Rider open handlers at their line; Visual Studio opens the file (it can't take a line number from the
 command line). Debug, refactor and build the code in your IDE as usual — the project is an ordinary .NET project.
 
-Other designer tools: **Component › Menu Editor** (for MainMenu/PopupMenu), **Tab Order**, bring to
+Other designer tools: **Component › Menu Editor** (for MainMenu/PopupMenu), **Tab Order**, the **Columns** editor for a StringGrid/DrawGrid
+(click the `columns` row in the Object Inspector, or press Enter on it), bring to
 front/send to back, copy/paste of controls, undo/redo per form, grid and edge snapping (hold **Alt** to place
 freely), arrow keys to nudge (**Shift** resizes, **Ctrl** moves by the grid).
 

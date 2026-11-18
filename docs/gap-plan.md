@@ -310,6 +310,80 @@ controls entirely and belong to M15 item 3, decided separately later. Keep the M
 plain in-memory items/rows, matching the existing `ListBox`/`ListView` shape — no bloat from a feature these
 controls don't need yet.
 
+**Status (2026-11-17): stage 1 done — the shared foundation and ListBox v2 (items 1 and 2).**
+- `ScrollView` scrolls from the keyboard when focused (it is now a tab stop): arrows by a line, PageUp/PageDown by a
+  viewport, Home/End, Ctrl+Home/End to the corners. Subclasses take keys through `HandleKey` (calling the base for the
+  rest) and tune `LineStepX`/`LineStepY`/`PageStepY`; the wheel defaults to three lines. New hooks: `ScrollBy`,
+  `MeasureContent` (content size from the UI scale, re-run whenever the bars are recomputed), and
+  `GetBackgroundColor`/`GetBorderColor` so a subclass keeps its own look.
+- Selection models in `RadSharp.Core`, UI-free and range-based (select-all on 100 000 rows is one range):
+  `ItemSelection` (modes none/single/multi/extended; current item, anchor, `Click`/`DragTo`/`MoveTo`/`ToggleCurrent`
+  input rules, `Insert`/`Remove`/`Count` keep it consistent) and `CellSelection` for the grid (current cell, anchor,
+  `GridRect` ranges; modes single/range/multi-range, where Ctrl+click adds a rectangle; inserted/removed rows and
+  columns grow, shrink or move the ranges).
+- `ListBox` now derives from `ScrollView` (its private scrolling is gone) and publishes Delphi's `multiSelect` and
+  `extendedSelect`; it gains `color` and inherits `borderStyle` from `ScrollView` (same name and default). Runtime:
+  `Selection`, `IsSelected`/`SetSelected`, `SelectedIndices`/`SelectedItems`/`SelectedCount`, `SelectAll`,
+  `ClearSelection`, `TopIndex`, and items with tags (`AddItem`/`InsertItem`/`DeleteItem`, `GetItemTag`/`SetItemTag`).
+  `Items` stays `string[]`; `ItemIndex` is the current item. Existing golden images are unchanged; new golden
+  `lists@100%/150%`, serialization vector `lists`, and tests through simulated input.
+- Left from items 1–2: `ListView`/`TreeView` are not on `ScrollView` yet (items 3–4); per-item height via a draw
+  event is not done (rows are uniform); a saved `itemIndex` is written before `items` and so is lost on load (an
+  older bug, also in `ComboBox`).
+
+**Status (2026-11-17): stage 3 done — the grid (item 6), runtime side.**
+- `CustomGrid : ScrollView` (abstract) with `DrawGrid` (owner-drawn, `onDrawCell`) and `StringGrid` (`Cells[col, row]`)
+  on it. Published: `colCount`, `rowCount`, `fixedCols`, `fixedRows`, `defaultColWidth`, `defaultRowHeight`,
+  `gridLines`, and Delphi's options as bools (`editing`, `rangeSelect`, `multiSelect`, `rowSelect`, `colSizing`,
+  `wantTabs`, `autoSort`) plus `sortColumn`/`sortDescending`; events `onDrawCell`, `onSelectCell`, `onGetEditText`,
+  `onSetEditText`, `onColumnClick`, `onChange`, `onDblClick`, and on `StringGrid` `onGetCell` (virtual mode) and
+  `onCompare`. Rows share one height; columns have `ColWidths[i]` or the runtime `Columns` collection (`GridColumn`:
+  `Title`, `Width`, `Alignment`, `MinWidth`), which titles the header row and sets `colCount`.
+- Fixed rows/columns stay pinned; painting visits only the cells in view. Selection is the `CellSelection` model over
+  the non-fixed cells: click, drag, Shift, Ctrl+click (multi-range), header clicks for a column/row/everything, row
+  select. Keys: arrows, Home/End, Ctrl+Home/End, PageUp/PageDown, Tab (`wantTabs`), Shift extends, Ctrl+A, Ctrl+C
+  (tab-separated, the bounding box of the ranges). In-place editing with a child `Edit` that moves with the scroll;
+  Enter/F2/double click/typing start it, Enter commits, Esc cancels, Up/Down/Tab commit and move; get/set events can
+  supply, refuse or validate. Column resize from header borders (with the `SizeWE` cursor). `autoSort`: a header
+  click moves the sort arrow, `StringGrid` sorts its rows (stable, `onCompare`), virtual mode leaves it to the app.
+- The done-when is a test: a 100 000-row virtual `StringGrid` scrolls by wheel, keys and scroll-bar drag, a paint
+  asks `onGetCell` only for the cells in view, a header click sorts, a cell is edited in place, ranges are selected.
+  Golden `grids@100%/150%`, serialization vector `grids`, sample `samples/GridDemo` (100 000 virtual rows).
+- `CellSelection` now collapses to the current cell after a removal or shrink that took the active range or left the
+  current cell outside it, so Shift never rewrites an earlier range.
+- Left for stage 4: `Columns` in form files and a designer `Columns` editor; `DrawGrid`/`StringGrid` have toolbox
+  icons and fall into the palette's "Additional" category. Not done: per-row heights, row resizing, moving
+  columns/rows, Delete clearing cells, paste.
+
+**Status (2026-11-17): stage 4 done — the grid in form files and the designer (item 6, designer side).**
+- Form files: a grid saves `"columns"` (after the other members, where menus put `"items"`): one object per grid
+  column, fixed ones included, with `alignment`, `minWidth`, `title`, `width` and only non-default values (`{}` for an
+  empty column); none are written when there are no columns. Load order is fixed by the reader, not the file: a grid's
+  other members first, then `columns` (which sets `colCount` to its count; `[]` leaves it alone), then `sortColumn` (one
+  past the end is dropped with a warning), so `colCount`/`columns`/`fixedCols`/`sortColumn` may come in any order.
+  Vector `grids` gained `grdColumns` (its input has the members scrambled); `docs/spec.md` documents the format.
+- `SortColumn` rule: kept as set (so it can precede the columns, as in the golden test), but a shrink of `ColCount` to or
+  below it resets it to -1, and growing never brings it back. Adding the first `Columns` entry adopts the grid's
+  columns and doesn't count as a shrink. New `GridColumns.Move` reorders without touching `ColCount`/`SortColumn`/cells.
+- Designer: `GridColumnsEditor` (list, Title/Width/Alignment/MinWidth, Add/Delete/Up/Down; one undo step like the menu
+  editor), opened from the Object Inspector's new `columns` row (`ICollectionOwner` + `PropertyGrid.CollectionEditRequested`,
+  wired in both the standalone designer and the VS design host). A grid with no `Columns` that gets an Add first gets
+  one blank column per existing column. The palette gives the Delphi defaults (5 × 5, one fixed row and column); the
+  design surface never forwards input to the form, so there is no editing, selection or column resize at design time
+  (tests). Double-click opens `onChange` for grids, like `ListBox`/`ListView`.
+- Review fixes: the resize cursor now restores the app's own `Cursor` (also on leaving the grid), and a descending sort no
+  longer negates the comparer's result.
+- Not done: a VS-client end-to-end test of the Columns editor (the pane needs no VS code); a generic collection editor
+  (ListView Columns and TreeView Nodes will reuse `ICollectionOwner`).
+
+**Status (2026-11-17): stage 5 — `ListBox` per-item heights and `ComboBox`/`CheckListBox` (items 2 remainder and 5).** `ListBox.Style = Variable` with a `MeasureItem` event (`Fixed` stays O(1)); `ComboBox.Style = DropDown` (editable, a transient `Edit` child) with `AutoComplete`; new `CheckListBox`. New `int[]` published property type, `Ints`. Goldens `combos`, `checklists` and `varlists` at 100% and 150%, plus the serialization vector `checklists`. Left: `itemIndex` saved before `items` is still lost on load (an older bug); CheckListBox header items are not done.
+
+**Status (2026-11-17): stage 6 — ListView v2 and TreeView v2 (items 3 and 4).** Both derive from `ScrollView` with `ItemSelection`; private scrolling gone; both scroll bars; painting visits only the rows in view. The done-when's shared suite is `RowViewSuiteTests`, run unchanged against `StringGrid` (row select), `ListView`, `TreeView`, `ListBox`, `CheckListBox` and a variable-height `ListBox`, including 100 000-row views. ListView: pinned header, `Columns` reuses `GridColumns` (saved as `"columns"`, legacy strings still load), sorting with the grid's rules, `multiSelect`, `checkboxes`, `images`, virtual mode (`onGetItem` + `ItemCount`), type-ahead, header-border resize. TreeView: `TreeNodes`, cancelable `onExpanding`/`onCollapsing` with lazy `HasChildren`, `checkboxes`, `images`, optional `multiSelect`, inline rename (`readOnly` defaults to true, unlike Delphi, for backward compatibility), Windows keys, `"nodes"` in form files (vector `views`). Designer: `GridColumnsEditor` generalized to ListView; new `TreeNodesEditor`; both wired in the designer and the VS host. Goldens `listviews`, `treeviews`. Left: per-item `Checked`/`ImageIndex` changes from code need `Invalidate()`; ListView items aren't saved in form files; no VS-client end-to-end test of the editors; icon/list view styles out of scope.
+
+**Status (2026-11-17): merge review of stages 5 and 6.** Two issues the tracks left open are fixed. Virtual-mode type-ahead no longer asks for every row (100 000 rows stalled a key): a new `onFindItem` event (Delphi's OnDataFind) answers it, and without a handler at most 1000 rows after the current one are scanned. `TreeView.Change` for a code-made change (rows rebuild lazily) used to fire inside layout or paint; it is now held until a safe point: the next call from outside that reads the tree, or the UI-thread queue (`Application.Queue`) when a platform host is running, once per change. Seams between the branches checked and tested: `CheckListBox` and a variable-height `ListBox` run in `RowViewSuiteTests`; an editable `ComboBox`'s edit and a TreeView's rename editor are both transient, so the designer's structure tree and `DesignSurface.ControlAt` skip them; every new control has a palette picture, category and `onChange` default event.
+
+**M14 status:** items 1–6 done; item 7 (DateTimePicker, Calendar, MaskEdit) deferred to the reference app as the plan says. Done-when met: see `GridTests` (100 000-row virtual grid) and `RowViewSuiteTests`.
+
 ## M15: Reuse and data (L)
 
 *Closes gaps 9 and 11.*

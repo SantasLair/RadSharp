@@ -1,0 +1,93 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmChecks",
+    "height": 240,
+    "width": 520,
+    "children": [
+      {
+        "class": "CheckListBox",
+        "name": "clbPlain",
+        "checked": [0, 2],
+        "items": [
+          "Alpha",
+          "Beta",
+          "Gamma",
+          "Delta"
+        ],
+        "left": 10,
+        "top": 10,
+        "width": 150
+      },
+      {
+        "class": "CheckListBox",
+        "name": "clbTri",
+        "allowGrayed": true,
+        "items": [
+          "One",
+          "Two"
+        ],
+        "left": 180,
+        "multiSelect": true,
+        "onClickCheck": "clbTri_ClickCheck",
+        "top": 10,
+        "width": 150
+      },
+      {
+        "class": "CheckListBox",
+        "name": "clbNone",
+        "items": [
+          "Solo"
+        ],
+        "left": 350,
+        "top": 10,
+        "width": 150
+      },
+      {
+        "class": "ComboBox",
+        "name": "cboFree",
+        "text": "Custom",
+        "autoComplete": false,
+        "items": [
+          "Small",
+          "Medium",
+          "Large"
+        ],
+        "left": 10,
+        "style": "dropDown",
+        "top": 150,
+        "width": 150
+      },
+      {
+        "class": "ComboBox",
+        "name": "cboList",
+        "items": [
+          "Small",
+          "Medium",
+          "Large"
+        ],
+        "left": 180,
+        "top": 150,
+        "width": 150
+      },
+      {
+        "class": "ListBox",
+        "name": "lstVar",
+        "height": 80,
+        "itemHeight": 20,
+        "items": [
+          "a",
+          "b"
+        ],
+        "left": 350,
+        "onMeasureItem": "lstVar_MeasureItem",
+        "style": "variable",
+        "top": 150,
+        "width": 150
+      }
+    ]
+  }
+}

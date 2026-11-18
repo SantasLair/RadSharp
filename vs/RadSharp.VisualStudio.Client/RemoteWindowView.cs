@@ -120,6 +120,7 @@ public class RemoteWindowView : FrameworkElement
     internal void DetachInternal()
     {
         _resizeTimer.Stop();
+        StopWaitingForLayout();
         _down = Array.Empty<P.MouseButton>(); // the host window is gone (or Detach already released): nothing to send
         if (IsMouseCaptured) ReleaseMouseCapture();
         _session = null;
@@ -158,17 +159,43 @@ public class RemoteWindowView : FrameworkElement
         }
     }
 
+    private bool _waitingForLayout;
+
     private void SendSize()
     {
         if (!Attached) return;
         var (w, h) = DeviceSize;
         double s = Scale;
-        if (w <= 0 || h <= 0) return;
+        if (w <= 0 || h <= 0)
+        {
+            // No size yet: attached while collapsed or before layout. WPF doesn't always raise SizeChanged when a
+            // collapsed element is shown again at its old size, so try again after each layout pass until there is one.
+            if (!_waitingForLayout)
+            {
+                _waitingForLayout = true;
+                LayoutUpdated += OnLayoutUpdated;
+            }
+            return;
+        }
+        StopWaitingForLayout();
         if (w == _sentW && h == _sentH && Math.Abs(s - _sentScale) < 0.001) return;
         _sentW = w;
         _sentH = h;
         _sentScale = s;
         Send(new P.ResizeWindow { WindowId = WindowId, Width = w, Height = h, Scale = (float)s });
+    }
+
+    private void OnLayoutUpdated(object? sender, EventArgs e)
+    {
+        if (!Attached) StopWaitingForLayout();
+        else SendSize();
+    }
+
+    private void StopWaitingForLayout()
+    {
+        if (!_waitingForLayout) return;
+        _waitingForLayout = false;
+        LayoutUpdated -= OnLayoutUpdated;
     }
 
     /// <inheritdoc />

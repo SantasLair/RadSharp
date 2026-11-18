@@ -61,7 +61,7 @@ double-click for a handler" loop is solid and the fundamentals are in the right 
 | Code editor | **Embedded** in the same IDE (Alt/F12 toggles form ⇄ code in place) | **Embedded**, split-screen with designer, IntelliSense, debugger | **External process** (VS Code/Rider/VS) — the designer has no code view of its own | **Different by design** — see §4 |
 | Zoom | No (fixed 100%, or DPI-scaled) | No (fixed, DPI-scaled) | No — `Zoom` tracks host UI scale only, not a user zoom control | On par (neither reference has it either) |
 | Lock controls | **Edit ▸ Lock Controls** toggle | Right-click ▸ **Lock Controls** | `DesignSurface.Locked`, an Edit-menu toggle and a context-menu entry | **Fixed** — see §3.10 |
-| Component/Columns/Nodes sub-editors | Collection editor (generic), ListView Columns editor, ImageList editor, etc. | Collection editor (generic `CollectionEditor`), same set | Menu editor and Tab Order editor only; no generic collection editor, no Columns/Nodes editor (tracked in `gap-analysis.md` #23 alongside the missing `ListView`/`TreeView` v2 controls) | **Missing** — see §3.11 |
+| Component/Columns/Nodes sub-editors | Collection editor (generic), ListView Columns editor, ImageList editor, etc. | Collection editor (generic `CollectionEditor`), same set | Menu editor, Tab Order editor and (M14 stage 4) a grid Columns editor opened from the Object Inspector's `columns` row; no generic collection editor, no ListView Columns/TreeView Nodes editor (tracked in `gap-analysis.md` #23 alongside the missing `ListView`/`TreeView` v2 controls) | **Missing** — see §3.11 |
 | Project view | Project Manager: all units and forms, non-visual files included | Solution Explorer: every file in every project | "Project" tab lists every `RadProject.SourceFiles` entry; a plain `.cs` file opens in the external editor | **Fixed** — see §3.12 |
 | Multi-project workspaces | Project Groups | Solutions (multi-project) | One `RadProject` per designer instance; no grouping concept | Not yet needed at 1.0 scope, note only |
 | Component-drop feedback | Cursor changes, live outline while dragging from palette | Same | Crosshair cursor + rubber-band while creating; no while-dragging-from-palette preview (there is no drag) | Matches §3.7 |
@@ -240,6 +240,11 @@ their own bespoke editor (as menu items got) or a shared generic one built once.
 `TabOrderEditor` are ~280 lines combined and already establish the "small modal editor form built in code" pattern
 (`EditorLayout` helper, `Editors.cs:4-24`), a generic version of that pattern is a natural next step rather than
 one more bespoke editor per control.
+
+M14 stage 4 added the first bespoke collection editor after the menu editor: `GridColumnsEditor` (`Editors.cs`) for a
+`StringGrid`/`DrawGrid`'s `Columns`. The Object Inspector got a small hook for it (`ICollectionOwner`: a row per collection
+name that raises `PropertyGrid.CollectionEditRequested` instead of editing text), which a `ListView` Columns or
+`TreeView` Nodes editor can reuse.
 
 One related, smaller gap already flagged in `gap-analysis.md` #23: the **menu editor has no field for a
 separator** — you can only make a separator by hand-editing the form JSON's `"separator": true`, even though

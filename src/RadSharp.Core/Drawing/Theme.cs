@@ -11,6 +11,8 @@ public sealed record Theme
     public Color PanelBorder { get; init; } = Color.FromHex("#D1D5DB");
     public Color Text { get; init; } = Color.FromHex("#1F2328");
     public Color TextDisabled { get; init; } = Color.FromHex("#9CA3AF");
+    /// <summary>Secondary text: captions over fields, hints, footnotes (<see cref="Label.Muted"/>).</summary>
+    public Color TextMuted { get; init; } = Color.FromHex("#6B7280");
     public Color ButtonFace { get; init; } = Color.FromHex("#FFFFFF");
     public Color ButtonFaceHover { get; init; } = Color.FromHex("#F0F4FF");
     public Color ButtonFacePressed { get; init; } = Color.FromHex("#DCE5FB");
@@ -49,6 +51,7 @@ public sealed record Theme
         PanelBorder = Color.FromHex("#3E3E42"),
         Text = Color.FromHex("#E0E0E0"),
         TextDisabled = Color.FromHex("#6A6A6A"),
+        TextMuted = Color.FromHex("#A0A0A0"),
         ButtonFace = Color.FromHex("#3C3C3C"),
         ButtonFaceHover = Color.FromHex("#454546"),
         ButtonFacePressed = Color.FromHex("#2D2D30"),

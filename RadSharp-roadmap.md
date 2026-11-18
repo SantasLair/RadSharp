@@ -311,7 +311,7 @@ controls, canvas, fonts, window/DPI model, frames, cross-OS verification). They 
 
 - **Data binding** (`"text": "{doc.title}"`) and a DataModule-style non-visual container.
 - **Component packages:** third-party controls installed from NuGet appear on the palette.
-- **Grid control** (StringGrid / DBGrid equivalent).
+- **Grid control** (StringGrid / DBGrid equivalent): `StringGrid` and `DrawGrid` shipped in M14; a data-aware DBGrid stays here.
 - **Accessibility** via AccessKit.
 - **Localization** and form inheritance (visual form inheritance, as in Delphi).
 - **Themes:** theme editor, dark mode, per-OS-flavoured themes.

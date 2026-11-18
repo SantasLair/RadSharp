@@ -3,6 +3,7 @@ using RadSharp.Text;
 namespace RadSharp.Tests;
 
 /// <summary>Edit and Memo driven through simulated input (clipboard tests share the global clipboard, so they live here).</summary>
+[Collection("Clipboard")]   // shares the process-wide clipboard with GridClipboardTests
 public class EditTests
 {
     static (Form Form, T Control) Setup<T>(T control, int w = 200, int h = 28) where T : Control

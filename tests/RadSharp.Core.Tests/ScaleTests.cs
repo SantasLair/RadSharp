@@ -76,4 +76,55 @@ public class ScaleTests
         f.Add(panel);
         Assert.Equal(new Rect(10, 10, 40, 40), panel.Bounds);
     }
+    const string DesignedDialog = """
+        { "format": "radform", "version": "1.0", "root": { "class": "Form", "name": "Dlg", "width": 200, "height": 100,
+          "children": [
+            { "class": "Panel", "name": "pnlFoot", "align": "bottom", "height": 40,
+              "children": [ { "class": "Button", "name": "btnOk", "anchors": ["top", "right"], "left": 110, "top": 6, "width": 80, "height": 28 } ] },
+            { "class": "Memo", "name": "memo", "align": "client", "margin": { "l": 8, "t": 8, "r": 8, "b": 8 } }
+          ] } }
+        """;
+
+    [Fact]
+    public void ChangeScale_rescales_a_loaded_form_to_its_owners_scale()
+    {
+        var f = new Form();
+        FormReader.LoadInto(f, DesignedDialog, new FormLoadOptions { Scale = 1 });
+        Assert.True(f.IsScaled);
+        Assert.Throws<InvalidOperationException>(() => f.ApplyScale(2));   // why ChangeScale exists
+
+        f.ChangeScale(2);
+
+        Assert.Equal(2, f.Scale);
+        Assert.Equal((200, 100), (f.DesignWidth, f.DesignHeight));
+        Assert.Equal(new Rect(0, 0, 400, 200), f.Bounds);
+        var foot = (Panel)f.FindControl("pnlFoot")!;
+        var ok = (Button)f.FindControl("btnOk")!;
+        Assert.Equal(new Rect(0, 120, 400, 80), foot.Bounds);
+        Assert.Equal(new Rect(220, 12, 160, 56), ok.Bounds);              // the anchors re-captured at the new scale
+        Assert.Equal(new Rect(16, 16, 368, 88), f.FindControl("memo")!.Bounds);
+        // the same as loading at 2 in the first place
+        var g = new Form();
+        FormReader.LoadInto(g, DesignedDialog, new FormLoadOptions { Scale = 2 });
+        Assert.Equal(g.FindControl("btnOk")!.Bounds, ok.Bounds);
+        Assert.Equal(g.FindControl("memo")!.Bounds, f.FindControl("memo")!.Bounds);
+    }
+
+    [Fact]
+    public void ChangeScale_to_the_same_scale_does_nothing_and_on_a_code_built_form_acts_as_ApplyScale()
+    {
+        var f = new Form();
+        FormReader.LoadInto(f, DesignedDialog, new FormLoadOptions { Scale = 1.5 });
+        var before = f.FindControl("btnOk")!.Bounds;
+        f.ChangeScale(1.5);
+        Assert.Equal(before, f.FindControl("btnOk")!.Bounds);
+
+        var g = new Form();
+        g.SetBounds(0, 0, 100, 60);
+        Assert.False(g.IsScaled);
+        g.ChangeScale(2);
+        Assert.True(g.IsScaled);
+        Assert.Equal(new Rect(0, 0, 200, 120), g.Bounds);
+        Assert.Throws<ArgumentOutOfRangeException>(() => g.ChangeScale(-1));
+    }
 }

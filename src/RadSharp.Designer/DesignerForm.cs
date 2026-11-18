@@ -50,6 +50,13 @@ public partial class DesignerForm : Form
             grid.PropertyChanged += (_, _) => Document?.NotifyChanged();
         }
         gridEvents.EventDoubleClick += (_, ev) => { if (Document is { } d) EditHandler(d.Primary, ev); };
+        gridProps.CollectionEditRequested += (_, target, name) =>
+        {
+            if (Document is not { } d) return;
+            if (name == "columns" && target is CustomGrid g) GridColumnsEditor.Edit(d, g, this);
+            else if (name == "columns" && target is ListView lv) GridColumnsEditor.Edit(d, lv, this);
+            else if (name == "nodes" && target is TreeView tv) TreeNodesEditor.Edit(d, tv, this);
+        };
         gridProps.Arrangement = PropertyGridArrangement.Categorized;   // matches cboPropsArrange's default selection
 
         if (projectFile != null && File.Exists(projectFile)) OpenProject(projectFile);
@@ -302,7 +309,7 @@ public partial class DesignerForm : Form
         var root = new TreeNode(Label(doc.Form)) { Tag = doc.Form, Expanded = true };
         void Add(TreeNode node, Control c)
         {
-            foreach (var child in c.Children)
+            foreach (var child in c.Children.Where(ch => !ch.IsTransient))
             {
                 var n = node.Add(Label(child));
                 n.Tag = child;

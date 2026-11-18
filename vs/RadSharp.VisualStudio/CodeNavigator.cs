@@ -11,6 +11,29 @@ namespace RadSharp.VisualStudio
     /// <summary>Opens a source file in VS's code editor with the caret on a line (the designer's jump-to-handler).</summary>
     internal static class CodeNavigator
     {
+        /// <summary>Opens (or activates) a code file in VS's code editor, leaving the caret where it was (View Code, F7).</summary>
+        public static void Open(RadSharpPackage package, string file)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            VsShellUtilities.OpenDocument(package, file, VSConstants.LOGVIEWID.Code_guid, out _, out _, out IVsWindowFrame? frame);
+            if (frame == null)
+                package.Output.Error($"Cannot open {file}.");
+            else
+                frame.Show();
+        }
+
+        /// <summary>Opens (or activates) a form file in the RadSharp designer (View Designer, Shift+F7).</summary>
+        public static void OpenDesigner(RadSharpPackage package, string formFile)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            VsShellUtilities.OpenDocumentWithSpecificEditor(package, formFile, DesignerEditorFactory.Guid,
+                VSConstants.LOGVIEWID.Primary_guid, out _, out _, out IVsWindowFrame? frame);
+            if (frame == null)
+                package.Output.Error($"Cannot open {formFile} in the designer.");
+            else
+                frame.Show();
+        }
+
         /// <param name="line">1-based; clamped to the file.</param>
         public static async Task NavigateAsync(RadSharpPackage package, string file, int line)
         {

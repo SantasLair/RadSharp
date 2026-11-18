@@ -1,0 +1,77 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "hand-written",
+  "root": {
+    "class": "Form",
+    "name": "frmGrid",
+    "caption": "RadSharp - grid demo (100 000 virtual rows)",
+    "height": 600,
+    "width": 900,
+    "children": [
+      {
+        "class": "Panel",
+        "name": "pnlTop",
+        "align": "top",
+        "height": 36,
+        "children": [
+          {
+            "class": "Label",
+            "name": "lblHelp",
+            "caption": "Click a header to sort, drag its border to resize. Enter, F2, a double click or typing edits a cell. Shift/Ctrl+click select ranges; Ctrl+C copies them.",
+            "align": "client",
+            "layout": "center",
+            "margin": {
+              "l": 8,
+              "t": 0,
+              "r": 8,
+              "b": 0
+            }
+          }
+        ]
+      },
+      {
+        "class": "Panel",
+        "name": "pnlStatus",
+        "align": "bottom",
+        "height": 26,
+        "children": [
+          {
+            "class": "Label",
+            "name": "lblStatus",
+            "caption": "Ready",
+            "align": "client",
+            "layout": "center",
+            "margin": {
+              "l": 8,
+              "t": 0,
+              "r": 8,
+              "b": 0
+            }
+          }
+        ]
+      },
+      {
+        "class": "StringGrid",
+        "name": "grdData",
+        "align": "client",
+        "autoSort": true,
+        "colSizing": true,
+        "editing": true,
+        "margin": {
+          "l": 8,
+          "t": 8,
+          "r": 8,
+          "b": 8
+        },
+        "multiSelect": true,
+        "onChange": "grdData_Change",
+        "onColumnClick": "grdData_ColumnClick",
+        "onGetCell": "grdData_GetCell",
+        "onSetEditText": "grdData_SetEditText",
+        "rowCount": 100001,
+        "wantTabs": true
+      }
+    ]
+  }
+}

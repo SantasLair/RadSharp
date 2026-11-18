@@ -28,6 +28,11 @@ public partial class Control
     public string Name { get; set; } = "";
     public Control? Parent { get; private set; }
     public IReadOnlyList<Control> Children => _children;
+
+    /// <summary>A child a control adds for its own use while it runs (a grid's in-place editor): never written to a form file.</summary>
+    public bool IsTransient { get; internal set; }
+    /// <summary>For a popup: the control that receives typed text while the popup is open, if it has focus (an editable combo box's edit); null means none.</summary>
+    internal Control? PopupTextTarget { get; set; }
     public Control Root => Parent?.Root ?? this;
 
     /// <summary>Event handler names by event property (<c>"onClick" → "btnSave_Click"</c>).</summary>
@@ -50,6 +55,9 @@ public partial class Control
     }
 
     [Published(Category = "Behavior")] public bool TabStop { get; set; }
+
+    /// <summary>Whether Tab visits this control: <see cref="TabStop"/> by default. A control that hosts its own tab stop (an editable combo box's edit) answers false for itself.</summary>
+    protected internal virtual bool IncludeInTabOrder => TabStop;
     [Published(Category = "Behavior")] public int TabOrder { get; set; } = -1;
     /// <summary>Anything the application wants to remember about this control (Delphi's <c>Tag</c>); never read or saved by the framework.</summary>
     public object? Tag { get; set; }

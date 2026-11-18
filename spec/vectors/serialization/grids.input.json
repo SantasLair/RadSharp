@@ -1,0 +1,16 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "root": {
+    "class": "Form",
+    "name": "frmGrids",
+    "width": 640,
+    "height": 300,
+    "children": [
+      { "class": "StringGrid", "name": "grdDefaults", "colCount": 5, "rowCount": 5, "fixedCols": 1, "fixedRows": 1, "gridLines": true, "rangeSelect": true, "sortColumn": -1, "left": 10, "top": 10 },
+      { "class": "StringGrid", "name": "grdData", "rowCount": 100001, "colCount": 6, "fixedCols": 0, "defaultColWidth": 90, "defaultRowHeight": 22, "editing": true, "multiSelect": true, "colSizing": true, "wantTabs": true, "autoSort": true, "sortColumn": 2, "sortDescending": true, "onGetCell": "grdData_GetCell", "onSetEditText": "grdData_SetEditText", "onColumnClick": "grdData_ColumnClick", "left": 10, "top": 180, "width": 300, "height": 110 },
+      { "class": "DrawGrid", "name": "grdMap", "fixedRows": 0, "fixedCols": 0, "gridLines": false, "rangeSelect": false, "rowSelect": true, "borderStyle": "none", "onDrawCell": "grdMap_DrawCell", "onSelectCell": "grdMap_SelectCell", "left": 340, "top": 10 },
+      { "class": "StringGrid", "name": "grdColumns", "sortColumn": 2, "columns": [ { "title": "#", "width": 28, "alignment": "right" }, { "title": "Name", "minWidth": 40 }, { "width": 0, "alignment": "left", "title": "" }, { "title": "Cost", "alignment": "right", "width": 60 } ], "fixedCols": 0, "colCount": 4, "autoSort": true, "left": 340, "top": 180, "width": 280, "height": 110 }
+    ]
+  }
+}

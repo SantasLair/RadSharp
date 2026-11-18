@@ -4,13 +4,17 @@
     Every *.radform.json in the project is a designed form:
     - an AdditionalFile, so the RadSharp form generator emits its partial class (fields + InitializeComponent);
     - an EmbeddedResource named after the file, which InitializeComponent streams in at run time.
+    In Solution Explorer the code-behind X.cs nests under its form X.radform.json (DependentUpon), as MainWindow.xaml.cs
+    nests under MainWindow.xaml in a WPF project: the form file is the one you double-click to open the designer.
     Set RadSharpFormsExclude (a glob) to leave some form files out, or EnableRadSharpForms=false to turn this off.
   -->
   <ItemGroup Condition="'$(EnableRadSharpForms)' != 'false'">
-    <RadSharpForm Include="**\*.radform.json" Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder);$(RadSharpFormsExclude)" />
+    <RadSharpForm Include="**\*.radform.json" Exclude="$(DefaultItemExcludes);$(DefaultExcludesInProjectFolder);$(RadSharpFormsExclude)"
+                  CodeFile="%(RelativeDir)$([System.IO.Path]::GetFileNameWithoutExtension('%(Filename)')).cs" />
     <AdditionalFiles Include="@(RadSharpForm)" />
     <EmbeddedResource Include="@(RadSharpForm)" LogicalName="%(Filename)%(Extension)" />
     <None Remove="@(RadSharpForm)" />
+    <Compile Update="@(RadSharpForm->'%(CodeFile)')" DependentUpon="%(Filename).radform.json" />
   </ItemGroup>
 
   <ItemGroup>

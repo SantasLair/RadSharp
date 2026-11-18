@@ -172,6 +172,28 @@ public class Form : Control
         PerformLayout();
     }
 
+    /// <summary>
+    /// Gives the form the scale <paramref name="scale"/> whether or not it is scaled yet (Delphi's <c>ChangeScale</c>).
+    /// A designed form is scaled to <see cref="DefaultScale"/> as it loads; a dialog that should match its owner
+    /// window calls <c>ChangeScale(owner.Scale)</c>, which multiplies every length by <c>scale / Scale</c> (a length
+    /// can end up a pixel off what loading at that scale would give). A form not scaled yet is scaled as by
+    /// <see cref="ApplyScale"/>. Lengths set from code after loading are in the old scale's pixels and are
+    /// rescaled with the rest. <paramref name="scale"/> 0 uses <see cref="DefaultScale"/>.
+    /// </summary>
+    public void ChangeScale(double scale = 0)
+    {
+        if (scale == 0) scale = DefaultScale;
+        if (scale <= 0) throw new ArgumentOutOfRangeException(nameof(scale), "Scale must be positive.");
+        if (!_scaleApplied) { ApplyScale(scale); return; }
+        if (scale == Scale) return;
+        ScaleLengths(scale / Scale);
+        Scale = scale;
+        PerformLayout();
+    }
+
+    /// <summary>True once the form has a scale (<see cref="ApplyScale"/>, <see cref="ChangeScale"/> or loading a form file).</summary>
+    public bool IsScaled => _scaleApplied;
+
     /// <summary>The scaling step shared with the form-file reader (which may reload into the same form).</summary>
     internal void ApplyScaleCore(double scale)
     {
@@ -503,7 +525,7 @@ public class Form : Control
             foreach (var (c, _) in ordered)
             {
                 if (!c.IsShown || !c.Enabled) continue;
-                if (c.TabStop) list.Add(c);
+                if (c.IncludeInTabOrder) list.Add(c);
                 Collect(c, list);
             }
         }
@@ -881,7 +903,9 @@ public class Form : Control
     Control? TextTarget()
     {
         if (_popups.Count == 0) return _focused ?? this;
-        return _focused != null && _focused.IsSelfOrDescendantOf(_popups[^1]) ? _focused : null;
+        var top = _popups[^1];
+        if (_focused == null) return null;
+        return _focused.IsSelfOrDescendantOf(top) || (top.PopupTextTarget != null && _focused == top.PopupTextTarget) ? _focused : null;
     }
 
     static bool IsShortcutCandidate(KeyEventArgs e) =>

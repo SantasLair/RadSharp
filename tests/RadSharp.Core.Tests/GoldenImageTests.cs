@@ -166,7 +166,91 @@ public class GoldenImageTests
         CompareOrUpdate(actual, "icons@100%-360x200.png");
     }
 
-    static void CompareOrUpdate(SKBitmap actual, string imageName, [CallerFilePath] string testFile = "")
+    /// <summary>
+    /// M14: multi-select ListBoxes. The focused one has two selected ranges and its focus cue on an unselected current
+    /// row (scrolled into view); the other shows the inactive selection colour.
+    /// </summary>
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(1.5)]
+    public void Multi_select_lists_match_golden_image(double scale)
+    {
+        Shortcut.CommandModifier = KeyModifiers.Ctrl;
+        var form = new Form { Caption = "Lists" };
+        form.SetBounds(0, 0, 360, 200);
+        T Put<T>(T c, int x, int y, int w, int h) where T : Control { c.SetBounds(x, y, w, h); form.Add(c); return c; }
+        string[] terrain = ["Grass", "Water", "Sand", "Stone", "Lava", "Snow", "Ice", "Mud", "Clay", "Moss", "Salt", "Ash"];
+        var focused = Put(new ListBox { Items = terrain, MultiSelect = true }, 12, 12, 160, 170);
+        var toggled = Put(new ListBox { Items = terrain, MultiSelect = true, ExtendedSelect = false }, 188, 12, 160, 170);
+        form.ApplyScale(scale);
+        form.PerformLayout();
+
+        form.Simulate.Key(Key.Tab);                  // keyboard focus, with focus cues, on the first list
+        Assert.True(focused.Focused);
+        focused.Selection.SelectRange(1, 3);
+        focused.SetSelected(5, true);
+        focused.Selection.Current = 8;               // the focus moves alone, and scrolls into view
+        toggled.SetSelected(0, true);
+        toggled.SetSelected(2, true);
+
+        using var actual = FormRenderer.RenderToBitmap(form);
+        CompareOrUpdate(actual, $"lists@{scale * 100:0}%-{form.Width}x{form.Height}.png");
+    }
+
+    /// <summary>
+    /// M14: grids. The focused StringGrid has a fixed row and column, column titles and alignment from Columns, a
+    /// selected range with the cell cursor on its current cell, a sort arrow, and both scroll bars; the DrawGrid's cells
+    /// are owner-drawn swatches, with an inactive selected cell.
+    /// </summary>
+    [Theory]
+    [InlineData(1.0)]
+    [InlineData(1.5)]
+    public void Grids_match_golden_image(double scale)
+    {
+        Shortcut.CommandModifier = KeyModifiers.Ctrl;
+        var form = new Form { Caption = "Grids" };
+        form.SetBounds(0, 0, 360, 200);
+        T Put<T>(T c, int x, int y, int w, int h) where T : Control { c.SetBounds(x, y, w, h); form.Add(c); return c; }
+
+        var strings = Put(new StringGrid { RowCount = 12, DefaultRowHeight = 22, SortColumn = 2 }, 12, 12, 212, 176);
+        strings.Columns.Add("#", 28, TextAlign.Right);
+        strings.Columns.Add("Tile", 60);
+        strings.Columns.Add("Cost", 60, TextAlign.Right);
+        strings.Columns.Add("Biome", 64);
+        string[] tiles = ["Grass", "Water", "Sand", "Stone", "Lava", "Snow", "Ice", "Mud", "Clay", "Moss", "Salt"];
+        string[] biomes = ["Plains", "Coast", "Desert", "Hills", "Volcano", "Tundra"];
+        for (int r = 1; r < strings.RowCount; r++)
+        {
+            strings.Cells[0, r] = r.ToString();
+            strings.Cells[1, r] = tiles[r - 1];
+            strings.Cells[2, r] = (r * 7 % 40 + 1).ToString();
+            strings.Cells[3, r] = biomes[r % biomes.Length];
+        }
+
+        var palette = new[] { "#6DBE45", "#3D8FD6", "#E8D38A", "#8E8E8E", "#E2572B", "#EEF3F8" }.Select(Color.FromHex).ToArray();
+        var draw = Put(new DrawGrid { ColCount = 4, RowCount = 6, FixedCols = 0, DefaultColWidth = 28, DefaultRowHeight = 28 }, 232, 12, 116, 176);
+        foreach (var title in new[] { "N", "E", "S", "W" }) draw.Columns.Add(title, 0, TextAlign.Center);
+        draw.DrawCell += (_, canvas, col, row, rect, state) =>
+        {
+            if (state.HasFlag(GridDrawState.Fixed)) return;
+            int inset = canvas.Px(5);
+            var swatch = new Rect(rect.X + inset, rect.Y + inset, rect.Width - 2 * inset, rect.Height - 2 * inset);
+            canvas.FillRoundRect(swatch, canvas.Px(3), palette[(col * 3 + row) % palette.Length]);
+            canvas.DrawRoundBorder(swatch, canvas.Px(3), canvas.Theme.InputBorder, canvas.Px(1));
+        };
+        form.ApplyScale(scale);
+        form.PerformLayout();
+
+        form.Simulate.Key(Key.Tab);                  // keyboard focus on the string grid
+        Assert.True(strings.Focused);
+        strings.Selection.SelectRange(new GridCoord(0, 1), new GridCoord(1, 3));   // grid (1,2)–(2,4), current (2,4)
+        draw.FocusCell(2, 3);
+
+        using var actual = FormRenderer.RenderToBitmap(form);
+        CompareOrUpdate(actual, $"grids@{scale * 100:0}%-{form.Width}x{form.Height}.png");
+    }
+
+    internal static void CompareOrUpdate(SKBitmap actual, string imageName, [CallerFilePath] string testFile = "")
     {
         var sourceGoldenDir = Path.Combine(Path.GetDirectoryName(testFile)!, "Golden");
         var expectedPath = Path.Combine(OutputGoldenDir, imageName);
