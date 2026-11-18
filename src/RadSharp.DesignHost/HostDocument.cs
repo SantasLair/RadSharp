@@ -141,6 +141,7 @@ internal sealed class HostDocument
             grid.PropertyChanged += (_, _) => Doc.NotifyChanged();
         }
         gridEvents.EventDoubleClick += (_, ev) => EditHandler(Doc.Primary, ev);
+        gridEvents.EventHandlerAssigned += (_, ev, handler) => EnsureHandlerQuietly(ev, handler);
         gridProps.CollectionEditRequested += (_, target, name) =>
         {
             if (name == "columns" && target is CustomGrid g) GridColumnsEditor.Edit(Doc, g, Surface?.OwningForm);
@@ -314,6 +315,18 @@ internal sealed class HostDocument
         }
 
         RequestStubs(code, [(handler!, ev.Parameters)], navigate: true, RollBack);
+    }
+
+    /// <summary>
+    /// A handler name typed into an Events row: the same buffer round trip as <see cref="EditHandler"/>, but the
+    /// editor is not navigated; nothing is sent when the method already exists. The typed name stays in the form
+    /// even if the code side fails (the error says why).
+    /// </summary>
+    void EnsureHandlerQuietly(EventMeta ev, string handler)
+    {
+        var code = IsFormFile ? RadProject.CodeFileFor(Path) : null;
+        if (code == null || !File.Exists(code) || FindProjectFile(System.IO.Path.GetDirectoryName(Path)) == null) return;
+        RequestStubs(code, [(handler, ev.Parameters)], navigate: false, rollBack: null);
     }
 
     /// <summary>

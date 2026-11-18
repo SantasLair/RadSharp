@@ -58,6 +58,33 @@ public partial class Control
     /// <summary>Gives this control keyboard focus. Returns false if it's hidden, disabled or not on a form.</summary>
     public bool Focus() => OwningForm is { } f && f.SetFocus(this);
 
+    // ---- Mnemonics (spec, Appendix C) ----
+
+    /// <summary>
+    /// The caption whose <c>&amp;</c> marks an Alt+letter mnemonic, or null if this control has none. Controls
+    /// with a caption override it; the form matches the letter against it.
+    /// </summary>
+    protected internal virtual string? MnemonicCaption => null;
+
+    /// <summary>Whether the mnemonic can do something right now (e.g. a label needs a focusable <c>FocusControl</c>).</summary>
+    protected internal virtual bool CanTakeMnemonic => true;
+
+    /// <summary>Alt+letter pressed once on the only control with that letter: do what a click would (focus included).</summary>
+    protected internal virtual void ActivateMnemonic() => FocusMnemonic();
+
+    /// <summary>Several controls share the letter: just move focus here (or select it) without activating.</summary>
+    protected internal virtual void FocusMnemonic() => Focus();
+
+    /// <summary>True if keyboard focus is where this control's mnemonic would put it (used to cycle through same-letter controls).</summary>
+    protected internal virtual bool HoldsMnemonicFocus(Control focused) => focused == this;
+
+    /// <summary>The first control inside this one that can take keyboard focus by Tab, or null.</summary>
+    protected internal Control? FirstFocusableChild() =>
+        OwningForm?.GetTabOrderList().FirstOrDefault(c => c != this && c.IsSelfOrDescendantOf(this) && c.IsEffectivelyVisible && c.IsEffectivelyEnabled);
+
+    /// <summary>True when mnemonic letters should be underlined: Alt is held (or the menu bar is in keyboard mode) and mnemonics are on.</summary>
+    protected bool ShowMnemonics => Mnemonics.Enabled && OwningForm is { ShowAccelerators: true };
+
     // ---- Overridable handlers; the base versions raise the events ----
 
     protected internal virtual void OnClick() => Click?.Invoke(this);

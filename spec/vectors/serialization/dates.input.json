@@ -1,0 +1,16 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "root": {
+    "class": "Form",
+    "name": "frmDates",
+    "width": 520,
+    "height": 300,
+    "children": [
+      { "class": "Calendar", "name": "calDue", "date": "2026-11-17", "minDate": "2026-01-01", "maxDate": "2027-06-30", "firstDayOfWeek": "monday", "onChange": "calDue_Change", "onDateClick": "calDue_DateClick", "left": 10, "top": 10, "width": 224, "height": 208 },
+      { "class": "Calendar", "name": "calPlain", "maxDate": "9999-12-31", "firstDayOfWeek": "default", "left": 250, "top": 10 },
+      { "class": "DateTimePicker", "name": "dtpStart", "date": "2026-02-03", "format": "yyyy-MM-dd", "showCheckbox": true, "checked": false, "minDate": "2000-01-01", "onChange": "dtpStart_Change", "left": 10, "top": 230, "width": 170 },
+      { "class": "DateTimePicker", "name": "dtpToday", "checked": true, "showCheckbox": false, "format": "", "left": 200, "top": 230 }
+    ]
+  }
+}

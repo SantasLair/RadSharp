@@ -189,6 +189,31 @@
                 "onDrawCell": "dgPalette_DrawCell"
               }
             ]
+          },
+          {
+            "class": "TabSheet",
+            "name": "tsDates",
+            "caption": "Dates",
+            "children": [
+              {
+                "class": "Panel", "name": "pnlDtTop", "align": "top", "height": 32,
+                "children": [
+                  { "class": "Label", "name": "lblDtHelp", "align": "client", "layout": "center", "margin": { "l": 8, "t": 0, "r": 8, "b": 0 },
+                    "caption": "Calendar: arrows, PageUp/PageDown (Ctrl = year), Home/End, wheel. Picker: Left/Right pick a part, Up/Down or digits edit it, F4 opens." }
+                ]
+              },
+              { "class": "Calendar", "name": "calDemo", "left": 16, "top": 48, "width": 240, "height": 224,
+                "date": "2026-11-17", "minDate": "2026-01-01", "maxDate": "2027-06-30", "firstDayOfWeek": "monday", "onChange": "calDemo_Change" },
+              { "class": "Label", "name": "lblDtCal", "caption": "", "left": 16, "top": 280, "width": 360, "height": 24 },
+              { "class": "Label", "name": "lblDtP1", "caption": "Short date (culture):", "left": 290, "top": 52, "width": 160, "height": 22 },
+              { "class": "DateTimePicker", "name": "dtpShort", "left": 290, "top": 76, "width": 160, "height": 26, "onChange": "dtp_Change" },
+              { "class": "Label", "name": "lblDtP2", "caption": "Format \"dddd, d MMMM yyyy\":", "left": 290, "top": 116, "width": 240, "height": 22 },
+              { "class": "DateTimePicker", "name": "dtpLong", "left": 290, "top": 140, "width": 240, "height": 26, "format": "dddd, d MMMM yyyy", "onChange": "dtp_Change" },
+              { "class": "Label", "name": "lblDtP3", "caption": "With a check box (no date when unchecked), ISO format:", "left": 290, "top": 180, "width": 360, "height": 22 },
+              { "class": "DateTimePicker", "name": "dtpOptional", "left": 290, "top": 204, "width": 170, "height": 26,
+                "format": "yyyy-MM-dd", "showCheckbox": true, "checked": false, "onChange": "dtp_Change" },
+              { "class": "Label", "name": "lblDtPick", "caption": "", "left": 290, "top": 244, "width": 560, "height": 60 }
+            ]
           }
         ]
       }
