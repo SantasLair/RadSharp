@@ -167,7 +167,7 @@ public sealed class LiveSession : IDisposable
                 global using global::System.Threading.Tasks;
                 """;
         var trees = new List<SyntaxTree> { CSharpSyntaxTree.ParseText(globalUsings, parse, "GlobalUsings.g.cs") };
-        foreach (var file in project.SourceFiles)
+        foreach (var file in deps != null ? deps.SourceFiles(project) : project.SourceFiles)
         {
             var tree = CSharpSyntaxTree.ParseText(SourceText.From(File.ReadAllText(file), System.Text.Encoding.UTF8), parse, file);
             // A live run creates forms directly; the app's entry point (top-level statements) isn't needed.

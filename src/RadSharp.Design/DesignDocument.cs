@@ -50,9 +50,14 @@ public sealed class DesignDocument
 
     /// <summary>
     /// How the designer reads form text: a node whose class it doesn't know (one the project defines, say) is kept as
-    /// an <see cref="UnknownControl"/> placeholder, so saving writes it back instead of deleting it.
+    /// an <see cref="UnknownControl"/> placeholder, so saving writes it back instead of deleting it. So is one whose
+    /// class only a live run (F9) registered: that class goes away with the run, while the designed form stays.
     /// </summary>
-    public static readonly FormLoadOptions LoadOptions = new() { KeepUnknownClasses = true };
+    public static readonly FormLoadOptions LoadOptions = new()
+    {
+        KeepUnknownClasses = true,
+        AcceptClass = c => !c.Type.Assembly.IsCollectible,
+    };
 
     public IReadOnlyList<string> Load(string json)
     {
@@ -143,14 +148,20 @@ public sealed class DesignDocument
     // ---- Creating, deleting, clipboard ----
 
     /// <summary>A name like "Button1" not used anywhere on the form.</summary>
-    public string UniqueName(string className)
+    public string UniqueName(string className) => UniqueName(className, []);
+
+    string UniqueName(string className, IEnumerable<string> alsoTaken)
     {
         // Names inside a placeholder's (unloaded) children are still in the file, so they count as used.
         var used = new HashSet<string>(Form.Descendants().Select(c => c.Name).Append(Form.Name)
-            .Concat(Form.Descendants().OfType<UnknownControl>().SelectMany(u => u.ContainedNames)), StringComparer.OrdinalIgnoreCase);
+            .Concat(Form.Descendants().OfType<UnknownControl>().SelectMany(u => u.ContainedNames)).Concat(alsoTaken), StringComparer.OrdinalIgnoreCase);
         for (int n = 1; ; n++)
             if (!used.Contains(className + n)) return className + n;
     }
+
+    /// <summary>Whether a control on the form, or one inside a placeholder's raw children, is named <paramref name="name"/>.</summary>
+    bool IsNameUsed(string name) =>
+        Form.FindControl(name) != null || Form.Descendants().OfType<UnknownControl>().Any(u => u.ContainedNames.Contains(name, StringComparer.Ordinal));
 
     /// <summary>Whether <paramref name="container"/> can hold a new control of <paramref name="cls"/>.</summary>
     public static bool AcceptsChild(Control container, ComponentClass cls)
@@ -195,10 +206,28 @@ public sealed class DesignDocument
         var (controls, _) = FormReader.LoadFragment(fragment, LoadOptions);
         if (controls.Count == 0) return controls;
         Snapshot();
+        // Names this paste has given out (its controls join the form one top-level control at a time).
+        var taken = new HashSet<string>(StringComparer.Ordinal);
+        bool Clashes(string name) => name.Length == 0 || taken.Contains(name) || IsNameUsed(name);
         foreach (var c in controls)
         {
             foreach (var d in c.Descendants().Prepend(c))
-                if (d.Name.Length == 0 || Form.FindControl(d.Name) != null) d.Name = UniqueName(d is UnknownControl u ? u.ClassName : ComponentRegistry.Of(d).Name);
+            {
+                if (Clashes(d.Name)) d.Name = UniqueName(d is UnknownControl u ? u.ClassName : ComponentRegistry.Of(d).Name, taken);
+                taken.Add(d.Name);
+                // The controls inside a placeholder's raw children are in the file too: a copy's need new names as well.
+                if (d is not UnknownControl placeholder) continue;
+                foreach (var (name, cls) in placeholder.ContainedNames.Zip(placeholder.ContainedClassNames).ToList())
+                {
+                    if (Clashes(name))
+                    {
+                        var renamed = UniqueName(cls.Length > 0 ? cls : "Control", taken);
+                        placeholder.RenameContained(name, renamed);
+                        taken.Add(renamed);
+                    }
+                    else taken.Add(name);
+                }
+            }
             if (c.Align == Align.None) c.SetBounds(c.Left + offset, c.Top + offset, c.Width, c.Height);
             parent.Add(c);
         }

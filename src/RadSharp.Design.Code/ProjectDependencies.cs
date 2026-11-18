@@ -28,8 +28,8 @@ public sealed record ProjectUsing(string Namespace, string? Alias, bool IsStatic
 /// Resolved by running <c>dotnet msbuild -restore -t:ResolveReferences;GenerateMSBuildEditorConfigFile -getItem:...
 /// -getProperty:...</c> in the project's folder, then cached in memory, keyed on the timestamps of the project file,
 /// <c>obj/project.assets.json</c>, the <c>Directory.*.props/targets</c>, <c>global.json</c> and <c>nuget.config</c>
-/// files above it, and the project references' project files and outputs; a project reference whose sources are
-/// newer than its output is resolved (and so rebuilt) again.
+/// files in every folder above it (present or not), and the project references' project files and outputs; a project
+/// reference whose sources changed since MSBuild last ran is resolved (and so rebuilt) again.
 /// </remarks>
 public sealed class ProjectDependencies
 {
@@ -39,6 +39,8 @@ public sealed class ProjectDependencies
     public IReadOnlyList<string> Analyzers { get; private init; } = [];
     /// <summary>The project's <c>.editorconfig</c>/<c>.globalconfig</c> files, including MSBuild's generated one (generator options).</summary>
     public IReadOnlyList<string> AnalyzerConfigFiles { get; private init; } = [];
+    /// <summary>The project's <c>Compile</c> items: full paths, as the build compiles them (see <see cref="SourceFiles"/>).</summary>
+    public IReadOnlyList<string> CompileFiles { get; private init; } = [];
     /// <summary>AdditionalFiles other than form files (those come from the designer's current state).</summary>
     public IReadOnlyList<string> AdditionalFiles { get; private init; } = [];
     public IReadOnlyList<ProjectUsing> Usings { get; private init; } = [];
@@ -64,10 +66,28 @@ public sealed class ProjectDependencies
         (_packageRoot.Length > 0 && path.StartsWith(_packageRoot, StringComparison.OrdinalIgnoreCase))
         || path.StartsWith(DotnetRoot, StringComparison.OrdinalIgnoreCase);
 
+    /// <summary>
+    /// The C# files a live run compiles: the project's <c>Compile</c> items (linked files and <c>Compile Remove</c>
+    /// included), plus files in its folder that appeared since it was resolved (a new form's code: the default glob
+    /// takes them, and they shouldn't need an MSBuild run).
+    /// </summary>
+    public IReadOnlyList<string> SourceFiles(RadProject project)
+    {
+        var compile = new HashSet<string>(CompileFiles, StringComparer.OrdinalIgnoreCase);
+        var inFolder = project.SourceFiles;
+        var files = inFolder.Where(f => compile.Contains(f) || !_scanned.Contains(f)).ToList();
+        var seen = new HashSet<string>(inFolder, StringComparer.OrdinalIgnoreCase);
+        files.AddRange(CompileFiles.Where(f => !seen.Contains(f) && File.Exists(f)));
+        return files;
+    }
+
+    /// <summary>The C# files in the project's folder when it was resolved.</summary>
+    IReadOnlySet<string> _scanned = new HashSet<string>();
     string _packageRoot = "";
     string _key = "";
     IReadOnlyList<string> _watched = [];
     IReadOnlyList<(string ProjectFile, string Output)> _projectReferences = [];
+    DateTime _resolvedAt;
     internal GeneratorSet? Generators;
 
     // ---- Resolving ----
@@ -118,8 +138,12 @@ public sealed class ProjectDependencies
         try
         {
             if (Stamp(_watched) != _key) return false;
-            foreach (var (projectFile, output) in _projectReferences)
-                if (SourcesNewerThan(Path.GetDirectoryName(projectFile)!, File.GetLastWriteTimeUtc(output))) return false;
+            // What the compile and the run read (a package cache cleaned, a vendor folder moved: restore again).
+            if (!References.All(File.Exists) || !RuntimeAssemblies.Values.All(File.Exists) || !NativeLibraries.All(File.Exists)) return false;
+            // A source edited since MSBuild last ran (not since the output was written: a file the build doesn't read, say
+            // .vscode/settings.json, never makes it rebuild, so it would stay newer than the output for good).
+            foreach (var (projectFile, _) in _projectReferences)
+                if (SourcesNewerThan(Path.GetDirectoryName(projectFile)!, _resolvedAt)) return false;
             return true;
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
@@ -147,7 +171,7 @@ public sealed class ProjectDependencies
         return false;
     }
 
-    static readonly string[] ItemNames = ["ReferencePath", "Analyzer", "ReferenceCopyLocalPaths", "EditorConfigFiles", "Using", "AdditionalFiles"];
+    static readonly string[] ItemNames = ["ReferencePath", "Analyzer", "ReferenceCopyLocalPaths", "EditorConfigFiles", "Using", "AdditionalFiles", "Compile"];
     static readonly string[] PropertyNames =
     [
         "LangVersion", "Nullable", "DefineConstants", "AllowUnsafeBlocks", "CheckForOverflowUnderflow", "RootNamespace",
@@ -182,6 +206,7 @@ public sealed class ProjectDependencies
             psi.Environment.Remove(v);
 
         var watch = Stopwatch.StartNew();
+        var startedAt = DateTime.UtcNow;
         Process process;
         try { process = Process.Start(psi)!; }
         catch (Exception e) when (e is System.ComponentModel.Win32Exception or InvalidOperationException)
@@ -196,7 +221,9 @@ public sealed class ProjectDependencies
             var errTask = process.StandardError.ReadToEndAsync();
             if (!process.WaitForExit(timeout))
             {
-                try { process.Kill(); } catch (InvalidOperationException) { }   // only the process started here
+                // The process started here and what it started (restore, a project reference's compiler, an Exec):
+                // killing only the dotnet process would leave its children running, holding the output pipes.
+                try { process.Kill(entireProcessTree: true); } catch (Exception e) when (e is InvalidOperationException or System.ComponentModel.Win32Exception) { }
                 error = $"resolving the project's dependencies took longer than {timeout.TotalSeconds:0} s";
                 return null;
             }
@@ -210,7 +237,7 @@ public sealed class ProjectDependencies
             }
         }
 
-        try { return Parse(project, stdout, watch.Elapsed); }
+        try { return Parse(project, stdout, watch.Elapsed, startedAt); }
         catch (Exception e) when (e is JsonException or KeyNotFoundException or InvalidOperationException or IOException)
         {
             error = "MSBuild's output couldn't be read: " + e.Message;
@@ -230,7 +257,7 @@ public sealed class ProjectDependencies
         public string Meta(string name) => Metadata.GetValueOrDefault(name, "");
     }
 
-    static ProjectDependencies Parse(RadProject project, string json, TimeSpan elapsed)
+    static ProjectDependencies Parse(RadProject project, string json, TimeSpan elapsed, DateTime startedAt)
     {
         using var doc = JsonDocument.Parse(json);
         var props = doc.RootElement.GetProperty("Properties");
@@ -299,8 +326,9 @@ public sealed class ProjectDependencies
             foreach (var f in AncestorFiles)
             {
                 var path = Path.Combine(dir.FullName, f);
-                // Watch the ones that exist, and the nearest folder's possible ones (a new Directory.Build.props).
-                if (File.Exists(path) || dir.FullName == project.Directory) watched.Add(path);
+                // Every folder's possible ones, existing or not: a Directory.Build.props added at the repository root
+                // (above the project's folder) changes the evaluation as much as one next to the project.
+                watched.Add(path);
             }
         foreach (var (projectFile, output) in projectReferences) { watched.Add(projectFile); watched.Add(output); }
         watched = [.. watched.Distinct(StringComparer.OrdinalIgnoreCase)];
@@ -309,6 +337,8 @@ public sealed class ProjectDependencies
         return new ProjectDependencies
         {
             References = references.Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            CompileFiles = [.. Items("Compile").Select(FullPath).Select(Path.GetFullPath).Distinct(StringComparer.OrdinalIgnoreCase)],
+            _scanned = new HashSet<string>(project.SourceFiles, StringComparer.OrdinalIgnoreCase),
             Analyzers = analyzers,
             AnalyzerConfigFiles = Items("EditorConfigFiles").Select(FullPath).Where(File.Exists).ToList(),
             AdditionalFiles = Items("AdditionalFiles").Select(FullPath)
@@ -328,6 +358,7 @@ public sealed class ProjectDependencies
             _watched = watched,
             _key = Stamp(watched),
             _projectReferences = projectReferences,
+            _resolvedAt = startedAt,
         };
     }
 
@@ -375,7 +406,7 @@ public sealed class ProjectDependencies
         foreach (var a in AppDomain.CurrentDomain.GetAssemblies())
         {
             var name = a.GetName().Name ?? "";
-            if (!name.StartsWith("RadSharp.", StringComparison.Ordinal) || name is "RadSharp.Design.Code" or "RadSharp.Generators") continue;
+            if (!name.StartsWith("RadSharp.", StringComparison.Ordinal) || IsDesignerOnly(name)) continue;
             if (a.IsDynamic || a.Location.Length == 0) continue;
             shared[name] = a.Location;
             queue.Enqueue(a.Location);
@@ -383,13 +414,17 @@ public sealed class ProjectDependencies
         while (queue.Count > 0)
             foreach (var reference in ReferencedNames(queue.Dequeue()))
             {
-                if (shared.ContainsKey(reference) || !tpa.TryGetValue(reference, out var path)) continue;
+                // Not through the designer-only assemblies (RadSharp.Designer references RadSharp.Design.Code): their
+                // dependencies, Roslyn above all, are the designer's business, and an app may use its own versions.
+                if (shared.ContainsKey(reference) || IsDesignerOnly(reference) || !tpa.TryGetValue(reference, out var path)) continue;
                 if (path.StartsWith(framework, StringComparison.OrdinalIgnoreCase)) continue;
                 shared[reference] = path;
                 queue.Enqueue(path);
             }
         return shared;
     });
+
+    static bool IsDesignerOnly(string name) => name is "RadSharp.Design.Code" or "RadSharp.Generators";
 
     /// <summary>The simple names an assembly file references, read from its metadata (without loading it).</summary>
     internal static IEnumerable<string> ReferencedNames(string path)

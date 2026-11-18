@@ -1,3 +1,4 @@
+using System.Text;
 using System.Text.Json;
 using RadSharp.Drawing;
 
@@ -30,7 +31,7 @@ public sealed class UnknownControl : Control
     readonly HashSet<string> _unreadable = new(StringComparer.Ordinal);
     readonly Dictionary<string, string> _baseline = new(StringComparer.Ordinal);
     readonly Dictionary<string, string> _baselineHandlers = new(StringComparer.Ordinal);
-    readonly List<string> _containedNames = [];
+    readonly List<(string Name, string ClassName)> _contained = [];
     string _baselineName = "";
 
     UnknownControl(string className)
@@ -46,7 +47,84 @@ public sealed class UnknownControl : Control
     public IReadOnlyList<KeyValuePair<string, string>> RawMembers => [.. _members.Select(m => KeyValuePair.Create(m.Key, m.Raw))];
 
     /// <summary>The names of the controls inside this node's <c>children</c> (all levels), which stay in the file too.</summary>
-    public IReadOnlyList<string> ContainedNames => _containedNames;
+    public IReadOnlyList<string> ContainedNames => [.. _contained.Select(c => c.Name)];
+
+    /// <summary>The <c>class</c> of each control in <see cref="ContainedNames"/>, in the same order ("" if it has none).</summary>
+    public IReadOnlyList<string> ContainedClassNames => [.. _contained.Select(c => c.ClassName)];
+
+    /// <summary>
+    /// Renames a control inside the node's raw <c>children</c> (a pasted copy's controls need names of their own): only
+    /// that <c>"name"</c> value changes in the kept text. False if no contained control is named <paramref name="name"/>.
+    /// </summary>
+    public bool RenameContained(string name, string newName)
+    {
+        var literal = new FormJsonWriter();
+        literal.WriteString(newName);
+        var replacement = Encoding.UTF8.GetBytes(literal.ToString());
+        bool renamed = false;
+        for (int i = 0; i < _members.Count; i++)
+        {
+            if (_members[i].Key != "children") continue;
+            var utf8 = Encoding.UTF8.GetBytes(_members[i].Raw);
+            var tokens = NameTokens(utf8, name);
+            if (tokens.Count == 0) continue;
+            var result = new List<byte>(utf8.Length + tokens.Count * replacement.Length);
+            int at = 0;
+            foreach (var (start, length) in tokens)
+            {
+                result.AddRange(utf8.AsSpan(at, start - at));
+                result.AddRange(replacement);
+                at = start + length;
+            }
+            result.AddRange(utf8.AsSpan(at));
+            _members[i] = _members[i] with { Raw = Encoding.UTF8.GetString([.. result]) };
+            renamed = true;
+        }
+        if (!renamed) return false;
+        _contained.Clear();
+        foreach (var m in _members)
+            if (m.Key == "children")
+            {
+                using var doc = JsonDocument.Parse(m.Raw);
+                CollectNames(doc.RootElement, _contained);
+            }
+        return true;
+    }
+
+    /// <summary>Where, in a <c>children</c> array's text, the <c>"name"</c> values of its control nodes equal to <paramref name="name"/> are.</summary>
+    static List<(int Start, int Length)> NameTokens(byte[] utf8, string name)
+    {
+        const int Children = 0, Node = 1, Other = 2;
+        var found = new List<(int, int)>();
+        var stack = new Stack<int>();
+        string? property = null;
+        var reader = new Utf8JsonReader(utf8);
+        while (reader.Read())
+        {
+            switch (reader.TokenType)
+            {
+                case JsonTokenType.StartArray:
+                    stack.Push(stack.Count == 0 || (stack.Peek() == Node && property == "children") ? Children : Other);
+                    break;
+                case JsonTokenType.StartObject:
+                    stack.Push(stack.Count > 0 && stack.Peek() == Children ? Node : Other);
+                    break;
+                case JsonTokenType.EndArray or JsonTokenType.EndObject:
+                    stack.Pop();
+                    break;
+                case JsonTokenType.PropertyName:
+                    property = reader.GetString();
+                    continue;
+                case JsonTokenType.String:
+                    // A string token's text is its (still escaped) value between the quotes it starts with.
+                    if (stack.Count > 0 && stack.Peek() == Node && property == "name" && reader.GetString() == name)
+                        found.Add(((int)reader.TokenStartIndex, reader.ValueSpan.Length + 2));
+                    break;
+            }
+            property = null;
+        }
+        return found;
+    }
 
     /// <summary>The node as the writer writes it now (a one-node fragment's element).</summary>
     public string ToJson()
@@ -73,7 +151,7 @@ public sealed class UnknownControl : Control
                 if (prop.Value.ValueKind == JsonValueKind.String) control.Name = prop.Value.GetString()!;
                 else control._unreadable.Add("name");
             }
-            else if (prop.Name == "children") CollectNames(prop.Value, control._containedNames);
+            else if (prop.Name == "children") CollectNames(prop.Value, control._contained);
             else if (cls.FindProperty(prop.Name) is { } p)
             {
                 try { p.Read(control, prop.Value); }
@@ -89,6 +167,15 @@ public sealed class UnknownControl : Control
                 else control._unreadable.Add(prop.Name);
             }
         }
+        // The layout keeps a control within its min/max size. Start there, so that a stand-in size (the class default
+        // isn't known) the layout clamps isn't taken for a change and saved: a node the file left at its class's
+        // default size must stay without width or height.
+        int w = control.Width, h = control.Height;
+        if (control.MaxWidth > 0 && w > control.MaxWidth) w = control.MaxWidth;
+        if (w < control.MinWidth) w = control.MinWidth;
+        if (control.MaxHeight > 0 && h > control.MaxHeight) h = control.MaxHeight;
+        if (h < control.MinHeight) h = control.MinHeight;
+        if (w != control.Width || h != control.Height) control.SetBounds(control.Left, control.Top, w, h);
         control.MarkClean();
         return control;
     }
@@ -105,14 +192,14 @@ public sealed class UnknownControl : Control
         _baselineName = Name;
     }
 
-    static void CollectNames(JsonElement children, List<string> names)
+    static void CollectNames(JsonElement children, List<(string Name, string ClassName)> names)
     {
         if (children.ValueKind != JsonValueKind.Array) return;
         foreach (var child in children.EnumerateArray())
         {
             if (child.ValueKind != JsonValueKind.Object) continue;
             if (child.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String && n.GetString() is { Length: > 0 } name)
-                names.Add(name);
+                names.Add((name, child.TryGetProperty("class", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString()! : ""));
             if (child.TryGetProperty("children", out var grandChildren)) CollectNames(grandChildren, names);
         }
     }
@@ -169,6 +256,7 @@ public sealed class UnknownControl : Control
         w.Key("class"); w.WriteString(ClassName);
         if (inserted.Remove("name")) changed["name"]!();
         int next = 0;
+        var rewritten = new HashSet<string>(StringComparer.Ordinal);
         foreach (var m in _members)
         {
             if (m.Key is not ("name" or "caption" or "text"))
@@ -177,9 +265,13 @@ public sealed class UnknownControl : Control
             if (changed.TryGetValue(m.Key, out var write))
             {
                 write?.Invoke();
-                changed.Remove(m.Key);   // a duplicate key in the file is rewritten once
+                changed.Remove(m.Key);
+                rewritten.Add(m.Key);
                 continue;
             }
+            // A key the file has twice is rewritten once: its later (stale) copies go, or a reader, which takes the
+            // last, would undo the change.
+            if (rewritten.Contains(m.Key)) continue;
             w.Key(m.Key);
             w.WriteRaw(m.Raw);
         }

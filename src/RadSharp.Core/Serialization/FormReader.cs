@@ -19,6 +19,13 @@ public sealed record FormLoadOptions
     /// leaves it off, so a control it can't create is skipped as before.
     /// </summary>
     public bool KeepUnknownClasses { get; init; }
+
+    /// <summary>
+    /// Which registered classes the reader may create (null: all); a node of any other class is read as if its class
+    /// were unknown. The designer accepts only classes that stay registered: a live run's (F9) classes are unregistered
+    /// when it ends, and a control of one left in a designed form would then be saved as its base class.
+    /// </summary>
+    public Func<ComponentClass, bool>? AcceptClass { get; init; }
 }
 
 /// <summary>Reads form files (spec, Appendix A), driven by the generated component metadata.</summary>
@@ -132,7 +139,7 @@ public static class FormReader
             warnings.Add($"{path}: node has no \"class\"; skipped.");
             return null;
         }
-        if (ComponentRegistry.Find(className) is not { CanCreate: true } cls)
+        if (ComponentRegistry.Find(className) is not { CanCreate: true } cls || options.AcceptClass?.Invoke(cls) == false)
         {
             if (options.KeepUnknownClasses)
             {
