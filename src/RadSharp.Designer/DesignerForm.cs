@@ -27,11 +27,14 @@ public partial class DesignerForm : Form
     readonly DesignerSettings _settings;
     readonly string? _settingsPath;
     readonly List<ComponentClass> _palette;
+    readonly DesignerOptions _options;
+    readonly IPlatformServices? _host = PlatformHost.Current;
     bool _syncing;
 
-    public DesignerForm(string? projectFile = null, string? settingsPath = null)
+    public DesignerForm(string? projectFile = null, string? settingsPath = null, DesignerOptions? options = null)
     {
         InitializeComponent();
+        _options = options ?? new();
         _settingsPath = settingsPath;
         _settings = DesignerSettings.Load(settingsPath);
         _settings.RemoveMissing();
@@ -40,7 +43,8 @@ public partial class DesignerForm : Form
         Theme.Current = _settings.Theme == "dark" ? Theme.Dark : Theme.Default;
         this.Theme = Theme.Current;
 
-        _palette = ComponentPalette.Classes();
+        // RadSharp's own classes: a live run's (or a design session's) are registered only while it lasts.
+        _palette = [.. ComponentPalette.Classes().Where(c => !c.Type.Assembly.IsCollectible)];
         RebuildPalette();
         tvPalette.DragMode = DragMode.Automatic;   // drag a palette entry onto a form to place it, not just click
 
@@ -97,6 +101,11 @@ public partial class DesignerForm : Form
         if ((main ?? _project.FormFiles.FirstOrDefault()) is { } first) OpenFormFile(first);
         UpdateUi();
         Output($"Opened project {_project.ProjectFile}");
+        if (_options.ProjectControls)
+        {
+            WatchProject(_project, []);
+            RefreshProjectControls();
+        }
         return true;
     }
 
@@ -105,7 +114,9 @@ public partial class DesignerForm : Form
     {
         if (!ConfirmSave(_forms)) return false;
         CloseLiveForm();
+        _runGeneration++;   // a run still compiling is for the project being closed
         foreach (var f in _forms.ToList()) RemoveTab(f);
+        DropProjectControls();
         _project = null;
         UpdateUi();
         return true;
@@ -122,7 +133,7 @@ public partial class DesignerForm : Form
             Activate(open);
             return open;
         }
-        var doc = new DesignDocument();
+        var doc = new DesignDocument { ProjectClasses = _design == null ? null : _design.Find };
         try
         {
             var warnings = doc.Load(File.ReadAllText(path));
@@ -143,6 +154,8 @@ public partial class DesignerForm : Form
         _forms.Add(form);
 
         surface.Created += _ => tvPalette.Selected = null;
+        surface.CreateFailed += (cls, e) =>
+            Output($"{cls.Name} threw while it was created ({(e.InnerException ?? e).GetType().Name}: {(e.InnerException ?? e).Message}).");
         surface.DoubleClicked += c => { if (CodeIntegration.DefaultEvent(c) is { } ev) EditHandler(c, ev); };
         surface.ContextMenuRequested += (x, y) => ShowSurfaceContextMenu(surface, x, y);
         // Drag a palette entry onto the surface to place it (an alternative to click-then-place); the surface
@@ -395,8 +408,14 @@ public partial class DesignerForm : Form
     /// no longer be in the filtered list.</summary>
     void RebuildPalette()
     {
-        ComponentPalette.Fill(tvPalette, _palette, edtPaletteFilter.Text);
-        if (_active != null) _active.Surface.PendingClass = null;
+        var design = _design;
+        tvPalette.Selected = null;   // its node (and class) is about to go
+        // A project control takes its name over from RadSharp's, as in the running application.
+        var classes = design == null ? _palette : [.. _palette.Where(c => design.Find(c.Name) == null), .. design.Classes];
+        ComponentPalette.Fill(tvPalette, classes, edtPaletteFilter.Text,
+            c => design != null && design.Find(c.Name) == c ? design.CategoryOf(c) : PaletteCategories.Of(c.Name));
+        // The armed class may be gone (filtered out, or from a design session that was replaced).
+        foreach (var f in _forms) f.Surface.PendingClass = null;
     }
 
     /// <summary>A form's code-behind shows as its class name (like Delphi's Project Manager); any other
@@ -540,6 +559,9 @@ public partial class DesignerForm : Form
     void frmDesigner_CloseQuery(Control sender, CloseQueryEventArgs e)
     {
         e.CanClose = ConfirmSave(_forms);
-        if (e.CanClose) CloseLiveForm();
+        if (!e.CanClose) return;
+        CloseLiveForm();
+        _runGeneration++;
+        StopWatching();
     }
 }

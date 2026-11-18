@@ -8,6 +8,7 @@ namespace RadSharp.Tests;
 /// The designer's Delphi-style project workflow, driven on the real designer form with a fake host:
 /// welcome page → open/create a project → forms in tabs → handlers → Run (F9) → close project.
 /// </summary>
+[Collection("PlatformHost")]   // each test installs its own PlatformHost.Current (process-wide)
 public class ProjectWorkflowTests
 {
     sealed class FakeHost : IPlatformServices
@@ -31,13 +32,16 @@ public class ProjectWorkflowTests
 
     static string TempDir() => Directory.CreateTempSubdirectory("radsharp-designer-").FullName;
 
+    /// <summary>Waits for a task the fake host completes on another thread (it runs what is posted at once).</summary>
+    static bool Finishes(Task task, TimeSpan timeout) => task.Wait(timeout);
+
     static (DesignerForm Designer, FakeHost Host) Start(string? project = null)
     {
         Shortcut.CommandModifier = KeyModifiers.Ctrl;
         var host = new FakeHost();
         PlatformHost.Current = host;
         var settings = Path.Combine(TempDir(), "designer.json");
-        var designer = new DesignerForm(project, settings);
+        var designer = new DesignerForm(project, settings, new DesignerOptions { ProjectControls = false });
         // A harmless "editor" so tests don't open real windows.
         designer.Settings.Editor = EditorKind.Custom;
         designer.Settings.CustomEditorCommand = "dotnet --version";
@@ -103,6 +107,8 @@ public class ProjectWorkflowTests
             "    void Button1_Click(Control sender)\n    {\n        ((Button)sender).Caption = \"Clicked\";\n    }"));
 
         d.Simulate.Key(Key.F9);
+        // F9 compiles in the background; this host runs what it posts at once, on the thread that posts it.
+        Assert.True(Finishes(d.LastRun!, TimeSpan.FromMinutes(3)), "F9 didn't finish");
         var live = Assert.Single(host.Shown);
         var liveButton = (Button)live.FindControl("Button1")!;
         live.Simulate.Click(liveButton);

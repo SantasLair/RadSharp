@@ -5,6 +5,7 @@ using System.Reflection.Metadata;
 using System.Reflection.PortableExecutable;
 using System.Runtime.InteropServices;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 
 namespace RadSharp.Design.Code;
 
@@ -19,6 +20,13 @@ public sealed record ProjectUsing(string Namespace, string? Alias, bool IsStatic
 }
 
 /// <summary>
+/// The outcome of <see cref="ProjectDependencies.Resolve(RadProject, TimeSpan, Action{string}?)"/>: the dependencies,
+/// or null with <see cref="Error"/> saying why; <see cref="FromCache"/> when no MSBuild ran (a cached result, or a
+/// cached failure for unchanged inputs).
+/// </summary>
+public sealed record DependencyResolution(ProjectDependencies? Dependencies, string? Error, bool FromCache);
+
+/// <summary>
 /// What a live run (F9) compiles and loads a project with, as MSBuild resolves it for a real build: the compile
 /// references (NuGet packages with their transitive dependencies, framework references, built project references),
 /// the analyzer assemblies (source generators, e.g. System.Text.Json's from the targeting pack), the compile settings,
@@ -29,9 +37,12 @@ public sealed record ProjectUsing(string Namespace, string? Alias, bool IsStatic
 /// -getProperty:...</c> in the project's folder, then cached in memory, keyed on the timestamps of the project file,
 /// <c>obj/project.assets.json</c>, the <c>Directory.*.props/targets</c>, <c>global.json</c> and <c>nuget.config</c>
 /// files in every folder above it (present or not), and the project references' project files and outputs; a project
-/// reference whose sources changed since MSBuild last ran is resolved (and so rebuilt) again.
+/// reference whose sources changed since MSBuild last ran is resolved (and so rebuilt) again. A failure is cached too,
+/// keyed on the same settings files, the restore output and the project references' project files and sources, so a
+/// project that can't be resolved doesn't run a full restore on every F9; <see cref="Invalidate"/> forgets it.
+/// Resolving can take minutes (a cold restore): call <see cref="ResolveAsync"/> from a UI thread.
 /// </remarks>
-public sealed class ProjectDependencies
+public sealed partial class ProjectDependencies
 {
     /// <summary>Compile references: full paths, RadSharp's own assemblies replaced by the designer's copies.</summary>
     public IReadOnlyList<string> References { get; private init; } = [];
@@ -60,6 +71,9 @@ public sealed class ProjectDependencies
 
     /// <summary>How long the MSBuild run took when these were resolved.</summary>
     public TimeSpan ResolveTime { get; private init; }
+
+    /// <summary>The project files of the project's project references (full paths).</summary>
+    public IReadOnlyList<string> ProjectReferences => [.. _projectReferences.Select(p => p.ProjectFile).Distinct(StringComparer.OrdinalIgnoreCase)];
 
     /// <summary>True when the root folder of NuGet packages or the .NET install holds the file (it never changes).</summary>
     internal bool IsImmutable(string path) =>
@@ -93,13 +107,31 @@ public sealed class ProjectDependencies
     // ---- Resolving ----
 
     static readonly ConcurrentDictionary<string, ProjectDependencies> Cache = new(StringComparer.OrdinalIgnoreCase);
+    static readonly ConcurrentDictionary<string, Failure> Failures = new(StringComparer.OrdinalIgnoreCase);
     static readonly ConcurrentDictionary<string, object> Locks = new(StringComparer.OrdinalIgnoreCase);
 
-    /// <summary>Forgets every cached resolution (the next live run of each project runs MSBuild again).</summary>
+    /// <summary>A resolve that failed, and what it read: the same inputs fail the same way.</summary>
+    sealed record Failure(string Key, string Error, DateTime At, IReadOnlyList<string> ReferenceDirectories);
+
+    /// <summary>Raised (on the resolving thread) with the project file just before MSBuild starts for it: diagnostics and tests.</summary>
+    public static event Action<string>? MSBuildStarting;
+
+    /// <summary>Forgets every cached resolution and failure (the next live run of each project runs MSBuild again).</summary>
     public static void ClearCache()
     {
         foreach (var d in Cache.Values) d.Generators?.Dispose();
         Cache.Clear();
+        Failures.Clear();
+    }
+
+    /// <summary>Forgets <paramref name="project"/>'s cached resolution and cached failure (the designer's Project › Refresh).</summary>
+    public static void Invalidate(RadProject project)
+    {
+        lock (Locks.GetOrAdd(project.ProjectFile, _ => new object()))
+        {
+            Failures.TryRemove(project.ProjectFile, out _);
+            if (Cache.TryRemove(project.ProjectFile, out var old)) old.Generators?.Dispose();
+        }
     }
 
     /// <summary>
@@ -109,29 +141,89 @@ public sealed class ProjectDependencies
     /// </summary>
     public static ProjectDependencies? Resolve(RadProject project, TimeSpan timeout, out string? error, out bool fromCache)
     {
-        error = null;
-        fromCache = false;
+        var result = Resolve(project, timeout);
+        error = result.Error;
+        fromCache = result.FromCache;
+        return result.Dependencies;
+    }
+
+    /// <summary>
+    /// The project's dependencies, from the cache when nothing they depend on changed, else from MSBuild (which
+    /// restores and builds project references); blocks until done. A failure (no SDK, a restore error, a timeout) is
+    /// remembered: until its inputs change or <see cref="Invalidate"/> is called, resolving again returns it at once.
+    /// <paramref name="progress"/> hears when MSBuild starts (it may take minutes). One resolve per project at a time:
+    /// a second caller waits for the first and takes its result.
+    /// </summary>
+    public static DependencyResolution Resolve(RadProject project, TimeSpan timeout, Action<string>? progress = null)
+    {
         lock (Locks.GetOrAdd(project.ProjectFile, _ => new object()))
         {
             if (Cache.TryGetValue(project.ProjectFile, out var cached) && cached.IsCurrent())
-            {
-                fromCache = true;
-                return cached;
-            }
+                return new(cached, null, true);
+            if (Failures.TryGetValue(project.ProjectFile, out var failure) && failure.Key == FailureInputs(project).Key
+                && !failure.ReferenceDirectories.Any(d => SourcesNewerThan(d, failure.At)))
+                return new(null, failure.Error, true);
+
+            var startedAt = DateTime.UtcNow;
             ProjectDependencies? resolved;
+            string? error;
+            progress?.Invoke($"Restoring and resolving {project.Name}'s packages and references (MSBuild)…");
+            MSBuildStarting?.Invoke(project.ProjectFile);
             try { resolved = RunMSBuild(project, timeout, out error); }
             catch (Exception e) when (e is not OutOfMemoryException)
             {
                 // Whatever goes wrong here, F9 falls back instead of taking the designer down.
+                resolved = null;
                 error = $"{e.GetType().Name}: {e.Message}";
-                return null;
             }
-            if (resolved == null) return null;
+            if (resolved == null)
+            {
+                error ??= "MSBuild failed";
+                // The inputs as the attempt left them (its restore may have written project.assets.json).
+                var (key, referenceDirs) = FailureInputs(project);
+                Failures[project.ProjectFile] = new Failure(key, error, startedAt, referenceDirs);
+                return new(null, error, false);
+            }
+            Failures.TryRemove(project.ProjectFile, out _);
             if (Cache.TryGetValue(project.ProjectFile, out var old) && old != resolved) old.Generators?.Dispose();
             Cache[project.ProjectFile] = resolved;
-            return resolved;
+            return new(resolved, null, false);
         }
     }
+
+    /// <summary>
+    /// <see cref="Resolve(RadProject, TimeSpan, Action{string}?)"/> on a thread-pool thread. Cancelling stops the
+    /// wait, not MSBuild: its result still goes to the cache, for the next resolve of the project to take.
+    /// </summary>
+    public static Task<DependencyResolution> ResolveAsync(RadProject project, TimeSpan timeout, Action<string>? progress = null, CancellationToken cancel = default) =>
+        Task.Run(() => Resolve(project, timeout, progress), CancellationToken.None).WaitAsync(cancel);
+
+    /// <summary>
+    /// What a failed resolve read, as far as it can be known without MSBuild: the project file, its restore output,
+    /// the settings files above it, and its project references (their project files, and their folders' sources).
+    /// </summary>
+    static (string Key, IReadOnlyList<string> ReferenceDirectories) FailureInputs(RadProject project)
+    {
+        var files = new List<string> { project.ProjectFile, Path.Combine(project.Directory, "obj", "project.assets.json") };
+        for (var dir = new DirectoryInfo(project.Directory); dir != null; dir = dir.Parent)
+            foreach (var f in AncestorFiles) files.Add(Path.Combine(dir.FullName, f));
+        var referenceDirs = new List<string>();
+        try
+        {
+            foreach (Match m in ProjectReferencePattern().Matches(File.ReadAllText(project.ProjectFile)))
+            {
+                var path = Path.GetFullPath(m.Groups[1].Value.Replace('\\', Path.DirectorySeparatorChar), project.Directory);
+                files.Add(path);
+                referenceDirs.Add(Path.GetDirectoryName(path)!);
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { }
+        try { return (Stamp(files.Distinct(StringComparer.OrdinalIgnoreCase)), referenceDirs); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return (Guid.NewGuid().ToString(), referenceDirs); }
+    }
+
+    [GeneratedRegex("""<ProjectReference\s+Include\s*=\s*"([^"]+)" """, RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace)]
+    private static partial Regex ProjectReferencePattern();
 
     bool IsCurrent()
     {
@@ -171,7 +263,11 @@ public sealed class ProjectDependencies
         return false;
     }
 
-    static readonly string[] ItemNames = ["ReferencePath", "Analyzer", "ReferenceCopyLocalPaths", "EditorConfigFiles", "Using", "AdditionalFiles", "Compile"];
+    // RuntimeCopyLocalItems and its siblings are the package run-time assets ResolvePackageAssets finds; only an
+    // executable (or CopyLocalLockFileAssemblies) copies them into ReferenceCopyLocalPaths, and a class library's
+    // controls need them in the designer as much as an application's do.
+    static readonly string[] CopyLocalItemNames = ["ReferenceCopyLocalPaths", "RuntimeCopyLocalItems", "NativeCopyLocalItems", "RuntimeTargetsCopyLocalItems"];
+    static readonly string[] ItemNames = ["ReferencePath", "Analyzer", .. CopyLocalItemNames, "EditorConfigFiles", "Using", "AdditionalFiles", "Compile"];
     static readonly string[] PropertyNames =
     [
         "LangVersion", "Nullable", "DefineConstants", "AllowUnsafeBlocks", "CheckForOverflowUnderflow", "RootNamespace",
@@ -301,7 +397,7 @@ public sealed class ProjectDependencies
         var rids = RidFallbacks();
         var runtime = new Dictionary<string, (string Path, int Rank)>(StringComparer.OrdinalIgnoreCase);
         var natives = new List<(string Path, int Rank)>();
-        foreach (var i in Items("ReferenceCopyLocalPaths"))
+        foreach (var i in CopyLocalItemNames.SelectMany(Items))
         {
             var path = FullPath(i);
             var rid = i.Meta("RuntimeIdentifier");
@@ -314,6 +410,16 @@ public sealed class ProjectDependencies
             if (!ext.Equals(".dll", StringComparison.OrdinalIgnoreCase) && !ext.Equals(".exe", StringComparison.OrdinalIgnoreCase)) continue;
             var name = Path.GetFileNameWithoutExtension(path);
             if (!runtime.TryGetValue(name, out var have) || rank < have.Rank) runtime[name] = (path, rank);
+        }
+        // A class library's build copies nothing local: its project references' outputs and plain file references are
+        // what it runs with too (packages' are in the items above; their ReferencePath may be reference assemblies).
+        foreach (var r in Items("ReferencePath"))
+        {
+            if (r.Meta("NuGetPackageId").Length > 0 || r.Meta("FrameworkReferenceName").Length > 0) continue;
+            var path = FullPath(r);
+            var name = Path.GetFileNameWithoutExtension(path);
+            if (path.StartsWith(DotnetRoot, StringComparison.OrdinalIgnoreCase) || shared.ContainsKey(name)) continue;
+            runtime.TryAdd(name, (path, rids.Count + 1));
         }
 
         var usings = Items("Using").Select(u => new ProjectUsing(u.Identity, u.Meta("Alias") is { Length: > 0 } a ? a : null,
@@ -352,7 +458,7 @@ public sealed class ProjectDependencies
             RootNamespace = Prop("RootNamespace"),
             AssemblyName = Prop("AssemblyName"),
             RuntimeAssemblies = runtime.ToDictionary(kv => kv.Key, kv => kv.Value.Path, StringComparer.OrdinalIgnoreCase),
-            NativeLibraries = [.. natives.OrderBy(n => n.Rank).Select(n => n.Path)],
+            NativeLibraries = [.. natives.OrderBy(n => n.Rank).Select(n => n.Path).Distinct(StringComparer.OrdinalIgnoreCase)],
             ResolveTime = elapsed,
             _packageRoot = packageRoot.Length > 0 ? Path.GetFullPath(packageRoot) : "",
             _watched = watched,
@@ -403,13 +509,16 @@ public sealed class ProjectDependencies
         var framework = RuntimeEnvironment.GetRuntimeDirectory();
         var shared = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var queue = new Queue<string>();
-        foreach (var a in AppDomain.CurrentDomain.GetAssemblies())
+        // RadSharp's libraries an application uses, wherever this process has them: loaded or not yet (it is computed
+        // once), and not any other "RadSharp.*" assembly of the process (the designer itself, a test assembly), whose
+        // own references (Roslyn) are not the application's business.
+        foreach (var name in RuntimeLibraries)
         {
-            var name = a.GetName().Name ?? "";
-            if (!name.StartsWith("RadSharp.", StringComparison.Ordinal) || IsDesignerOnly(name)) continue;
-            if (a.IsDynamic || a.Location.Length == 0) continue;
-            shared[name] = a.Location;
-            queue.Enqueue(a.Location);
+            var loaded = AppDomain.CurrentDomain.GetAssemblies().FirstOrDefault(a => a.GetName().Name == name && !a.IsDynamic && a.Location.Length > 0);
+            var path = loaded?.Location ?? tpa.GetValueOrDefault(name);
+            if (path == null) continue;
+            shared[name] = path;
+            queue.Enqueue(path);
         }
         while (queue.Count > 0)
             foreach (var reference in ReferencedNames(queue.Dequeue()))
@@ -423,6 +532,9 @@ public sealed class ProjectDependencies
             }
         return shared;
     });
+
+    /// <summary>RadSharp's assemblies an application references (the packages, and the designer surface library).</summary>
+    static string[] RuntimeLibraries => ["RadSharp.Core", "RadSharp.Platform.Sdl", "RadSharp.Design"];
 
     static bool IsDesignerOnly(string name) => name is "RadSharp.Design.Code" or "RadSharp.Generators";
 

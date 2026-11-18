@@ -177,9 +177,23 @@ public class DesignSurface : Control
         int sx = Snap(dx, free: false), sy = Snap(dy, free: false);
         var parent = ContainerAt(sx, sy, cls);
         var (ox, oy) = ParentOrigin(parent);
-        var control = _doc.Create(cls, typeof(Component).IsAssignableFrom(cls.Type) ? _doc.Form : parent, sx - ox, sy - oy);
-        Created?.Invoke(control);
+        var control = TryCreate(cls, parent, sx - ox, sy - oy, null, null);
+        if (control != null) Created?.Invoke(control);
         return control;
+    }
+
+    /// <summary>Raised instead of <see cref="Created"/> when the class's constructor threw (an application's control at design time).</summary>
+    public event Action<ComponentClass, Exception>? CreateFailed;
+
+    Control? TryCreate(ComponentClass cls, Control parent, int left, int top, int? width, int? height)
+    {
+        try { return _doc!.Create(cls, typeof(Component).IsAssignableFrom(cls.Type) ? _doc.Form : parent, left, top, width, height); }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            if (CreateFailed == null) throw;
+            CreateFailed(cls, e);
+            return null;
+        }
     }
 
     // ---- Mouse ----
@@ -333,17 +347,16 @@ public class DesignSurface : Control
             {
                 bool sized = r.Width >= 4 && r.Height >= 4;
                 var (ox, oy) = ParentOrigin(parent);
-                var created = cls.Create();  // for its default size only
-                var control = _doc.Create(cls, typeof(Component).IsAssignableFrom(cls.Type) ? _doc.Form : parent,
-                    r.X - ox, r.Y - oy, sized ? r.Width : created.Width, sized ? r.Height : created.Height);
-                if (!e.Modifiers.HasFlag(KeyModifiers.Shift)) PendingClass = null;
-                Created?.Invoke(control);
+                var control = TryCreate(cls, parent, r.X - ox, r.Y - oy, sized ? r.Width : null, sized ? r.Height : null);
+                if (!e.Modifiers.HasFlag(KeyModifiers.Shift) || control == null) PendingClass = null;
+                if (control != null) Created?.Invoke(control);
                 break;
             }
         }
         if (_changed) _doc.NotifyChanged();
         _mode = Mode.None;
         _rubber = null;
+        _createParent = null;
         _guides.Clear();
         _startBounds.Clear();
         Invalidate();

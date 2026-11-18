@@ -37,6 +37,7 @@ public sealed class DesignDocument
 
     public void New(int width = 480, int height = 320)
     {
+        using var designing = Control.EnterDesignMode();
         var form = new Form { Name = "frmMain", Caption = "Form1" };
         form.SetBounds(0, 0, width, height);
         form.DesignWidth = width;
@@ -56,17 +57,62 @@ public sealed class DesignDocument
     public static readonly FormLoadOptions LoadOptions = new()
     {
         KeepUnknownClasses = true,
-        AcceptClass = c => !c.Type.Assembly.IsCollectible,
+        // RadSharp's own class of a name before a live run's that shadows it.
+        FindClass = name => ComponentRegistry.Find(name, IsDesignerClass),
+        AcceptClass = IsDesignerClass,
+    };
+
+    static bool IsDesignerClass(ComponentClass c) => c.CanCreate && !c.Type.Assembly.IsCollectible;
+
+    /// <summary>
+    /// The project's controls this document may create besides RadSharp's own, by form-file class name (the designer's
+    /// design session: see <c>DesignSession</c>); null: none. Every other class from a collectible assembly is read as
+    /// a placeholder. Takes effect on the next load: after changing it, call <see cref="Reload"/>.
+    /// </summary>
+    public Func<string, ComponentClass?>? ProjectClasses { get; set; }
+
+    /// <summary>How this document reads form text: <see cref="LoadOptions"/>, plus <see cref="ProjectClasses"/>.</summary>
+    public FormLoadOptions Options => ProjectClasses is not { } project ? LoadOptions : LoadOptions with
+    {
+        // A project's class wins its name, as in the running application (registered after RadSharp's).
+        FindClass = name => project(name) ?? ComponentRegistry.Find(name, IsDesignerClass),
+        AcceptClass = c => IsDesignerClass(c) || project(c.Name) == c,
     };
 
     public IReadOnlyList<string> Load(string json)
     {
-        var (form, warnings) = FormReader.Load(json, LoadOptions);
-        Replace(form);
+        FormLoadResult result;
+        using (Control.EnterDesignMode()) result = FormReader.Load(json, Options);
+        Replace(result.Form);
         _undo.Clear();
         _redo.Clear();
         _savedText = Save();
-        return warnings;
+        return result.Warnings;
+    }
+
+    /// <summary>
+    /// Reads the form again from <paramref name="json"/> (null: its current text) with the current
+    /// <see cref="ProjectClasses"/>: placeholders of classes that became available turn into real controls, and real
+    /// controls of classes that went away into placeholders, which keep their text. Undo and redo, the selection (by
+    /// name) and whether the document is modified stay as they were. Pass the text saved before the classes changed
+    /// (while the old ones were still registered).
+    /// </summary>
+    public IReadOnlyList<string> Reload(string? json = null)
+    {
+        json ??= Save();
+        bool modified = json != _savedText;
+        var names = _selection.Select(c => c.Name).ToList();
+        FormLoadResult result;
+        using (Control.EnterDesignMode()) result = FormReader.Load(json, Options);
+        Replace(result.Form);
+        foreach (var n in names)
+            if (result.Form.FindControl(n) is { } c && c != result.Form) _selection.Add(c);
+        // A real control may save more than its placeholder did (a setter that sets another published property):
+        // that isn't a change the user made.
+        if (!modified) _savedText = Save();
+        SelectionChanged?.Invoke();
+        Changed?.Invoke();
+        return result.Warnings;
     }
 
     /// <summary>The form file text (deterministic, spec Appendix A).</summary>
@@ -114,7 +160,8 @@ public sealed class DesignDocument
         if (from.Count == 0) return false;
         to.Push(Current());
         var (json, names) = from.Pop();
-        var (form, _) = FormReader.Load(json, LoadOptions);
+        Form form;
+        using (Control.EnterDesignMode()) form = FormReader.Load(json, Options).Form;
         Replace(form);
         foreach (var n in names)
             if (form.FindControl(n) is { } c && c != form) _selection.Add(c);
@@ -174,8 +221,9 @@ public sealed class DesignDocument
     /// <summary>Creates a control of <paramref name="cls"/> in <paramref name="parent"/> at a parent-relative rectangle (null size = class default).</summary>
     public Control Create(ComponentClass cls, Control parent, int left, int top, int? width = null, int? height = null)
     {
+        Control control;
+        using (Control.EnterDesignMode()) control = cls.Create();   // first: a constructor that throws changes nothing
         Snapshot();
-        var control = cls.Create();
         control.Name = UniqueName(cls.Name);
         if (control is TabSheet sheet) sheet.Caption = control.Name;
         control.SetBounds(left, top, width ?? control.Width, height ?? control.Height);
@@ -203,7 +251,8 @@ public sealed class DesignDocument
     /// <summary>Pastes a fragment into <paramref name="parent"/>, renaming clashes and offsetting copies.</summary>
     public List<Control> Paste(string fragment, Control parent, int offset = 8)
     {
-        var (controls, _) = FormReader.LoadFragment(fragment, LoadOptions);
+        List<Control> controls;
+        using (Control.EnterDesignMode()) controls = FormReader.LoadFragment(fragment, Options).Controls;
         if (controls.Count == 0) return controls;
         Snapshot();
         // Names this paste has given out (its controls join the form one top-level control at a time).

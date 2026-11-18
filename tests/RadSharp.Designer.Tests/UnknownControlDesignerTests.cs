@@ -7,6 +7,7 @@ namespace RadSharp.Tests;
 /// A control class the designer doesn't know (the app defines it in its own code) survives open → save in the real
 /// designer, and its placeholder can be selected, moved and resized on the surface.
 /// </summary>
+[Collection("PlatformHost")]   // each test installs its own PlatformHost.Current (process-wide)
 public class UnknownControlDesignerTests
 {
     sealed class FakeHost : IPlatformServices
@@ -72,7 +73,7 @@ public class UnknownControlDesignerTests
 
         Shortcut.CommandModifier = KeyModifiers.Ctrl;
         PlatformHost.Current = new FakeHost();
-        var d = new DesignerForm(project.ProjectFile, Path.Combine(TempDir(), "designer.json"));
+        var d = new DesignerForm(project.ProjectFile, Path.Combine(TempDir(), "designer.json"), new DesignerOptions { ProjectControls = false });
         d.SetBounds(0, 0, 1220, 780);
         d.PerformLayout();
 

@@ -31,6 +31,15 @@ public sealed record LiveRunOptions
 
     /// <summary>How long a restore and resolve may take before the live run falls back.</summary>
     public TimeSpan ResolveTimeout { get; init; } = TimeSpan.FromMinutes(3);
+
+    /// <summary>
+    /// Resolves the project's dependencies (null: <see cref="ProjectDependencies.Resolve(RadProject, TimeSpan, Action{string}?)"/>,
+    /// cached). Called on the compiling thread with the project, <see cref="ResolveTimeout"/> and <see cref="Progress"/>.
+    /// </summary>
+    public Func<RadProject, TimeSpan, Action<string>?, DependencyResolution>? Resolver { get; init; }
+
+    /// <summary>Hears what a slow step is doing (MSBuild restoring the project), on the compiling thread.</summary>
+    public Action<string>? Progress { get; init; }
 }
 
 /// <summary>
@@ -138,10 +147,14 @@ public sealed class LiveSession : IDisposable
         bool fromCache = false;
         if (options.UseProjectDependencies)
         {
-            deps = ProjectDependencies.Resolve(project, options.ResolveTimeout, out var error, out fromCache);
+            var resolver = options.Resolver ?? ((p, timeout, progress) => ProjectDependencies.Resolve(p, timeout, progress));
+            var resolution = resolver(project, options.ResolveTimeout, options.Progress);
+            deps = resolution.Dependencies;
+            fromCache = resolution.FromCache;
             if (deps == null)
-                messages.Add(Notice(FallbackId, $"Live run without the project's packages, project references and source generators ({error}); " +
-                    "it compiles against the designer's own assemblies only."));
+                messages.Add(Notice(FallbackId, $"Live run without the project's packages, project references and source generators ({resolution.Error}" +
+                    (fromCache ? "; remembered from the last attempt, nothing it read has changed" : "") +
+                    "); it compiles against the designer's own assemblies only."));
         }
         var resolveTime = watch.Elapsed;
         watch.Restart();

@@ -26,6 +26,20 @@ public sealed record FormLoadOptions
     /// when it ends, and a control of one left in a designed form would then be saved as its base class.
     /// </summary>
     public Func<ComponentClass, bool>? AcceptClass { get; init; }
+
+    /// <summary>
+    /// Finds the class a node's <c>"class"</c> names (null: <see cref="ComponentRegistry.Find(string)"/>, the class
+    /// registered last under that name); a null result reads the node as an unknown class. The designer prefers its
+    /// project's design-time classes, then RadSharp's own, over a live run's of the same name.
+    /// </summary>
+    public Func<string, ComponentClass?>? FindClass { get; init; }
+
+    /// <summary>
+    /// Loading into a form from a collectible load context (a live run's): a class of that context wins a name that
+    /// another context registered too (the designer's own copy of the project's controls), and no other collectible
+    /// context's class is taken.
+    /// </summary>
+    internal System.Runtime.Loader.AssemblyLoadContext? PreferredContext { get; init; }
 }
 
 /// <summary>Reads form files (spec, Appendix A), driven by the generated component metadata.</summary>
@@ -99,6 +113,8 @@ public static class FormReader
         Form form;
         if (target != null)
         {
+            if (options.FindClass == null && target.GetType().Assembly.IsCollectible)
+                options = options with { PreferredContext = System.Runtime.Loader.AssemblyLoadContext.GetLoadContext(target.GetType().Assembly) };
             if (ClassOf(rootJson) is { } cls && !cls.Type.IsInstanceOfType(target))
                 throw new FormFileException($"The form file's root is a {cls.Name}, but it is being loaded into a {target.GetType().Name}.");
             ReadInto(target, rootJson, warnings, "root", options);
@@ -139,7 +155,7 @@ public static class FormReader
             warnings.Add($"{path}: node has no \"class\"; skipped.");
             return null;
         }
-        if (ComponentRegistry.Find(className) is not { CanCreate: true } cls || options.AcceptClass?.Invoke(cls) == false)
+        if (FindClass(className, options) is not { CanCreate: true } cls || options.AcceptClass?.Invoke(cls) == false)
         {
             if (options.KeepUnknownClasses)
             {
@@ -149,9 +165,37 @@ public static class FormReader
             warnings.Add($"{path}: unknown class \"{className}\"; node and its children skipped.");
             return null;
         }
-        var control = cls.Create();
-        ReadInto(control, node, warnings, path, options);
-        return control;
+        if (!options.KeepUnknownClasses)
+        {
+            var created = cls.Create();
+            ReadInto(created, node, warnings, path, options);
+            return created;
+        }
+        try
+        {
+            var control = cls.Create();
+            ReadInto(control, node, warnings, path, options);
+            return control;
+        }
+        catch (Exception e) when (e is not (OutOfMemoryException or FormFileException))
+        {
+            // The designer: a class whose constructor or a property setter throws at design time (an application's own
+            // control, say) must not stop the form from opening, nor lose the node: it stays as written.
+            var name = node.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() : null;
+            warnings.Add($"{(name is { Length: > 0 } ? name : path)}: {className} threw while it was created " +
+                $"({e.GetType().Name}: {e.Message}); kept as a placeholder (written back unchanged).");
+            return UnknownControl.Read(node, className);
+        }
+    }
+
+    static ComponentClass? FindClass(string className, FormLoadOptions options)
+    {
+        if (options.FindClass != null) return options.FindClass(className);
+        if (options.PreferredContext is { } context)
+            // Never another collectible context's class (the designer's copy of a control): it isn't the live run's type.
+            return ComponentRegistry.Find(className, c => c.CanCreate && System.Runtime.Loader.AssemblyLoadContext.GetLoadContext(c.Type.Assembly) == context)
+                ?? ComponentRegistry.Find(className, c => !c.Type.Assembly.IsCollectible);
+        return ComponentRegistry.Find(className);
     }
 
     /// <summary>Applies a node's name, properties, event handler names and children to a control.</summary>
