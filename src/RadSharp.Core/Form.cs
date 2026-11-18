@@ -42,7 +42,14 @@ public class Form : Control
     public int DesignHeight { get; set; }
 
     /// <summary>The UI scale factor lengths were multiplied by when the form was loaded (or <see cref="ApplyScale"/> was called).</summary>
-    public double Scale { get; set; } = 1;
+    public double Scale
+    {
+        get => _scale;
+        set { _scale = value; _scaleSet = true; }
+    }
+
+    double _scale = 1;
+    bool _scaleSet;   // Scale was given (by hand, as a message box built at DefaultScale does, or by scaling): the form is at it
 
     public Theme Theme { get; set; }
 
@@ -247,7 +254,7 @@ public class Form : Control
     public bool ScaleWithDisplay { get; set; } = true;
 
     /// <summary>True if the host should follow display scale changes for this form (see <see cref="ScaleWithDisplay"/>).</summary>
-    public bool FollowsDisplayScale => ScaleWithDisplay && (_scaleApplied || Scale != 1);
+    public bool FollowsDisplayScale => ScaleWithDisplay && (_scaleApplied || _scaleSet);
 
     /// <summary>Raised when the host reports that the window moved to another display (see <see cref="Display"/>).</summary>
     public event Action<Form>? DisplayChanged;
@@ -305,7 +312,15 @@ public class Form : Control
         if (!_scaleApplied)
         {
             // A form whose Scale was set by hand (built in pixels at that scale, like a message box) is at that scale.
-            if (Scale == 1) { ApplyScale(scale); return; }
+            if (!_scaleSet)
+            {
+                if (scale != 1) CloseAllPopups();   // sized and placed at 100 %
+                ApplyScale(scale);
+                if (scale == 1) return;
+                InvalidateAll();
+                ScaleChanged?.Invoke(this, new ScaleChange(1, scale));
+                return;
+            }
             _scaleApplied = true;
             DesignWidth = DesignWidth > 0 ? DesignWidth : LayoutMath.Round(Width / Scale);
             DesignHeight = DesignHeight > 0 ? DesignHeight : LayoutMath.Round(Height / Scale);
@@ -316,6 +331,7 @@ public class Form : Control
         RescaleTree(change.From, change.To);
         Scale = scale;
         PerformLayout();
+        ResolveRescaledCaptures();   // controls the layout skipped (invisible) keep the parent size they have now
         InvalidateAll();
         ScaleChanged?.Invoke(this, change);
     }

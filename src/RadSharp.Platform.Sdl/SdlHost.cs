@@ -569,6 +569,7 @@ internal sealed unsafe class FormWindow : IDisposable
     void SyncWindowProperties()
     {
         SyncScaleToDisplay();
+        if (_disposed) return;
         ApplyMinSize();
         ApplyWindowState();
         if (_form.IsUserResizable != _appliedResizable)
@@ -664,6 +665,7 @@ internal sealed unsafe class FormWindow : IDisposable
         if (Math.Abs(scale - _form.Scale) < 1e-6) return false;
         bool normal = IsNormalState();
         _form.ChangeScale(scale);
+        if (_disposed) return true;   // a ScaleChanged handler closed the form: the window is gone
         if (normal && _logicalW > 0 && _logicalH > 0)
         {
             int wantW = Math.Max(1, (int)Math.Round(_logicalW * scale)), wantH = Math.Max(1, (int)Math.Round(_logicalH * scale));
@@ -696,6 +698,7 @@ internal sealed unsafe class FormWindow : IDisposable
         _logicalH = bounds.Height / scale;
         if (!SyncScaleToDisplay())
             SDL_SetWindowSize(_window, (int)MathF.Round(bounds.Width / density), (int)MathF.Round(bounds.Height / density));
+        if (_disposed) return;
         SyncSizeToWindow();
         RecordRestoredBounds();
         // Maximise (or go full screen) again, now on the new display. The RESTORED event queued above is read after
@@ -840,10 +843,13 @@ internal sealed unsafe class FormWindow : IDisposable
     /// <summary>Advances the form's clock and keeps the IME candidate window next to the caret.</summary>
     public void Tick(ulong nowMs)
     {
+        if (_disposed) return;   // closed by another window's tick earlier in this loop iteration
         Guard.Run(() =>
         {
             SyncWindowProperties();
+            if (_disposed) return;
             _form.ProcessTick(nowMs);
+            if (_disposed) return;   // a timer closed the form
             var area = _form.TextInputArea;
             if (area == _textInputArea) return;
             _textInputArea = area;
