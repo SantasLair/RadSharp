@@ -120,7 +120,7 @@ NativeAOT; save → load → save is byte-identical.
   - `FormGenerator`: `X.radform.json` → `partial class X` with typed `internal` fields, `DesignedClassName` and
     `InitializeComponent()` (streams the embedded file in, binds handlers with `+=`). Diagnostics point into the JSON
     file: RAD1000 invalid file, **RAD1001 missing handler (error, with the stub signature)**, RAD1002 unknown class,
-    RAD1003 unknown event, RAD1004 invalid name, RAD1005 duplicate name.
+    RAD1003 unknown event, RAD1004 invalid name, RAD1005 duplicate name, RAD1006 control name hides an inherited member of the form.
 - The hand-written `ReadProperty` overrides are gone; `FormReader` and the new deterministic `FormWriter` are driven
   by the metadata. Serialization vectors live in `spec/vectors/serialization/` (canonical files must round-trip
   byte for byte; `*.input.json` must normalize to their canonical file).

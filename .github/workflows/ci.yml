@@ -50,10 +50,7 @@ jobs:
         with:
           global-json-file: global.json
       - name: Pack
-        run: |
-          dotnet pack src/RadSharp.Core --configuration Release
-          dotnet pack src/RadSharp.Platform.Sdl --configuration Release
-          dotnet pack templates/RadSharp.Templates.csproj --configuration Release
+        run: sh ./pack.sh
       - uses: actions/upload-artifact@v4
         with:
           name: packages

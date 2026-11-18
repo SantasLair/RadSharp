@@ -22,8 +22,8 @@ public class CodeIntegrationTests
     public void Handler_stubs_are_inserted_once_with_matching_indentation()
     {
         var (source, line) = CodeIntegration.EnsureHandler(Code, "MainForm", "btnSave_Click", "Control sender");
-        Assert.Contains("    void btnSave_Click(Control sender)\n    {\n        \n    }\n}", source.Replace("\r\n", "\n"));
-        Assert.Equal("        ", source.Replace("\r\n", "\n").Split('\n')[line - 1]);   // the caret line is the empty body
+        Assert.Contains("    void btnSave_Click(Control sender)\n    {\n\n    }\n}", source.Replace("\r\n", "\n"));
+        Assert.Equal("", source.Replace("\r\n", "\n").Split('\n')[line - 1]);   // the caret line is the empty body
 
         var (again, line2) = CodeIntegration.EnsureHandler(source, "MainForm", "btnSave_Click", "Control sender");
         Assert.Equal(source, again);
@@ -31,6 +31,19 @@ public class CodeIntegrationTests
 
         var (paint, _) = CodeIntegration.EnsureHandler(Code, "MainForm", "pbx_Paint", "Control sender, Canvas canvas");
         Assert.Contains("using RadSharp.Drawing;", paint);
+    }
+
+    [Fact]
+    public void Stubs_use_the_files_dominant_newline_and_have_a_clean_empty_body()
+    {
+        var crlf = Code.Replace("\r\n", "\n").Replace("\n", "\r\n");
+        var (source, line) = CodeIntegration.EnsureHandler(crlf, "MainForm", "pbx_Paint", "Control sender, Canvas canvas");
+        Assert.DoesNotMatch("(?<!\r)\n", source);   // no bare \n anywhere, usings included
+        Assert.Equal("", source.Split("\r\n")[line - 1]);   // the caret line: empty body, no trailing spaces
+        Assert.Contains("using RadSharp.Drawing;\r\n", source);
+
+        var (lf, _) = CodeIntegration.EnsureHandler(Code.Replace("\r\n", "\n"), "MainForm", "x_Click", "Control sender");
+        Assert.DoesNotContain("\r", lf);
     }
 
     [Fact]
@@ -135,5 +148,22 @@ public class CodeIntegrationTests
             new Dictionary<string, string> { ["NUGET_PACKAGES"] = Path.Combine(TempDir(), "nuget") });
         Assert.True(exit == 0, string.Join("\n", log.TakeLast(30)));
         Assert.True(File.Exists(Path.Combine(output!, OperatingSystem.IsWindows() ? "BuiltApp.exe" : "BuiltApp")));
+    }
+
+    [Fact]
+    public void New_application_writes_the_package_folder_into_nuget_config_relative_to_the_project()
+    {
+        var root = TempDir();
+        var packages = Path.Combine(root, "artifacts", "packages");
+        Directory.CreateDirectory(packages);
+        var project = RadProject.Create(Path.Combine(root, "apps", "Rel"), "Rel", packageSource: packages);
+        var config = System.Xml.Linq.XDocument.Load(Path.Combine(project.Directory, "nuget.config"));
+        var value = config.Descendants("add").Single(a => (string?)a.Attribute("key") == "radsharp-local").Attribute("value")!.Value;
+        Assert.Equal("../../artifacts/packages", value);
+        Assert.Equal(Path.GetFullPath(packages), Path.GetFullPath(Path.Combine(project.Directory, value)));
+
+        // A URL feed is kept as given.
+        var web = RadProject.Create(Path.Combine(root, "apps", "Web"), "Web", packageSource: "https://example.com/v3/index.json");
+        Assert.Contains("value=\"https://example.com/v3/index.json\"", File.ReadAllText(Path.Combine(web.Directory, "nuget.config")));
     }
 }

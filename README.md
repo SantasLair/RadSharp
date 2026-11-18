@@ -92,11 +92,12 @@ dotnet run --project src/RadSharp.Designer    # the designer
 dotnet run --project samples/TileEditor       # a sample app
 dotnet run --project samples/ControlsDemo     # ListView, TreeView, list controls and DrawGrid
 dotnet run --project samples/GridDemo         # a 100 000-row virtual StringGrid
-dotnet run --project samples/WindowsDemo      # displays, per-monitor scale, placement, window styles, Alt keys
+dotnet run --project samples/WindowsDemo      # monitors, per-monitor scale, placement, window styles, Alt keys
 dotnet test                                   # the test suite
 ```
 
-To start your own app, follow [docs/getting-started.md](docs/getting-started.md). It packs the
+To start your own app, follow [docs/getting-started.md](docs/getting-started.md). Build the local packages with
+`./pack.ps1` or `./pack.sh` (one version for every package), not `dotnet pack` per project. The guide packs the
 [`templates/`](templates) project, installs it, and creates a new app with `dotnet new radsharp-app -n MyApp`.
 
 ## The Visual Studio designer

@@ -45,6 +45,9 @@ public sealed class FormGenerator : IIncrementalGenerator
     internal static readonly DiagnosticDescriptor BadName = Rule("RAD1004", "Invalid control or handler name", "'{0}' is not a valid C# identifier", DiagnosticSeverity.Error);
     internal static readonly DiagnosticDescriptor DuplicateName = Rule("RAD1005", "Duplicate control name", "The control name '{0}' is used more than once in this form", DiagnosticSeverity.Error);
 
+    internal static readonly DiagnosticDescriptor HidesMember = Rule("RAD1006", "Control name hides an inherited member",
+        "Control name '{0}' hides the inherited member '{1}'; rename the control.", DiagnosticSeverity.Error);
+
     sealed class Binding(string target, string clrEvent, string handler) { public string Target = target, ClrEvent = clrEvent, Handler = handler; }
 
     static void Generate(SourceProductionContext spc, string path, string text, Compilation compilation, string rootNamespace)
@@ -85,6 +88,13 @@ public sealed class FormGenerator : IIncrementalGenerator
             ? (userClass.ContainingNamespace.IsGlobalNamespace ? "" : userClass.ContainingNamespace.ToDisplayString())
             : rootNamespace;
 
+        // The members a field named like a control would hide: those of the class the form derives from (the user's own
+        // base class if the class declares one, otherwise the root class of the form file).
+        var baseType = userClass?.BaseType is { SpecialType: not SpecialType.System_Object } declared ? declared : null;
+        var rootClass = ResolveBase(compilation, root);
+        var hideFrom = baseType ?? rootClass;
+        string? Hidden(string name) => hideFrom == null ? null : FindInheritedMember(compilation, hideFrom, name);
+
         var fields = new List<(string Name, string Type, string Init)>();
         var bindings = new List<Binding>();
         var names = new HashSet<string>(StringComparer.Ordinal);
@@ -112,6 +122,8 @@ public sealed class FormGenerator : IIncrementalGenerator
                     spc.ReportDiagnostic(Diagnostic.Create(BadName, At(nameNode!.Line, nameNode.Column), name));
                 else if (!names.Add(name!))
                     spc.ReportDiagnostic(Diagnostic.Create(DuplicateName, At(nameNode!.Line, nameNode.Column), name));
+                else if (Hidden(name!) is { } hidden)
+                    spc.ReportDiagnostic(Diagnostic.Create(HidesMember, At(nameNode!.Line, nameNode.Column), name, hidden));
                 else
                 {
                     var t = type?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "global::RadSharp.Control";
@@ -149,6 +161,7 @@ public sealed class FormGenerator : IIncrementalGenerator
                 {
                     if (!SyntaxFacts.IsValidIdentifier(n)) spc.ReportDiagnostic(Diagnostic.Create(BadName, At(itemName.Line, itemName.Column), n));
                     else if (!names.Add(n)) spc.ReportDiagnostic(Diagnostic.Create(DuplicateName, At(itemName.Line, itemName.Column), n));
+                    else if (Hidden(n) is { } hidden) spc.ReportDiagnostic(Diagnostic.Create(HidesMember, At(itemName.Line, itemName.Column), n, hidden));
                     else { fields.Add((n, "global::RadSharp.MenuItem", path)); target = n; }
                 }
                 var caption = item["caption"]?.String ?? "item";
@@ -188,6 +201,40 @@ public sealed class FormGenerator : IIncrementalGenerator
         spc.AddSource($"{className}.Form.g.cs", Emit(ns, className,
             rootType?.ToDisplayString(SymbolDisplayFormat.FullyQualifiedFormat) ?? "global::RadSharp.Form",
             rootClassName, fileName, fields, bindings, libraries.Values.OrderBy(v => v, StringComparer.Ordinal).ToList()));
+    }
+
+    /// <summary>The class the form file's root names (what the generated half derives from), or null if unknown.</summary>
+    static INamedTypeSymbol? ResolveBase(Compilation compilation, JsonNode root)
+    {
+        var name = root["class"] is { Kind: JsonKind.String } c ? c.String! : "Form";
+        return compilation.GetTypeByMetadataName("RadSharp." + name)
+            ?? compilation.GetSymbolsWithName(name, SymbolFilter.Type).OfType<INamedTypeSymbol>().FirstOrDefault(MetadataGenerator.IsControl)
+            ?? compilation.GetTypeByMetadataName("RadSharp.Form");
+    }
+
+    /// <summary>
+    /// "Type.Member" for the first member called <paramref name="name"/> up <paramref name="type"/>'s base chain that code in
+    /// this assembly can see (public, protected, or internal within reach): a field of that name would hide it. Property
+    /// accessors and constructors are not counted.
+    /// </summary>
+    internal static string? FindInheritedMember(Compilation compilation, INamedTypeSymbol type, string name)
+    {
+        for (var t = type; t != null; t = t.BaseType)
+        {
+            foreach (var m in t.GetMembers(name))
+            {
+                if (m is IMethodSymbol { MethodKind: not MethodKind.Ordinary and not MethodKind.UserDefinedOperator }) continue;
+                if (m.IsImplicitlyDeclared) continue;
+                bool visible = m.DeclaredAccessibility switch
+                {
+                    Accessibility.Public or Accessibility.Protected or Accessibility.ProtectedOrInternal => true,
+                    Accessibility.Internal or Accessibility.ProtectedAndInternal => compilation.IsSymbolAccessibleWithin(m, compilation.Assembly),
+                    _ => false,
+                };
+                if (visible) return $"{t.Name}.{m.Name}";
+            }
+        }
+        return null;
     }
 
     static bool IsEventKey(string key) => key.Length >= 3 && key.StartsWith("on", StringComparison.Ordinal) && char.IsUpper(key[2]);

@@ -1,52 +1,52 @@
 namespace RadSharp;
 
 /// <summary>
-/// The displays (monitors) the platform host reports (Delphi's <c>Screen.Monitors</c>). Coordinates are screen
+/// The monitors the platform host reports (Delphi's <c>Screen.Monitors</c>). Coordinates are screen
 /// coordinates in the host's window units, the units of <see cref="Form.RestoredBounds"/> (on Windows: pixels).
-/// Without a host, or with one that can't tell, there are no displays.
+/// Without a host, or with one that can't tell, there are no monitors.
 /// </summary>
 public static class Screen
 {
-    /// <summary>The displays attached now, the primary one first.</summary>
-    public static IReadOnlyList<Display> Displays => PlatformHost.Current?.GetDisplays() ?? [];
+    /// <summary>The monitors attached now, the primary one first.</summary>
+    public static IReadOnlyList<MonitorInfo> Monitors => PlatformHost.Current?.GetMonitors() ?? [];
 
-    /// <summary>The primary display, or null if the host reports none.</summary>
-    public static Display? Primary => Primary_(Displays);
+    /// <summary>The primary monitor, or null if the host reports none.</summary>
+    public static MonitorInfo? Primary => Primary_(Monitors);
 
-    /// <summary>The display containing the screen point (<paramref name="x"/>, <paramref name="y"/>), or null if none does.</summary>
-    public static Display? FromPoint(int x, int y)
+    /// <summary>The monitor containing the screen point (<paramref name="x"/>, <paramref name="y"/>), or null if none does.</summary>
+    public static MonitorInfo? FromPoint(int x, int y)
     {
-        foreach (var d in Displays)
+        foreach (var d in Monitors)
             if (Contains(d.Bounds, x, y)) return d;
         return null;
     }
 
-    /// <summary>The display with the largest part of <paramref name="rect"/>; the one nearest to it if none overlaps; null if there are none.</summary>
-    public static Display? FromRect(Rect rect) => Nearest(Displays, rect);
+    /// <summary>The monitor with the largest part of <paramref name="rect"/>; the one nearest to it if none overlaps; null if there are none.</summary>
+    public static MonitorInfo? FromRect(Rect rect) => Nearest(Monitors, rect);
 
-    /// <summary>Like <see cref="FromRect"/>, among <paramref name="displays"/> (for hosts and tests).</summary>
-    public static Display? FromRectIn(IReadOnlyList<Display> displays, Rect rect) => Nearest(displays, rect);
+    /// <summary>Like <see cref="FromRect"/>, among <paramref name="monitors"/> (for hosts and tests).</summary>
+    public static MonitorInfo? FromRectIn(IReadOnlyList<MonitorInfo> monitors, Rect rect) => Nearest(monitors, rect);
 
-    /// <summary>The display with this <see cref="Display.Id"/> (valid while the application runs), or null.</summary>
-    public static Display? FromId(uint id) => Displays.FirstOrDefault(d => d.Id == id);
+    /// <summary>The monitor with this <see cref="MonitorInfo.Id"/> (valid while the application runs), or null.</summary>
+    public static MonitorInfo? FromId(uint id) => Monitors.FirstOrDefault(d => d.Id == id);
 
-    internal static Display? Primary_(IReadOnlyList<Display> displays) =>
-        displays.FirstOrDefault(d => d.IsPrimary) ?? (displays.Count > 0 ? displays[0] : null);
+    internal static MonitorInfo? Primary_(IReadOnlyList<MonitorInfo> monitors) =>
+        monitors.FirstOrDefault(d => d.IsPrimary) ?? (monitors.Count > 0 ? monitors[0] : null);
 
-    internal static Display? Nearest(IReadOnlyList<Display> displays, Rect rect)
+    internal static MonitorInfo? Nearest(IReadOnlyList<MonitorInfo> monitors, Rect rect)
     {
-        Display? best = null;
+        MonitorInfo? best = null;
         long bestArea = 0;
-        foreach (var d in displays)
+        foreach (var d in monitors)
         {
             long area = OverlapArea(d.Bounds, rect);
             if (area > bestArea) { best = d; bestArea = area; }
         }
         if (best != null) return best;
-        // Nothing overlaps: the display whose rect is closest to the rect's centre.
+        // Nothing overlaps: the monitor whose rect is closest to the rect's centre.
         int cx = rect.X + rect.Width / 2, cy = rect.Y + rect.Height / 2;
         long bestDist = long.MaxValue;
-        foreach (var d in displays)
+        foreach (var d in monitors)
         {
             long dx = Math.Max(0, Math.Max(d.Bounds.X - cx, cx - (d.Bounds.X + d.Bounds.Width)));
             long dy = Math.Max(0, Math.Max(d.Bounds.Y - cy, cy - (d.Bounds.Y + d.Bounds.Height)));
@@ -63,7 +63,7 @@ public static class Screen
         return w > 0 && h > 0 ? w * h : 0;
     }
 
-    internal static bool OverlapAreaAny(IReadOnlyList<Display> displays, Rect rect) => displays.Any(d => OverlapArea(d.Bounds, rect) > 0);
+    internal static bool OverlapAreaAny(IReadOnlyList<MonitorInfo> monitors, Rect rect) => monitors.Any(d => OverlapArea(d.Bounds, rect) > 0);
 
     static bool Contains(Rect r, int x, int y) => x >= r.X && y >= r.Y && x < r.X + r.Width && y < r.Y + r.Height;
 

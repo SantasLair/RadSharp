@@ -329,11 +329,17 @@ findings with failing tests), merged on branch `m13`.
   (closes every form through CloseQuery: modal forms first, the main form last); `SdlHost.Run` returns the exit code.
 - **Item 6:** `PointerKind` (mouse/touch/pen) on mouse events, from SDL's touch and pen mouse ids.
 - Also fixed on the way: closing a form from a `Timer` crashed in the SDL renderer.
-- **Done-when:** a form starts maximized on a chosen monitor (`StartDisplay` + `WindowState`), remembers its placement
+- **Done-when:** a form starts maximized on a chosen monitor (`StartMonitor` + `WindowState`), remembers its placement
   (`WindowPlacement.Remember`), survives being dragged between monitors of different scale (checked by hand by the
   user in `samples/WindowsDemo` on a 200 % and a 100 % display, 2026-11-17), opens dialogs centred on their owner,
   activates buttons with Alt+letter, and accepts a dropped file (2026-09-28). Tests: 89 new in `RadSharp.Core.Tests`
   (both tracks and their reviews); full suite 846 with the `itemIndex` fix.
+- **2026-11-17, API renamed** (unreleased, no shims) to Delphi's monitor names: `Display` -> `MonitorInfo`,
+  `Screen.Displays` -> `Screen.Monitors`, `Form.Display`/`StartDisplay`/`MoveToDisplay`/`DisplayChanged`/
+  `ScaleWithDisplay` -> `Form.Monitor`/`StartMonitor`/`MoveToMonitor`/`MonitorChanged`/`ScaleWithMonitor`,
+  `IPlatformServices.GetDisplays`/`GetDisplayOf` -> `GetMonitors`/`GetMonitorOf`; `WindowPlacement` writes `monitor`/
+  `monitorBounds` and still reads `display`/`displayBounds`. The text above is as written at the time. New generator
+  error RAD1006: a control named like an inherited form member (such as `Monitor`) is refused.
 - Left: the form's own `Left`/`Top` are scaled with everything else, which a Manual-positioned form re-shown after a
   scale change can notice; Edit/Memo text scroll offsets stay in pixels until the next caret move; Linux and macOS
   not checked by hand; real touch and pen input untested.
@@ -442,6 +448,17 @@ controls don't need yet.
 
 **M14 status:** items 1–6 done; item 7 (DateTimePicker, Calendar, MaskEdit) deferred to the reference app as the plan says. Done-when met: see `GridTests` (100 000-row virtual grid) and `RowViewSuiteTests`.
 
+**Status (2026-11-17): item 7, as the reference app decided.** The reference-app study (`docs/reference-app-scope.md`)
+put `DateTimePicker` + `Calendar` (date only) in 1.0 and MaskEdit out. `Calendar` (Delphi's TMonthCalendar, light): month
+grid, today marked, `MinDate`/`MaxDate`, first day of week from the culture or chosen, keyboard (arrows, PageUp/Down,
+Ctrl+PageUp/Down, Home/End, Enter/Space), mouse and wheel, `onChange`/`onDateClick`. `DateTimePicker`: segment editing
+like Windows, a drop-down `Calendar` in the popup layer (F4/Alt+Down or the button), optional `Format`,
+`ShowCheckbox`/`Checked` for "no date" (`Value` is null), `MinDate`/`MaxDate`. Text is always Gregorian, also for
+cultures whose default calendar isn't (Thai Buddhist, Hijri: a review found a mis-typed year and a crash there). Form
+format: new property type `date` (ISO string, nullable variant), vector `dates`; approved by the user. Goldens `dates`,
+`dates-open` at 100 %/150 %; ControlsDemo has a Dates tab; NativeAOT publish warning-free. Not in 1.0: time of day,
+ranges, non-Gregorian display, MaskEdit.
+
 **Status (2026-11-17): a saved `itemIndex` now loads.** `ListBox`, `CheckListBox` and `ComboBox` lost a saved `itemIndex`,
 because the writer puts it before `items` and the reader clamped it against an empty list; `PageControl.activePageIndex`
 was lost the same way (its pages are children, read after it). Fixed in the reader without a format change: new
@@ -508,6 +525,24 @@ under NativeAOT.
   updated entry above) — §3.7 is fully closed, not "all but" as this bullet said when first written.
 - **Debugging story:** make F5-in-the-IDE the documented way, add a launch profile to created projects, and write the
   "attach to the live run" instructions; a VS Code extension is post-1.0.
+
+**Status (2026-11-17): the designer items the reference app needs.** The 1.0 cut (from `docs/reference-app-scope.md`,
+approved by the user) keeps from M16: menu-editor fields, F9 with the project's dependencies, the debugging story, and
+project controls on the palette; it drops FlowPanel/GridPanel, AutoSize, zoom, in-place PageControl editing and the
+generic collection editor (the bespoke Columns/Nodes/Menu editors stay). Done on branch `m16-designer`:
+- Menu editor: an Alt shortcut field and a Separator button (typing `-` as a caption also makes one); a handler typed
+  into onClick gets its `(MenuItem sender)` stub when the editor closes, and double-clicking an item proposes
+  `<name>_Click`, writes the stub and opens it.
+- An event name typed into an Object Inspector Events row gets its stub quietly (shared handlers are left alone).
+  Stubs and usings use the file's own newline.
+- File › New Form asks for and validates the class name (identifier, not a keyword or a name that can't be a class,
+  not a RadSharp type, no clash with project forms, files or types); Project › Rename Form renames files, class and
+  every textual reference (case-only renames work; a failure rolls everything back).
+- Debugging: New Application writes `.vscode/launch.json`, `.vscode/tasks.json` and `Properties/launchSettings.json`
+  so F5 debugs in VS Code and Visual Studio; `docs/debugging.md`.
+- New Application writes a relative package path into `nuget.config`; `pack.ps1`/`pack.sh` pack every package with one
+  version (CI uses it).
+Most of these were found by building the reference app; each came with a failing test first.
 
 **Done when:** a localized form that grows with its text lays out correctly in the flow/grid panels at 100 % and
 150 %; the designer's alignment tools are covered by a scripted-rebuild test like `RebuildTileEditorTests`; the
