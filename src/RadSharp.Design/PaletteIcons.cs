@@ -136,6 +136,23 @@ public static class PaletteIcons
             k.Line(10.5f, 5, 10.5f, 11, k.P.Fill2);
             k.Polyline(k.P.Accent, 1.4f, 11.3f, 7.2f, 12.5f, 8.6f, 13.7f, 7.2f);
         },
+        ["Calendar"] = k =>
+        {
+            k.Box(1.5f, 1.5f, 13, 13, k.P.Fill, k.P.Outline, 1);
+            k.Box(2, 2, 12, 3, k.P.Accent, null);
+            k.Line(4, 7.5f, 12, 7.5f, k.P.Faint);
+            k.Line(4, 9.5f, 12, 9.5f, k.P.Faint);
+            k.Line(4, 11.5f, 12, 11.5f, k.P.Faint);
+            k.Box(8.5f, 8.5f, 2.5f, 2, k.P.Accent, null, 0.5f);
+        },
+        ["DateTimePicker"] = k =>
+        {
+            k.Box(1.5f, 4.5f, 13, 7, k.P.Fill, k.P.Outline, 1);
+            k.Line(3.5f, 8, 5, 8, k.P.Faint, 1.5f);
+            k.Line(6, 8, 7.5f, 8, k.P.Faint, 1.5f);
+            k.Line(10.5f, 5, 10.5f, 11, k.P.Fill2);
+            k.Polyline(k.P.Accent, 1.4f, 11.3f, 7.2f, 12.5f, 8.6f, 13.7f, 7.2f);
+        },
         ["ColorBox"] = k =>
         {
             k.Box(1.5f, 4.5f, 13, 7, k.P.Fill, k.P.Outline, 1);
