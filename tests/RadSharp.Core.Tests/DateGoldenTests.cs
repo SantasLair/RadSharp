@@ -7,14 +7,38 @@ namespace RadSharp.Tests;
 
 /// <summary>
 /// Calendar and DateTimePicker rendered headlessly and compared with stored PNGs in Golden/ (RADSHARP_UPDATE_GOLDEN=1 rewrites
-/// them). Today is fixed at 2026-11-17 and the culture at en-US, so the images don't depend on the machine.
+/// them). Today is fixed at 2026-11-17 and the culture is en-US with its names and patterns pinned, so the images don't depend on the machine or the platform's culture data.
 /// </summary>
 [Collection("Clipboard")]
 public class DateGoldenTests
 {
     static readonly string OutputGoldenDir = Path.Combine(AppContext.BaseDirectory, "Golden");
     static readonly DateOnly Today = new(2026, 11, 17);
-    static readonly CultureInfo US = CultureInfo.GetCultureInfo("en-US");
+    static readonly CultureInfo US = Pinned();
+
+    /// <summary>
+    /// en-US with every name and pattern the controls draw set explicitly: culture data differs between platforms (Windows'
+    /// shortest day names are "S M T", ICU's on Linux and macOS "Su Mo Tu"), and a golden image must not depend on it.
+    /// </summary>
+    static CultureInfo Pinned()
+    {
+        var c = (CultureInfo)CultureInfo.GetCultureInfo("en-US").Clone();
+        var f = c.DateTimeFormat;
+        f.DayNames = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
+        f.AbbreviatedDayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+        f.ShortestDayNames = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+        f.MonthNames = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December", ""];
+        f.AbbreviatedMonthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec", ""];
+        f.MonthGenitiveNames = f.MonthNames;
+        f.AbbreviatedMonthGenitiveNames = f.AbbreviatedMonthNames;
+        f.DateSeparator = "/";
+        f.ShortDatePattern = "M/d/yyyy";
+        f.LongDatePattern = "dddd, MMMM d, yyyy";
+        f.YearMonthPattern = "MMMM yyyy";
+        f.FirstDayOfWeek = DayOfWeek.Sunday;
+        f.Calendar.TwoDigitYearMax = 2049;
+        return c;
+    }
 
     static Form NewForm(string caption, int width, int height)
     {
