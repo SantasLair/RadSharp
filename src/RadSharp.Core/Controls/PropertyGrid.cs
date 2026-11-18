@@ -14,6 +14,7 @@ public enum PropertyGridArrangement { Declared, Alphabetical, Categorized }
 
 public delegate void PropertyChangedEvent(PropertyGrid sender, string propertyName);
 public delegate void EventRowEvent(PropertyGrid sender, EventMeta ev);
+public delegate void CollectionRowEvent(PropertyGrid sender, Control target, string name);
 
 /// <summary>
 /// The Object Inspector: lists a control's published properties (or events) from the generated
@@ -23,7 +24,7 @@ public delegate void EventRowEvent(PropertyGrid sender, EventMeta ev);
 public class PropertyGrid : Control
 {
     IReadOnlyList<Control> _targets = [];
-    readonly List<(string Name, PropertyMeta? Prop, EventMeta? Event, bool IsHeader, Anchors? Flag)> _rows = [];
+    readonly List<(string Name, PropertyMeta? Prop, EventMeta? Event, bool IsHeader, Anchors? Flag, bool IsCollection)> _rows = [];
     readonly HashSet<string> _expandedAnchors = [];
     int _selected = -1, _top;
     PropertyGridMode _mode;
@@ -67,6 +68,11 @@ public class PropertyGrid : Control
     public event PropertyChangedEvent? PropertyChanged;
     /// <summary>Raised when an event row is double-clicked (the designer creates the handler).</summary>
     public event EventRowEvent? EventDoubleClick;
+    /// <summary>
+    /// Raised when the row of a collection (<see cref="ICollectionOwner"/>, e.g. a grid's columns) is activated: a click on
+    /// the selected row's value, Enter or F2. The host opens its editor; the grid shows nothing for these rows otherwise.
+    /// </summary>
+    public event CollectionRowEvent? CollectionEditRequested;
 
     /// <summary>The control being inspected; null when there is none or more than one (see <see cref="Targets"/>).</summary>
     public Control? Target
@@ -105,11 +111,15 @@ public class PropertyGrid : Control
     /// </summary>
     public bool IsAnchorFlag(int i) => _rows[i].Flag != null;
 
+    /// <summary>True if row <paramref name="i"/> is a collection (<see cref="ICollectionOwner"/>) opened in an editor, not typed into.</summary>
+    public bool IsCollection(int i) => _rows[i].IsCollection;
+
     /// <summary>The value text shown in row <paramref name="i"/>: blank if the targets' values differ.</summary>
     public string RowValue(int i)
     {
-        var (_, prop, ev, isHeader, flag) = _rows[i];
+        var (name, prop, ev, isHeader, flag, isCollection) = _rows[i];
         if (_targets.Count == 0 || isHeader) return "";
+        if (isCollection) return _targets.Count == 1 && _targets[0] is ICollectionOwner owner ? owner.DescribeCollection(name) : "";
         if (flag is { } f) return Common(_targets.Select(t => ((Anchors)prop!.GetValue(t)!).HasFlag(f) ? "true" : "false"));
         if (ev != null) return Common(_targets.Select(t => t.EventHandlers.GetValueOrDefault(ev.Name, "")));
         if (prop!.Type == PropertyType.Strings)
@@ -152,21 +162,23 @@ public class PropertyGrid : Control
                 ? controlClass.OwnProperties.Select(p => p.Name).Concat(controlClass.OwnEvents.Select(e => e.Name)).ToHashSet()
                 : [];
 
-            List<(string Name, PropertyMeta? Prop, EventMeta? Event, string Category)> items = [];
+            List<(string Name, PropertyMeta? Prop, EventMeta? Event, string Category, bool IsCollection)> items = [];
             if (_mode == PropertyGridMode.Properties)
             {
                 foreach (var p in classes[0].Properties)
                 {
                     bool excluded = hiddenNames.Contains(p.Name) && classes.All(c => c.FindProperty(p.Name) == controlClass.FindProperty(p.Name));
                     if (!excluded && classes.All(c => c.FindProperty(p.Name) is { } q && q.Type == p.Type))
-                        items.Add((p.Name, p, null, string.IsNullOrEmpty(p.Category) ? MiscCategory : p.Category));
+                        items.Add((p.Name, p, null, string.IsNullOrEmpty(p.Category) ? MiscCategory : p.Category, false));
                 }
+                if (_targets.Count == 1 && _targets[0] is ICollectionOwner collections)
+                    foreach (var name in collections.CollectionNames) items.Add((name, null, null, "Behavior", true));
             }
             else
             {
                 foreach (var e in classes[0].Events)
                     if (!hiddenNames.Contains(e.Name) && classes.All(c => c.FindEvent(e.Name) != null))
-                        items.Add((e.Name, null, e, MiscCategory));
+                        items.Add((e.Name, null, e, MiscCategory, false));
             }
             if (_filter.Length > 0) items = [.. items.Where(r => r.Name.Contains(_filter, StringComparison.OrdinalIgnoreCase))];
 
@@ -176,7 +188,7 @@ public class PropertyGrid : Control
             {
                 foreach (var group in items.GroupBy(r => r.Category).OrderBy(g => g.Key, StringComparer.Ordinal))
                 {
-                    _rows.Add((group.Key, null, null, true, null));
+                    _rows.Add((group.Key, null, null, true, null, false));
                     foreach (var r in group.OrderBy(r => r.Name, StringComparer.Ordinal)) AddRow(r);
                 }
             }
@@ -196,12 +208,12 @@ public class PropertyGrid : Control
         [(Anchors.Left, "left"), (Anchors.Top, "top"), (Anchors.Right, "right"), (Anchors.Bottom, "bottom")];
 
     /// <summary>Adds one row for <paramref name="item"/>, plus its four flag rows if it's an expanded Anchors property.</summary>
-    void AddRow((string Name, PropertyMeta? Prop, EventMeta? Event, string Category) item)
+    void AddRow((string Name, PropertyMeta? Prop, EventMeta? Event, string Category, bool IsCollection) item)
     {
-        _rows.Add((item.Name, item.Prop, item.Event, false, null));
+        _rows.Add((item.Name, item.Prop, item.Event, false, null, item.IsCollection));
         if (item.Prop is { Type: PropertyType.Anchors } && _expandedAnchors.Contains(item.Name))
             foreach (var (flag, suffix) in AnchorFlags)
-                _rows.Add(($"{item.Name}.{suffix}", item.Prop, null, false, flag));
+                _rows.Add(($"{item.Name}.{suffix}", item.Prop, null, false, flag, false));
     }
 
     /// <summary>Expands or collapses an Anchors property's flag rows (its disclosure arrow was clicked).</summary>
@@ -262,7 +274,13 @@ public class PropertyGrid : Control
         if (_targets.Count == 0 || i < 0 || i >= _rows.Count || _rows[i].IsHeader || OwningForm is not { } form) return;
         EndEdit(commit: true);
         SelectedIndex = i;
-        var (_, prop, ev, _, flag) = _rows[i];
+        var (collectionName, prop, ev, _, flag, isCollection) = _rows[i];
+        if (isCollection)
+        {
+            if (_targets.Count == 1) CollectionEditRequested?.Invoke(this, _targets[0], collectionName);
+            Invalidate();
+            return;
+        }
         var cell = ValueRect(i);
         int x = AbsoluteLeft + cell.X, y = AbsoluteTop + cell.Y;
 
@@ -341,7 +359,8 @@ public class PropertyGrid : Control
     public bool Apply(int i, string text)
     {
         if (_targets.Count == 0 || i < 0 || i >= _rows.Count || _rows[i].IsHeader) return false;
-        var (name, prop, ev, _, flag) = _rows[i];
+        var (name, prop, ev, _, flag, isCollection) = _rows[i];
+        if (isCollection) return false;
         if (flag is { } f)
         {
             if (!bool.TryParse(text.Trim(), out var on)) return false;

@@ -28,6 +28,9 @@ public partial class Control
     public string Name { get; set; } = "";
     public Control? Parent { get; private set; }
     public IReadOnlyList<Control> Children => _children;
+
+    /// <summary>A child a control adds for its own use while it runs (a grid's in-place editor): never written to a form file.</summary>
+    internal bool IsTransient { get; set; }
     public Control Root => Parent?.Root ?? this;
 
     /// <summary>Event handler names by event property (<c>"onClick" → "btnSave_Click"</c>).</summary>

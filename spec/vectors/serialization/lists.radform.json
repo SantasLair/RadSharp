@@ -1,0 +1,54 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmLists",
+    "height": 200,
+    "width": 520,
+    "children": [
+      {
+        "class": "ListBox",
+        "name": "lstSingle",
+        "items": [
+          "Alpha",
+          "Beta",
+          "Gamma"
+        ],
+        "left": 10,
+        "top": 10,
+        "width": 150
+      },
+      {
+        "class": "ListBox",
+        "name": "lstExtended",
+        "items": [
+          "Alpha",
+          "Beta",
+          "Gamma"
+        ],
+        "left": 180,
+        "multiSelect": true,
+        "top": 10,
+        "width": 150
+      },
+      {
+        "class": "ListBox",
+        "name": "lstToggle",
+        "borderStyle": "none",
+        "color": "#FFFFE0",
+        "extendedSelect": false,
+        "itemHeight": 20,
+        "items": [
+          "Alpha",
+          "Beta"
+        ],
+        "left": 350,
+        "multiSelect": true,
+        "top": 10,
+        "width": 150
+      }
+    ]
+  }
+}

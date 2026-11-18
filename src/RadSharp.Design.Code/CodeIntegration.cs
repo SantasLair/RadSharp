@@ -79,8 +79,8 @@ public static class CodeIntegration
     }
 
     /// <summary>
-    /// The event a double-click on a control opens (Delphi's "default event"): onChange for editors and
-    /// lists, otherwise onClick, then onTimer, onPaint, onShow.
+    /// The event a double-click on a control opens (Delphi's "default event"): onChange for editors, lists and grids,
+    /// otherwise onClick, then onTimer, onPaint, onShow.
     /// </summary>
     public static EventMeta? DefaultEvent(Control control)
     {
@@ -92,7 +92,7 @@ public static class CodeIntegration
             return cls.Events.FirstOrDefault(e => !inherited.Contains(e.Name)
                 || cls.FindEvent(e.Name) != ComponentRegistry.Find(typeof(Control))!.FindEvent(e.Name));
         }
-        string[] order = control is EditBase or ListBox or ComboBox or TrackBar or ScrollBar or TreeView or ListView or PageControl
+        string[] order = control is EditBase or ListBox or ComboBox or TrackBar or ScrollBar or TreeView or ListView or CustomGrid or PageControl
             ? ["onChange", "onClick"]
             : control is Form ? ["onShow", "onClick"]
             : control is PaintBox ? ["onPaint", "onClick"]

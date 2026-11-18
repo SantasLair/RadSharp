@@ -68,10 +68,22 @@ A form file is UTF-8 JSON:
 `{ "caption", "shortcut", "altShortcut", "onClick", "enabled", "checked", "radioItem", "visible", "separator", "items": [...] }`,
 with only non-default values written.
 
+**Grids** (`StringGrid`, `DrawGrid`) save their header columns as a `"columns"` array of objects, one per grid column
+(fixed columns included, by index): `{ "alignment", "minWidth", "title", "width" }` (`alignment`: `left`, `center`,
+`right`; `width` 0 means the grid's `defaultColWidth`), keys in that order, only non-default values written (a column
+with nothing to say is `{}`). A grid without columns writes no `"columns"` key.
+Load semantics, so that **member order in the file never matters**: a reader applies a grid's other members first
+(`colCount`, `fixedCols`, ... in file order), then `"columns"`, then `sortColumn`. Reading `"columns"` replaces any
+columns and sets `colCount` to the number of columns it lists (an empty array leaves `colCount` alone); a `sortColumn`
+that isn't a column of the final grid (`>= colCount`) is ignored with a warning. Writers emit `colCount` (when not 5)
+alongside `columns`, and `sortColumn` (when not -1), in the usual alphabetical order.
+At run time `SortColumn` is kept as set (even beyond `ColCount`, so it can be set before the columns exist), but
+shrinking `ColCount` to or below it resets it to -1; growing never does.
+
 **Deterministic output** (save → load → save is byte-identical, in every runtime)
 - Top-level keys: `format`, `version`, `generator`, `root`.
 - Node keys: `class`, `name`, `caption`, `text`, then the rest in **ordinal (code-point) alphabetical order**,
-  then `items`, then `children`.
+  then `items` (menus) or `columns` (grids), then `children`.
 - Struct properties are written whole when any field differs from the default, fields in their
   declared order (`margin`/`padding`: `l`, `t`, `r`, `b`; `font`: `family`, `size`, `bold`, `italic`,
   `underline`). `font` is additionally nullable: absent means *ParentFont* (see below), never written

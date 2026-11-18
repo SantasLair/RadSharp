@@ -111,11 +111,12 @@ public static class FormWriter
         text?.Invoke();
         foreach (var write in rest.Values) write();
         if (control is IMenuOwner menu) MenuItem.WriteItems(w, menu.Items);
-        if (control.Children.Count > 0)
+        if (control is CustomGrid grid) grid.WriteColumns(w);
+        if (control.Children.Any(c => !c.IsTransient))
         {
             w.Key("children");
             w.BeginArray();
-            foreach (var child in control.Children)
+            foreach (var child in control.Children.Where(c => !c.IsTransient))
             {
                 w.NextElement();
                 WriteNode(w, child, isRoot: false);

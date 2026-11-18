@@ -390,6 +390,43 @@ public class ProjectWorkflowTests
     }
 
     [Fact]
+    public void The_inspectors_columns_row_opens_the_columns_editor_and_the_session_is_undoable()
+    {
+        var project = RadProject.Create(TempDir(), "Cols");
+        var (d, host) = Start();
+        Assert.True(d.OpenProject(project.ProjectFile));
+        var doc = d.Document!;
+        var grid = (StringGrid)doc.Create(ComponentRegistry.Find("StringGrid")!, doc.Form, 20, 20);
+        doc.Select(grid);
+        var props = (PropertyGrid)d.FindControl("gridProps")!;
+        int row = props.IndexOf("columns");
+        Assert.True(row >= 0);
+        Assert.Equal("(0 columns)", props.RowValue(row));
+        string before = doc.Save();
+
+        string? caption = null;
+        host.AnswerModal = form =>
+        {
+            caption = form.Caption;
+            form.Simulate.Click(form.FindControl("btnAdd")!);
+            ((Edit)form.FindControl("edtTitle")!).Text = "Cost";
+            return "btnClose";
+        };
+        props.BeginEdit(row);
+
+        Assert.Equal($"Columns: {grid.Name}", caption);
+        Assert.Equal(6, grid.ColCount);
+        Assert.Equal("Cost", grid.Columns[5].Title);
+        Assert.Equal("(6 columns)", props.RowValue(row));
+        Assert.True(doc.Modified);
+        Assert.Contains("\"title\": \"Cost\"", doc.Save());
+
+        Assert.True(doc.Undo());
+        Assert.Equal(before, doc.Save());
+        Assert.Empty(((StringGrid)doc.Form.FindControl(grid.Name)!).Columns);
+    }
+
+    [Fact]
     public void Editor_commands_follow_the_unity_model()
     {
         Assert.Equal("\"code\" \"{folder}\" -g \"{file}:{line}\"", ExternalEditor.CommandTemplate(EditorKind.VSCode, "code", null));

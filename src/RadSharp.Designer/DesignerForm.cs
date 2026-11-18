@@ -50,6 +50,10 @@ public partial class DesignerForm : Form
             grid.PropertyChanged += (_, _) => Document?.NotifyChanged();
         }
         gridEvents.EventDoubleClick += (_, ev) => { if (Document is { } d) EditHandler(d.Primary, ev); };
+        gridProps.CollectionEditRequested += (_, target, name) =>
+        {
+            if (Document is { } d && name == "columns" && target is CustomGrid g) GridColumnsEditor.Edit(d, g, this);
+        };
         gridProps.Arrangement = PropertyGridArrangement.Categorized;   // matches cboPropsArrange's default selection
 
         if (projectFile != null && File.Exists(projectFile)) OpenProject(projectFile);

@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/samples/">
     <Project Path="samples/Calculator/Calculator.csproj" />
+    <Project Path="samples/GridDemo/GridDemo.csproj" />
     <Project Path="samples/Hello/Hello.csproj" />
     <Project Path="samples/SettingsDialog/SettingsDialog.csproj" />
     <Project Path="samples/TextEditor/TextEditor.csproj" />

@@ -214,6 +214,10 @@ button's caption on the surface. Ctrl+A stayed in the text field and did not bec
   the standalone designer; Menu Editor is greyed out when the form has no menu. Tab Order opens as a VS-owned modal
   window centred over the designer. Moving a row and clicking OK marks the tab dirty, and Ctrl+S writes the new
   `tabOrder` values.
+- **Grid Columns (M14 stage 4):** the Object Inspector pane lists a `columns` row for a StringGrid/DrawGrid; clicking it or
+  pressing Enter opens the Columns editor as a modal window over the designer, like Tab Order. Changes mark the tab dirty
+  and Ctrl+S writes the `"columns"` array. No VS-side code was needed (the inspector is a host-rendered pane); covered by
+  the standalone designer's test and `GridDesignTests`, not yet by a VS-client end-to-end test.
 - **Missing host:** with `RADSHARP_DESIGNHOST` pointing at a missing file, the tab says the host wasn't found, shows the
   path, and points to Open With → Source Code (Text) Editor.
 

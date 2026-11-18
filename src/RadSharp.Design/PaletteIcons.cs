@@ -163,6 +163,38 @@ public static class PaletteIcons
             k.Box(3, 10, 3, 3, k.P.Orange, null, 0.5f);
             k.Line(7.5f, 11.5f, 12.5f, 11.5f, k.P.Faint);
         },
+        ["StringGrid"] = k =>
+        {
+            k.Box(1.5f, 1.5f, 13, 13, k.P.Fill, k.P.Outline, 1);
+            k.Box(2, 2, 12, 3, k.P.Fill2, null);
+            k.Box(2, 5, 3.5f, 9, k.P.Fill2, null);
+            k.Box(8.5f, 8, 5.5f, 3, k.P.Accent, null);
+            k.Line(2, 5, 14, 5, k.P.Faint);
+            k.Line(2, 8, 14, 8, k.P.Faint);
+            k.Line(2, 11, 14, 11, k.P.Faint);
+            k.Line(5.5f, 2, 5.5f, 14, k.P.Faint);
+            k.Line(8.5f, 2, 8.5f, 14, k.P.Faint);
+            k.Line(9.5f, 9.5f, 12.5f, 9.5f, k.P.OnAccent);
+            k.Line(6.5f, 12.5f, 7.5f, 12.5f, k.P.Outline);
+        },
+        ["DrawGrid"] = k =>
+        {
+            k.Box(1.5f, 1.5f, 13, 13, k.P.Fill, k.P.Outline, 1);
+            k.Box(2, 2, 12, 3, k.P.Fill2, null);
+            k.Box(2, 5, 3.5f, 9, k.P.Fill2, null);
+            k.Line(2, 5, 14, 5, k.P.Faint);
+            k.Line(2, 8, 14, 8, k.P.Faint);
+            k.Line(2, 11, 14, 11, k.P.Faint);
+            k.Line(5.5f, 2, 5.5f, 14, k.P.Faint);
+            k.Line(8.5f, 2, 8.5f, 14, k.P.Faint);
+            // Owner-drawn cells: a swatch or a bar in each.
+            k.Box(6.25f, 5.75f, 1.5f, 1.5f, k.P.Green, null);
+            k.Box(9.5f, 5.75f, 3.5f, 1.5f, k.P.Accent, null);
+            k.Box(6.25f, 8.75f, 1.5f, 1.5f, k.P.Orange, null);
+            k.Box(9.5f, 8.75f, 2, 1.5f, k.P.Red, null);
+            k.Box(6.25f, 11.75f, 1.5f, 1.5f, k.P.Accent, null);
+            k.Box(9.5f, 11.75f, 3, 1.5f, k.P.Green, null);
+        },
         ["TreeView"] = k =>
         {
             k.Line(3.5f, 5, 3.5f, 12.5f, k.P.Faint, 1, LineCap.Butt, [1, 1]);

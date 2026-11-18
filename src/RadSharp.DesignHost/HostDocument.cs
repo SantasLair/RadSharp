@@ -141,6 +141,10 @@ internal sealed class HostDocument
             grid.PropertyChanged += (_, _) => Doc.NotifyChanged();
         }
         gridEvents.EventDoubleClick += (_, ev) => EditHandler(Doc.Primary, ev);
+        gridProps.CollectionEditRequested += (_, target, name) =>
+        {
+            if (name == "columns" && target is CustomGrid g) GridColumnsEditor.Edit(Doc, g, Surface?.OwningForm);
+        };
         GridProps?.SetTargets([]);
         GridEvents?.SetTargets([]);
         InspectorPages = pages;

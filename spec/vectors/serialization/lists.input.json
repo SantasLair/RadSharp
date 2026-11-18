@@ -1,0 +1,15 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "root": {
+    "class": "Form",
+    "name": "frmLists",
+    "width": 520,
+    "height": 200,
+    "children": [
+      { "class": "ListBox", "name": "lstSingle", "items": ["Alpha", "Beta", "Gamma"], "multiSelect": false, "extendedSelect": true, "left": 10, "top": 10, "width": 150, "height": 120 },
+      { "class": "ListBox", "name": "lstExtended", "items": ["Alpha", "Beta", "Gamma"], "multiSelect": true, "left": 180, "top": 10, "width": 150, "height": 120 },
+      { "class": "ListBox", "name": "lstToggle", "items": ["Alpha", "Beta"], "multiSelect": true, "extendedSelect": false, "color": "#FFFFE0", "borderStyle": "none", "itemHeight": 20, "left": 350, "top": 10, "width": 150, "height": 120 }
+    ]
+  }
+}

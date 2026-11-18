@@ -50,6 +50,10 @@ public class CodeIntegrationTests
         Assert.Equal("onChange", CodeIntegration.DefaultEvent(new Edit())!.Name);
         Assert.Equal("onTimer", CodeIntegration.DefaultEvent(new Timer())!.Name);
         Assert.Equal("onPaint", CodeIntegration.DefaultEvent(new PaintBox())!.Name);
+        Assert.Equal("onChange", CodeIntegration.DefaultEvent(new ListBox())!.Name);
+        Assert.Equal("onChange", CodeIntegration.DefaultEvent(new ListView())!.Name);
+        Assert.Equal("onChange", CodeIntegration.DefaultEvent(new StringGrid())!.Name);   // as for the lists
+        Assert.Equal("onChange", CodeIntegration.DefaultEvent(new DrawGrid())!.Name);
     }
 
     static string TempDir() => Directory.CreateTempSubdirectory("radsharp-").FullName;

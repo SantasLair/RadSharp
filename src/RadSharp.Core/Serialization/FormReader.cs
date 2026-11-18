@@ -139,9 +139,17 @@ public static class FormReader
             control.Name = n.GetString()!;
         var here = control.Name.Length > 0 ? control.Name : $"{path} ({cls.Name})";
 
+        // A grid's "columns" and "sortColumn" depend on what the other members set (colCount, fixedCols), so they are
+        // applied after all of them, columns first: property order in the file never matters (spec, "Grids").
+        JsonProperty? gridColumns = null, gridSort = null;
         foreach (var prop in node.EnumerateObject())
         {
             if (prop.Name is "class" or "name" or "children") continue;
+            if (control is CustomGrid)
+            {
+                if (prop.Name == "columns") { gridColumns = prop; continue; }
+                if (prop.Name == "sortColumn") { gridSort = prop; continue; }
+            }
             if (prop.Name == "items" && control is IMenuOwner owner)
             {
                 owner.Items.Clear();
@@ -158,6 +166,24 @@ public static class FormReader
             catch (FormatException e)
             {
                 warnings.Add($"{here}.{prop.Name}: {e.Message}; ignored.");
+            }
+        }
+
+        if (control is CustomGrid grid)
+        {
+            if (gridColumns is { } columns) grid.ReadColumns(columns.Value, warnings, $"{here}.columns");
+            if (gridSort is { } sort)
+            {
+                try
+                {
+                    SetProperty(control, cls, "sortColumn", sort.Value);
+                    if (grid.SortColumn >= grid.ColCount)
+                    {
+                        warnings.Add($"{here}.sortColumn: column {grid.SortColumn} doesn't exist (colCount {grid.ColCount}); ignored.");
+                        grid.SortColumn = -1;
+                    }
+                }
+                catch (FormatException e) { warnings.Add($"{here}.sortColumn: {e.Message}; ignored."); }
             }
         }
 

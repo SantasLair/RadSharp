@@ -375,6 +375,14 @@ public class ScrollBox : Control
 /// content's size in pixels; bars appear when it exceeds the viewport. Unlike <see cref="ScrollBox"/> it holds
 /// no child controls — it is for a grid or canvas that paints its own cells.
 /// </summary>
+/// <remarks>
+/// <para>It is a tab stop, and while focused the keyboard scrolls: Up/Down and Left/Right by a line
+/// (<see cref="LineStepY"/>/<see cref="LineStepX"/>), PageUp/PageDown by a viewport (<see cref="PageStepY"/>),
+/// Home/End to the top/bottom, Ctrl+Home/Ctrl+End to the top-left/bottom-right corner. A subclass that uses keys
+/// for its own cursor (a list, a grid) overrides <see cref="HandleKey"/> and calls the base for the keys it leaves.</para>
+/// <para>A subclass whose content size depends on the UI scale (rows of a fixed height at 100 %) sets it in
+/// <see cref="MeasureContent"/>, which runs whenever the scroll ranges are recomputed.</para>
+/// </remarks>
 /// <example>
 /// <code>
 /// sealed class Ledger : ScrollView
@@ -403,22 +411,40 @@ public class ScrollView : Control
     ScrollBarDriver? _active;
     bool _showH, _showV;
     int _contentWidth, _contentHeight;
+    bool _measuring;
 
     public ScrollView()
     {
         _hDriver = new ScrollBarDriver(_h);
         _vDriver = new ScrollBarDriver(_v);
         SetDefaultSize(200, 150);
+        TabStop = true;
     }
 
     [Published(Category = "Appearance")] public BorderStyle BorderStyle { get; set; } = BorderStyle.Single;
     [Published(Category = "Appearance")] public Color? Color { get; set; }
 
     /// <summary>The content's width in pixels; the horizontal bar appears when it exceeds the viewport's.</summary>
-    public int ContentWidth { get => _contentWidth; set { _contentWidth = Math.Max(0, value); ContentChanged(); } }
+    public int ContentWidth
+    {
+        get => _contentWidth;
+        set
+        {
+            _contentWidth = Math.Max(0, value);
+            if (!_measuring) ContentChanged();
+        }
+    }
 
     /// <summary>The content's height in pixels; the vertical bar appears when it exceeds the viewport's.</summary>
-    public int ContentHeight { get => _contentHeight; set { _contentHeight = Math.Max(0, value); ContentChanged(); } }
+    public int ContentHeight
+    {
+        get => _contentHeight;
+        set
+        {
+            _contentHeight = Math.Max(0, value);
+            if (!_measuring) ContentChanged();
+        }
+    }
 
     /// <summary>The horizontal scroll position: the content x shown at the viewport's left edge.</summary>
     public int ScrollX { get => _h.Position; set { if (_h.SetPosition(value)) Scrolled(); } }
@@ -426,8 +452,17 @@ public class ScrollView : Control
     /// <summary>The vertical scroll position: the content y shown at the viewport's top edge.</summary>
     public int ScrollY { get => _v.Position; set { if (_v.SetPosition(value)) Scrolled(); } }
 
-    /// <summary>Pixels the wheel scrolls per notch; 0 (the default) means 48 at 100 % scale.</summary>
+    /// <summary>Pixels the wheel scrolls per notch; 0 (the default) means three lines (<see cref="LineStepY"/>: 48 at 100 %).</summary>
     public int WheelStep { get; set; }
+
+    /// <summary>Pixels Up/Down scroll, and a third of a wheel notch by default: 16 at 100 %; a list returns its row height.</summary>
+    protected virtual int LineStepY => Px(16);
+
+    /// <summary>Pixels Left/Right scroll (and a third of a horizontal wheel notch): 16 at 100 %.</summary>
+    protected virtual int LineStepX => Px(16);
+
+    /// <summary>Pixels PageUp/PageDown scroll: the viewport's height (an override can leave out fixed header rows).</summary>
+    protected virtual int PageStepY => Math.Max(1, Viewport.Height);
 
     public bool HorizontalBarVisible => _showH;
     public bool VerticalBarVisible => _showV;
@@ -484,6 +519,27 @@ public class ScrollView : Control
     /// <summary>Called after the scroll position changed; the default raises <see cref="Scroll"/>.</summary>
     protected virtual void OnScrolled() => Scroll?.Invoke(this);
 
+    /// <summary>
+    /// Called just before the scroll ranges are recomputed (after a resize, in each layout pass, after a content size
+    /// change): set <see cref="ContentWidth"/>/<see cref="ContentHeight"/> here from anything that depends on the UI
+    /// scale, such as a row count times a row height at 100 %. Setting them here doesn't recurse.
+    /// </summary>
+    protected virtual void MeasureContent() { }
+
+    /// <summary>Scrolls by a distance in pixels, clamped to the content; positive values move toward the end.</summary>
+    public void ScrollBy(int dx, int dy) => ScrollTo(_h.Position + dx, _v.Position + dy);
+
+    void ScrollTo(int x, int y)
+    {
+        if (_h.SetPosition(x) | _v.SetPosition(y)) Scrolled();
+    }
+
+    /// <summary>The background behind the content: <see cref="Color"/>, else the theme's input background.</summary>
+    protected virtual Color GetBackgroundColor(Theme theme) => Color ?? theme.InputBackground;
+
+    /// <summary>The single border's colour: the accent while focused, else the theme's panel border.</summary>
+    protected virtual Color GetBorderColor(Theme theme) => Focused ? theme.Accent : theme.PanelBorder;
+
     void ContentChanged()
     {
         UpdateBars();   // at once, so scrolling right after a content change isn't clamped to the old size
@@ -508,6 +564,9 @@ public class ScrollView : Control
     /// <summary>Recomputes which bars show and the scroll ranges from the content and control size; true if a bar appeared or went.</summary>
     bool UpdateBars()
     {
+        _measuring = true;
+        try { MeasureContent(); }
+        finally { _measuring = false; }
         var inner = Inner;
         bool needV = _contentHeight > inner.Height;
         bool needH = _contentWidth > inner.Width - (needV ? BarSize : 0);
@@ -561,18 +620,49 @@ public class ScrollView : Control
     {
         base.OnMouseWheel(e);
         if (e.Handled) return;
-        int step = WheelStep > 0 ? WheelStep : Px(48);
         bool horizontal = e.Modifiers.HasFlag(KeyModifiers.Shift) || (e.DeltaX != 0 && e.DeltaY == 0);
         if (horizontal && _showH)
         {
             float d = e.DeltaX != 0 ? -e.DeltaX : e.DeltaY;
-            ScrollX -= (int)Math.Round(d * step);
+            ScrollX -= (int)Math.Round(d * (WheelStep > 0 ? WheelStep : 3 * LineStepX));
             e.Handled = true;
         }
         else if (!horizontal && _showV)
         {
-            ScrollY -= (int)Math.Round(e.DeltaY * step);
+            ScrollY -= (int)Math.Round(e.DeltaY * (WheelStep > 0 ? WheelStep : 3 * LineStepY));
             e.Handled = true;
+        }
+    }
+
+    protected internal override void OnKeyDown(KeyEventArgs e)
+    {
+        base.OnKeyDown(e);   // the KeyDown event first: a handler can take any key
+        if (!e.Handled && HandleKey(e)) e.Handled = true;
+    }
+
+    /// <summary>
+    /// Handles a key press the <see cref="Control.KeyDown"/> event left; returns true if it used it. The default
+    /// scrolls (see the class remarks) and returns true only for a scrolling key along an axis that has a bar, so
+    /// other keys — and Left/Right without a horizontal bar — stay unhandled. Override it to move a cursor or a
+    /// selection instead, and return <c>base.HandleKey(e)</c> for the keys you leave.
+    /// </summary>
+    protected virtual bool HandleKey(KeyEventArgs e)
+    {
+        bool corner = (e.Key is Key.Home or Key.End) && (e.Modifiers == KeyModifiers.Ctrl || e.Modifiers == Shortcut.CommandModifier);
+        if (e.Modifiers != KeyModifiers.None && !corner) return false;
+        switch (e.Key)
+        {
+            case Key.Up when _showV: ScrollBy(0, -LineStepY); return true;
+            case Key.Down when _showV: ScrollBy(0, LineStepY); return true;
+            case Key.Left when _showH: ScrollBy(-LineStepX, 0); return true;
+            case Key.Right when _showH: ScrollBy(LineStepX, 0); return true;
+            case Key.PageUp when _showV: ScrollBy(0, -PageStepY); return true;
+            case Key.PageDown when _showV: ScrollBy(0, PageStepY); return true;
+            case Key.Home when corner && (_showH || _showV): ScrollTo(_h.Min, _v.Min); return true;
+            case Key.End when corner && (_showH || _showV): ScrollTo(_h.MaxPosition, _v.MaxPosition); return true;
+            case Key.Home when !corner && _showV: ScrollTo(_h.Position, _v.Min); return true;
+            case Key.End when !corner && _showV: ScrollTo(_h.Position, _v.MaxPosition); return true;
+            default: return false;
         }
     }
 
@@ -581,7 +671,7 @@ public class ScrollView : Control
     protected sealed override void Paint(Canvas canvas)
     {
         var r = new Rect(0, 0, Width, Height);
-        canvas.FillRect(r, Color ?? canvas.Theme.InputBackground);
+        canvas.FillRect(r, GetBackgroundColor(canvas.Theme));
 
         var view = Viewport;
         if (view.Width > 0 && view.Height > 0)
@@ -593,7 +683,7 @@ public class ScrollView : Control
             canvas.Restore();
         }
 
-        if (BorderStyle == BorderStyle.Single) canvas.DrawBorder(r, canvas.Theme.PanelBorder, Border);
+        if (BorderStyle == BorderStyle.Single) canvas.DrawBorder(r, GetBorderColor(canvas.Theme), Border);
         if (_showV) ScrollBarDriver.Paint(canvas, VBar, true, _v, _active == _vDriver, MinThumb);
         if (_showH) ScrollBarDriver.Paint(canvas, HBar, false, _h, _active == _hDriver, MinThumb);
         if (_showH && _showV)

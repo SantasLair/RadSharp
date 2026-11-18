@@ -190,3 +190,17 @@ public static class ComponentRegistry
         get { lock (Lock) return [.. ByType.Values]; }
     }
 }
+
+/// <summary>
+/// A control with list-valued members that are saved as their own form-file arrays (a grid's <c>"columns"</c>) and edited
+/// in a dialog rather than as text. The Object Inspector shows one row per name, and asks its host to open the editor
+/// (<see cref="PropertyGrid.CollectionEditRequested"/>).
+/// </summary>
+public interface ICollectionOwner
+{
+    /// <summary>The form-file names of the collections, e.g. <c>"columns"</c>.</summary>
+    IReadOnlyList<string> CollectionNames { get; }
+
+    /// <summary>The Object Inspector's value text for a collection, e.g. <c>(3 columns)</c>.</summary>
+    string DescribeCollection(string name);
+}
