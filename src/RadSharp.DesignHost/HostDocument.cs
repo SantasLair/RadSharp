@@ -141,6 +141,7 @@ internal sealed class HostDocument
             grid.PropertyChanged += (_, _) => Doc.NotifyChanged();
         }
         gridEvents.EventDoubleClick += (_, ev) => EditHandler(Doc.Primary, ev);
+        gridEvents.EventHandlerAssigned += (_, ev, handler) => EnsureHandlerQuietly(ev, handler);
         gridProps.CollectionEditRequested += (_, target, name) =>
         {
             if (name == "columns" && target is CustomGrid g) GridColumnsEditor.Edit(Doc, g, Surface?.OwningForm);
@@ -263,7 +264,7 @@ internal sealed class HostDocument
             case "TabOrder": TabOrderEditor.Edit(Doc, Doc.PasteTarget(), Surface?.OwningForm); break;
             case "MenuEditor":
                 if (FindMenuOwner() is not { } menu) return true;
-                MenuEditor.Edit(Doc, menu, Surface?.OwningForm);
+                MenuEditor.Edit(Doc, menu, Surface?.OwningForm, EditMenuHandlers);
                 break;
             default: return false;
         }
@@ -298,7 +299,6 @@ internal sealed class HostDocument
             target.EventHandlers[ev.Name] = handler!;
             Doc.NotifyChanged();
         }
-        var className = RadProject.FormClassName(Path);
         var targetName = target.Name;
         var isForm = target is Form;
 
@@ -314,25 +314,65 @@ internal sealed class HostDocument
             }
         }
 
+        RequestStubs(code, [(handler!, ev.Parameters)], navigate: true, RollBack);
+    }
+
+    /// <summary>
+    /// A handler name typed into an Events row: the same buffer round trip as <see cref="EditHandler"/>, but the
+    /// editor is not navigated; nothing is sent when the method already exists. The typed name stays in the form
+    /// even if the code side fails (the error says why).
+    /// </summary>
+    void EnsureHandlerQuietly(EventMeta ev, string handler)
+    {
+        var code = IsFormFile ? RadProject.CodeFileFor(Path) : null;
+        if (code == null || !File.Exists(code) || FindProjectFile(System.IO.Path.GetDirectoryName(Path)) == null) return;
+        RequestStubs(code, [(handler, ev.Parameters)], navigate: false, rollBack: null);
+    }
+
+    /// <summary>
+    /// The menu editor's code side (<see cref="MenuEditor.HandlerRequested"/>): the same buffer round trip as
+    /// <see cref="EditHandler"/>, for the click handlers of menu items (<c>(MenuItem sender)</c>), all in one edit so
+    /// that several stubs don't race on the client's buffer. A handler the user typed stays in the form even if the
+    /// code side fails (the error says why), as the field's text is the user's.
+    /// </summary>
+    void EditMenuHandlers(IReadOnlyList<MenuItem> items, bool open)
+    {
+        var code = IsFormFile ? RadProject.CodeFileFor(Path) : null;
+        if (code == null || !File.Exists(code) || FindProjectFile(System.IO.Path.GetDirectoryName(Path)) == null)
+        {
+            _server.SendError(DocId, $"Can't create a menu handler: {System.IO.Path.GetFileName(Path)} is not part of a RadSharp project "
+                + $"(it needs a .csproj in its folder or above and its code-behind {(code != null ? System.IO.Path.GetFileName(code) : "<Name>.cs")} next to it).");
+            return;
+        }
+        var stubs = items.Where(i => i.ClickHandler.Length > 0).Select(i => (i.ClickHandler, "MenuItem sender")).ToList();
+        if (stubs.Count > 0) RequestStubs(code, stubs, navigate: open, rollBack: null);
+    }
+
+    void RequestStubs(string code, List<(string Handler, string Parameters)> stubs, bool navigate, Action? rollBack)
+    {
+        var className = RadProject.FormClassName(Path);
         // The code file may be open in the client with unsaved edits: ask for its buffer instead of touching the disk.
         _server.RequestCode(DocId, code, buffer =>
         {
             try
             {
                 var original = buffer ?? File.ReadAllText(code);
-                var (source, line) = CodeIntegration.EnsureHandler(original, className, handler!, ev.Parameters);
-                if (source != original)
-                    _server.Send(new ApplyCodeEdit { DocId = DocId, File = code, Text = source, Line = line, BaseHash = HashText(original) });
-                else _server.Send(new NavigateToCode { DocId = DocId, File = code, Line = line });
+                var text = original;
+                int line = 1;
+                foreach (var (handler, parameters) in stubs)
+                    (text, line) = CodeIntegration.EnsureHandler(text, className, handler, parameters);
+                if (text != original)
+                    _server.Send(new ApplyCodeEdit { DocId = DocId, File = code, Text = text, Line = line, BaseHash = HashText(original) });
+                else if (navigate) _server.Send(new NavigateToCode { DocId = DocId, File = code, Line = line });
             }
             catch (Exception e) when (e is not OutOfMemoryException)
             {
-                RollBack();
-                _server.SendError(DocId, $"Can't create the handler {handler} in {System.IO.Path.GetFileName(code)}: {e.Message}");
+                rollBack?.Invoke();
+                _server.SendError(DocId, $"Can't create the handler {stubs[^1].Handler} in {System.IO.Path.GetFileName(code)}: {e.Message}");
             }
         }, () =>
         {
-            RollBack();
+            rollBack?.Invoke();
             _server.SendError(DocId, "code editor did not respond; try again");
         });
     }

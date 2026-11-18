@@ -526,6 +526,24 @@ under NativeAOT.
 - **Debugging story:** make F5-in-the-IDE the documented way, add a launch profile to created projects, and write the
   "attach to the live run" instructions; a VS Code extension is post-1.0.
 
+**Status (2026-11-17): the designer items the reference app needs.** The 1.0 cut (from `docs/reference-app-scope.md`,
+approved by the user) keeps from M16: menu-editor fields, F9 with the project's dependencies, the debugging story, and
+project controls on the palette; it drops FlowPanel/GridPanel, AutoSize, zoom, in-place PageControl editing and the
+generic collection editor (the bespoke Columns/Nodes/Menu editors stay). Done on branch `m16-designer`:
+- Menu editor: an Alt shortcut field and a Separator button (typing `-` as a caption also makes one); a handler typed
+  into onClick gets its `(MenuItem sender)` stub when the editor closes, and double-clicking an item proposes
+  `<name>_Click`, writes the stub and opens it.
+- An event name typed into an Object Inspector Events row gets its stub quietly (shared handlers are left alone).
+  Stubs and usings use the file's own newline.
+- File › New Form asks for and validates the class name (identifier, not a keyword or a name that can't be a class,
+  not a RadSharp type, no clash with project forms, files or types); Project › Rename Form renames files, class and
+  every textual reference (case-only renames work; a failure rolls everything back).
+- Debugging: New Application writes `.vscode/launch.json`, `.vscode/tasks.json` and `Properties/launchSettings.json`
+  so F5 debugs in VS Code and Visual Studio; `docs/debugging.md`.
+- New Application writes a relative package path into `nuget.config`; `pack.ps1`/`pack.sh` pack every package with one
+  version (CI uses it).
+Most of these were found by building the reference app; each came with a failing test first.
+
 **Done when:** a localized form that grows with its text lays out correctly in the flow/grid panels at 100 % and
 150 %; the designer's alignment tools are covered by a scripted-rebuild test like `RebuildTileEditorTests`; the
 categorized/filterable palette is exercised by a designer UI test (the Anchors editor already is, see M9's status

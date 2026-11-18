@@ -1,3 +1,4 @@
+using RadSharp.Design;
 using RadSharp.Design.Code;
 using RadSharp.Designer;
 
@@ -75,7 +76,8 @@ public class ProjectWorkflowTests
     public void New_form_opens_in_a_tab_and_can_become_the_main_form()
     {
         var project = RadProject.Create(TempDir(), "Tabs");
-        var (d, _) = Start(project.ProjectFile);
+        var (d, host) = Start(project.ProjectFile);
+        host.AnswerModal = form => { Assert.Equal("Form2", ((Edit)form.FindControl("edtFormName")!).Text); return "btnOk"; };
         d.Simulate.Key("Mod+N");
         Assert.Equal(["MainForm", "Form2"], d.OpenForms.Select(f => f.ClassName));
         Assert.Equal("Form2", d.ActiveForm!.ClassName);
@@ -97,8 +99,8 @@ public class ProjectWorkflowTests
         var code = Path.Combine(project.Directory, "MainForm.cs");
         var source = File.ReadAllText(code);
         Assert.Contains("void Button1_Click(Control sender)", source);
-        File.WriteAllText(code, source.Replace("    void Button1_Click(Control sender)\n    {\n        \n    }",
-            "    void Button1_Click(Control sender)\n    {\n        ((Button)sender).Caption = \"Clicked\";\n    }"));
+        File.WriteAllText(code, System.Text.RegularExpressions.Regex.Replace(source,
+            @"(void Button1_Click\(Control sender\)\r?\n\s*\{\r?\n)", "$1        ((Button)sender).Caption = \"Clicked\";\n"));
 
         d.Simulate.Key(Key.F9);
         var live = Assert.Single(host.Shown);
@@ -106,6 +108,43 @@ public class ProjectWorkflowTests
         live.Simulate.Click(liveButton);
         Assert.Equal("Clicked", liveButton.Caption);
         Assert.Contains(d.OutputLines, l => l.StartsWith("Running MainForm"));
+    }
+
+    [Fact]
+    public void Typing_a_handler_name_into_an_event_row_writes_one_quiet_stub()
+    {
+        var project = RadProject.Create(TempDir(), "TypedHandler");
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        var a = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 10, 10);
+        var b = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 10, 50);
+        var code = Path.Combine(project.Directory, "MainForm.cs");
+        var before = File.ReadAllText(code);
+        var grid = (PropertyGrid)d.FindControl("gridEvents")!;
+
+        doc.Select(a);
+        Assert.True(grid.Apply(grid.IndexOf("onClick"), "Shared_Click"));   // what Enter in the row's editor does
+        var source = File.ReadAllText(code);
+        Assert.Equal("Shared_Click", a.EventHandlers["onClick"]);
+        Assert.Contains("void Shared_Click(Control sender)", source.Replace("\r\n", "\n"));
+
+        // A second control pointing at the same method writes nothing more.
+        doc.Select(b);
+        Assert.True(grid.Apply(grid.IndexOf("onClick"), "Shared_Click"));   // what Enter in the row's editor does
+        Assert.Equal(source, File.ReadAllText(code));
+
+        // Clearing the row writes nothing and removes nothing.
+        Assert.True(grid.Apply(grid.IndexOf("onClick"), ""));
+        Assert.False(b.EventHandlers.ContainsKey("onClick"));
+        Assert.Equal(source, File.ReadAllText(code));
+        Assert.NotEqual(before, source);
+
+        // Several controls at once: one stub.
+        doc.SelectMany([a, b]);
+        Assert.True(grid.Apply(grid.IndexOf("onClick"), "Both_Click"));
+        var multi = File.ReadAllText(code);
+        Assert.Equal(1, multi.Split("void Both_Click(").Length - 1);
+        Assert.Equal("Both_Click", b.EventHandlers["onClick"]);
     }
 
     [Fact]
@@ -517,5 +556,170 @@ public class ProjectWorkflowTests
 
         Assert.True(doc.Undo());                      // the nodes session
         Assert.Empty(((TreeView)doc.Form.FindControl(tree.Name)!).Nodes);
+    }
+
+    static string? AskName(Form dialog, string name)
+    {
+        ((Edit)dialog.FindControl("edtFormName")!).Text = name;
+        return "btnOk";
+    }
+
+    static string ListText(DesignerForm d) => string.Join("|", ((ListBox)d.FindControl("lstForms")!).Items);
+
+    [Fact]
+    public void New_form_asks_for_the_class_name_and_creates_both_files()
+    {
+        var project = RadProject.Create(TempDir(), "Named");
+        var (d, host) = Start(project.ProjectFile);
+        host.AnswerModal = form => AskName(form, "SettingsForm");
+        d.Simulate.Key("Mod+N");
+        Assert.Equal("SettingsForm", d.ActiveForm!.ClassName);
+        Assert.True(File.Exists(Path.Combine(project.Directory, "SettingsForm.radform.json")));
+        Assert.Contains("partial class SettingsForm : Form", File.ReadAllText(Path.Combine(project.Directory, "SettingsForm.cs")));
+        Assert.Contains("SettingsForm", ListText(d));
+    }
+
+    [Theory]
+    [InlineData("class")]          // keyword
+    [InlineData("2Fast")]          // not an identifier
+    [InlineData("My Form")]
+    [InlineData("MainForm")]       // already a form
+    [InlineData("Taken")]          // a code file is in the way
+    [InlineData("Helper")]         // a type already declared in the project
+    [InlineData("")]
+    public void New_form_rejects_invalid_names(string name)
+    {
+        var project = RadProject.Create(TempDir(), "Invalid");
+        File.WriteAllText(Path.Combine(project.Directory, "Taken.cs"), "// x");
+        File.WriteAllText(Path.Combine(project.Directory, "Other.cs"), "class Helper { }");
+        var (d, host) = Start(project.ProjectFile);
+        string? problem = null;
+        host.AnswerModal = form =>
+        {
+            AskName(form, name);
+            form.Simulate.Click((Button)form.FindControl("btnOk")!);   // refused: the dialog stays open
+            problem = ((Label)form.FindControl("lblProblem")!).Caption;
+            return "btnCancel";
+        };
+        var before = project.FormFiles.Count;
+        Assert.Null(d.NewForm());
+        Assert.False(string.IsNullOrEmpty(problem));
+        Assert.Equal(before, project.FormFiles.Count);
+        Assert.Single(d.OpenForms);
+    }
+
+    [Fact]
+    public void Rename_form_updates_files_references_tab_and_project_list()
+    {
+        var project = RadProject.Create(TempDir(), "Ren");
+        var (d, host) = Start(project.ProjectFile);
+        var main = d.ActiveForm!;
+        var doc = d.Document!;
+        doc.Create(ComponentRegistry.Find("Label")!, doc.Form, 10, 10);   // an unsaved change must survive the rename
+        File.WriteAllText(Path.Combine(project.Directory, "Other.cs"), "class Other { object Make() => new MainForm(); }");
+
+        var menu = (MainMenu)d.FindControl("mnuMain")!;
+        var item = menu.Items.Single(m => m.Caption == "Project").Items.Single(m => m.Caption == "Rename Form…");
+        host.AnswerModal = form => AskName(form, "ShellForm");
+        item.PerformClick();
+
+        Assert.Equal("ShellForm", main.ClassName);
+        Assert.Equal("ShellForm", main.Sheet.Caption);
+        Assert.Equal(project.FormFiles.Single(), main.Path);
+        Assert.False(File.Exists(Path.Combine(project.Directory, "MainForm.radform.json")));
+        Assert.False(File.Exists(Path.Combine(project.Directory, "MainForm.cs")));
+        Assert.Contains("\"class\": \"Label\"", File.ReadAllText(main.Path));
+        var code = File.ReadAllText(Path.Combine(project.Directory, "ShellForm.cs"));
+        Assert.Contains("partial class ShellForm : Form", code);
+        Assert.Contains("public ShellForm()", code);
+        Assert.Contains("new ShellForm()", File.ReadAllText(Path.Combine(project.Directory, "Other.cs")));
+        Assert.Equal("ShellForm", project.MainFormClass);
+        Assert.Contains("ShellForm", ListText(d));
+        Assert.DoesNotContain("MainForm", ListText(d));
+        Assert.Contains("ShellForm", d.Caption);
+    }
+
+    [Fact]
+    public void Rename_form_fails_safely_when_a_target_file_exists()
+    {
+        var project = RadProject.Create(TempDir(), "Clash");
+        var (d, _) = Start(project.ProjectFile);
+        var codeBefore = File.ReadAllText(Path.Combine(project.Directory, "MainForm.cs"));
+        File.WriteAllText(Path.Combine(project.Directory, "Taken.radform.json"), "{}");   // the code file is free, the form file is not
+        Assert.False(d.RenameForm("Taken"));
+        Assert.Equal("MainForm", d.ActiveForm!.ClassName);
+        Assert.Equal(codeBefore, File.ReadAllText(Path.Combine(project.Directory, "MainForm.cs")));
+        Assert.True(File.Exists(Path.Combine(project.Directory, "MainForm.radform.json")));
+        Assert.False(File.Exists(Path.Combine(project.Directory, "Taken.cs")));
+
+        // RadProject refuses too and leaves everything alone, even when called directly.
+        Assert.Throws<IOException>(() => project.RenameForm(d.ActiveForm.Path, "Taken"));
+        Assert.True(File.Exists(Path.Combine(project.Directory, "MainForm.cs")));
+    }
+
+    [Fact]
+    public void New_application_writes_debug_files_for_VS_Code_and_Visual_Studio()
+    {
+        var project = RadProject.Create(TempDir(), "Dbg");
+        string Read(string rel) => File.ReadAllText(Path.Combine(project.Directory, rel));
+
+        var launch = System.Text.Json.JsonDocument.Parse(Read(".vscode/launch.json")).RootElement.GetProperty("configurations")[0];
+        Assert.Equal("coreclr", launch.GetProperty("type").GetString());
+        Assert.Equal("${workspaceFolder}/bin/Debug/net10.0/Dbg.dll", launch.GetProperty("program").GetString());
+        Assert.Equal("build", launch.GetProperty("preLaunchTask").GetString());
+
+        var tasks = System.Text.Json.JsonDocument.Parse(Read(".vscode/tasks.json")).RootElement.GetProperty("tasks");
+        Assert.Equal("build", tasks[0].GetProperty("label").GetString());
+        Assert.Equal("${workspaceFolder}/Dbg.csproj", tasks[0].GetProperty("args")[1].GetString());
+
+        var profiles = System.Text.Json.JsonDocument.Parse(Read("Properties/launchSettings.json")).RootElement.GetProperty("profiles");
+        Assert.Equal("Project", profiles.GetProperty("Dbg").GetProperty("commandName").GetString());
+    }
+
+    [Fact]
+    public void Form_name_dialog_wraps_long_problems_instead_of_clipping_them()
+    {
+        var project = RadProject.Create(TempDir(), "Wrap");
+        var dialog = new FormNameDialog(project, "New Form", "Form2", null, null);
+        Assert.True(((Label)dialog.FindControl("lblProblem")!).WordWrap);
+    }
+
+    [Fact]
+    public void Menu_editor_onClick_field_writes_the_handler_stub_and_the_app_compiles()
+    {
+        var project = RadProject.Create(TempDir(), "MenuApp");
+        var (d, host) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        doc.Create(ComponentRegistry.Find("MainMenu")!, doc.Form, 0, 0);
+        host.AnswerModal = f =>
+        {
+            void Click(string b) => f.Simulate.Click((Button)f.FindControl(b)!);
+            Click("btnAdd");
+            ((Edit)f.FindControl("edtCaption")!).Text = "E&xit";
+            ((Edit)f.FindControl("edtHandler")!).Text = "mniExit_Click";
+            return "btnClose";
+        };
+        d.Simulate.Key("Mod+M");
+
+        var source = File.ReadAllText(Path.Combine(project.Directory, "MainForm.cs"));
+        Assert.Contains("void mniExit_Click(MenuItem sender)", source);
+        Assert.Contains("\"onClick\": \"mniExit_Click\"", File.ReadAllText(Path.Combine(project.Directory, "MainForm.radform.json")));
+        Assert.NotNull(d.Run());   // F9: no RAD1001
+        Assert.DoesNotContain(d.OutputLines, l => l.Contains("RAD1001"));
+    }
+
+    [Fact]
+    public void Menu_editor_double_click_proposes_a_default_handler_name_and_writes_the_stub()
+    {
+        var project = RadProject.Create(TempDir(), "MenuDbl");
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        var menu = (MainMenu)doc.Create(ComponentRegistry.Find("MainMenu")!, doc.Form, 0, 0);
+        var editor = new MenuEditor(doc, menu) { HandlerRequested = d.EditMenuHandlers };
+        var item = editor.AddItem("Open");
+        item.Name = "mniOpen";
+        editor.EditHandler();   // what a double-click on the item or the onClick field does
+        Assert.Equal("mniOpen_Click", item.ClickHandler);
+        Assert.Contains("void mniOpen_Click(MenuItem sender)", File.ReadAllText(Path.Combine(project.Directory, "MainForm.cs")));
     }
 }

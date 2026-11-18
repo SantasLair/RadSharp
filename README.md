@@ -96,7 +96,8 @@ dotnet run --project samples/WindowsDemo      # monitors, per-monitor scale, pla
 dotnet test                                   # the test suite
 ```
 
-To start your own app, follow [docs/getting-started.md](docs/getting-started.md). It packs the
+To start your own app, follow [docs/getting-started.md](docs/getting-started.md). Build the local packages with
+`./pack.ps1` or `./pack.sh` (one version for every package), not `dotnet pack` per project. The guide packs the
 [`templates/`](templates) project, installs it, and creates a new app with `dotnet new radsharp-app -n MyApp`.
 
 ## The Visual Studio designer

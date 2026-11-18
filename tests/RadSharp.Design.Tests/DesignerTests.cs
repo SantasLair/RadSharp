@@ -255,6 +255,42 @@ public class DesignerTests
     }
 
     [Fact]
+    public void Menu_editor_UI_builds_File_menu_with_separator_and_alt_shortcut_and_saves_it()
+    {
+        var doc = new DesignDocument();
+        var menu = (MainMenu)doc.Create(ComponentRegistry.Find("MainMenu")!, doc.Form, 0, 0);
+        var f = new MenuEditor(doc, menu).Form;
+        void Click(string button) => f.Simulate.Click((Button)f.FindControl(button)!);
+        void Set(string edit, string text) => ((Edit)f.FindControl(edit)!).Text = text;
+
+        Click("btnAdd"); Set("edtCaption", "File");
+        Click("btnAddSub"); Set("edtCaption", "New"); Set("edtShortcut", "Mod+N");
+        Click("btnAdd"); Set("edtCaption", "Open"); Set("edtShortcut", "Mod+O"); Set("edtAltShortcut", "Ctrl+F12");
+        Click("btnSeparator");
+        Click("btnAdd"); Set("edtCaption", "Exit");
+
+        var file = Assert.Single(menu.Items);
+        Assert.Equal(["New", "Open", "-", "Exit"], file.Items.Select(i => i.Caption));
+        Assert.True(file.Items[2].Separator);
+        Assert.Equal("Ctrl+F12", file.Items[1].AltShortcut);
+
+        // Selecting the item again shows its alt shortcut in the field.
+        var tree = (TreeView)f.FindControl("tvItems")!;
+        tree.Selected = tree.Nodes[0].Nodes[1];
+        Assert.Equal("Ctrl+F12", ((Edit)f.FindControl("edtAltShortcut")!).Text);
+
+        var saved = System.Text.Json.JsonDocument.Parse(doc.Save());
+        var main = saved.RootElement.GetProperty("root").GetProperty("children").EnumerateArray()
+            .Single(c => c.GetProperty("class").GetString() == "MainMenu");
+        var items = main.GetProperty("items")[0].GetProperty("items").EnumerateArray().ToList();
+        Assert.Equal(4, items.Count);
+        Assert.True(items[2].GetProperty("separator").GetBoolean());
+        Assert.Equal("-", items[2].GetProperty("caption").GetString());
+        Assert.Equal("Ctrl+F12", items[1].GetProperty("altShortcut").GetString());
+        Assert.False(items[0].TryGetProperty("altShortcut", out _));
+    }
+
+    [Fact]
     public void Names_that_hide_an_inherited_form_member_are_refused_and_never_generated_for_new_controls()
     {
         var doc = new DesignDocument();
