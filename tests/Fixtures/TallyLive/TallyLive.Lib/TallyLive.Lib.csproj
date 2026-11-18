@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- A project reference that is also a small component library (it defines a control of its own). -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <RootNamespace>Tally.Lib</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="$(RadSharpBin)RadSharp.Core.dll" />
+    <Reference Include="$(RadSharpBin)SkiaSharp.dll" />
+    <Reference Include="$(RadSharpBin)HarfBuzzSharp.dll" />
+    <Analyzer Include="$(RadSharpBin)RadSharp.Generators.dll" />
+  </ItemGroup>
+
+</Project>

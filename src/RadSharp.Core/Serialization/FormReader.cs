@@ -12,6 +12,13 @@ public sealed record FormLoadOptions
 {
     /// <summary>UI scale factor; stored lengths are multiplied by it and rounded before the first layout.</summary>
     public double Scale { get; init; } = 1;
+
+    /// <summary>
+    /// Keeps a node whose class isn't registered as an <see cref="UnknownControl"/> placeholder (still with a warning)
+    /// instead of skipping it, so saving the form writes it back unchanged. The designer sets this; an application
+    /// leaves it off, so a control it can't create is skipped as before.
+    /// </summary>
+    public bool KeepUnknownClasses { get; init; }
 }
 
 /// <summary>Reads form files (spec, Appendix A), driven by the generated component metadata.</summary>
@@ -45,16 +52,20 @@ public static class FormReader
         LoadInto(form, reader.ReadToEnd());
     }
 
-    /// <summary>Reads controls written by <see cref="FormWriter.SaveFragment"/> (a JSON array of nodes).</summary>
-    public static (List<Control> Controls, List<string> Warnings) LoadFragment(string json)
+    /// <summary>
+    /// Reads controls written by <see cref="FormWriter.SaveFragment"/> (a JSON array of nodes). Of the options only
+    /// <see cref="FormLoadOptions.KeepUnknownClasses"/> applies (a fragment isn't scaled).
+    /// </summary>
+    public static (List<Control> Controls, List<string> Warnings) LoadFragment(string json, FormLoadOptions? options = null)
     {
+        options ??= new();
         var warnings = new List<string>();
         var controls = new List<Control>();
         using var doc = ParseDocument(json);
         if (doc.RootElement.ValueKind != JsonValueKind.Array) throw new FormFileException("A fragment must be a JSON array of controls.");
         int i = 0;
         foreach (var node in doc.RootElement.EnumerateArray())
-            if (ReadNode(node, warnings, $"[{i++}]") is { } c) controls.Add(c);
+            if (ReadNode(node, warnings, $"[{i++}]", options) is { } c) controls.Add(c);
         return (controls, warnings);
     }
 
@@ -83,10 +94,10 @@ public static class FormReader
         {
             if (ClassOf(rootJson) is { } cls && !cls.Type.IsInstanceOfType(target))
                 throw new FormFileException($"The form file's root is a {cls.Name}, but it is being loaded into a {target.GetType().Name}.");
-            ReadInto(target, rootJson, warnings, "root");
+            ReadInto(target, rootJson, warnings, "root", options);
             form = target;
         }
-        else if (ReadNode(rootJson, warnings, "root") is Form created) form = created;
+        else if (ReadNode(rootJson, warnings, "root", options) is Form created) form = created;
         else throw new FormFileException("The root node must be a Form.");
 
         form.ApplyScaleCore(options.Scale);
@@ -113,7 +124,7 @@ public static class FormReader
     static ComponentClass? ClassOf(JsonElement node) =>
         node.TryGetProperty("class", out var c) && c.ValueKind == JsonValueKind.String ? ComponentRegistry.Find(c.GetString()!) : null;
 
-    static Control? ReadNode(JsonElement node, List<string> warnings, string path)
+    static Control? ReadNode(JsonElement node, List<string> warnings, string path, FormLoadOptions options)
     {
         var className = node.TryGetProperty("class", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString()! : null;
         if (className == null)
@@ -123,16 +134,21 @@ public static class FormReader
         }
         if (ComponentRegistry.Find(className) is not { CanCreate: true } cls)
         {
+            if (options.KeepUnknownClasses)
+            {
+                warnings.Add($"{path}: unknown class \"{className}\"; kept as a placeholder (written back unchanged).");
+                return UnknownControl.Read(node, className);
+            }
             warnings.Add($"{path}: unknown class \"{className}\"; node and its children skipped.");
             return null;
         }
         var control = cls.Create();
-        ReadInto(control, node, warnings, path);
+        ReadInto(control, node, warnings, path, options);
         return control;
     }
 
     /// <summary>Applies a node's name, properties, event handler names and children to a control.</summary>
-    static void ReadInto(Control control, JsonElement node, List<string> warnings, string path)
+    static void ReadInto(Control control, JsonElement node, List<string> warnings, string path, FormLoadOptions options)
     {
         var cls = ComponentRegistry.Of(control);
         if (node.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
@@ -179,7 +195,7 @@ public static class FormReader
             int i = 0;
             foreach (var childJson in children.EnumerateArray())
             {
-                if (ReadNode(childJson, warnings, $"{here}.children[{i++}]") is { } child)
+                if (ReadNode(childJson, warnings, $"{here}.children[{i++}]", options) is { } child)
                     control.Add(child);
             }
         }

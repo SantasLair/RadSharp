@@ -48,9 +48,15 @@ public sealed class DesignDocument
         _savedText = Save();
     }
 
+    /// <summary>
+    /// How the designer reads form text: a node whose class it doesn't know (one the project defines, say) is kept as
+    /// an <see cref="UnknownControl"/> placeholder, so saving writes it back instead of deleting it.
+    /// </summary>
+    public static readonly FormLoadOptions LoadOptions = new() { KeepUnknownClasses = true };
+
     public IReadOnlyList<string> Load(string json)
     {
-        var (form, warnings) = FormReader.Load(json);
+        var (form, warnings) = FormReader.Load(json, LoadOptions);
         Replace(form);
         _undo.Clear();
         _redo.Clear();
@@ -103,7 +109,7 @@ public sealed class DesignDocument
         if (from.Count == 0) return false;
         to.Push(Current());
         var (json, names) = from.Pop();
-        var (form, _) = FormReader.Load(json);
+        var (form, _) = FormReader.Load(json, LoadOptions);
         Replace(form);
         foreach (var n in names)
             if (form.FindControl(n) is { } c && c != form) _selection.Add(c);
@@ -139,7 +145,9 @@ public sealed class DesignDocument
     /// <summary>A name like "Button1" not used anywhere on the form.</summary>
     public string UniqueName(string className)
     {
-        var used = new HashSet<string>(Form.Descendants().Select(c => c.Name).Append(Form.Name), StringComparer.OrdinalIgnoreCase);
+        // Names inside a placeholder's (unloaded) children are still in the file, so they count as used.
+        var used = new HashSet<string>(Form.Descendants().Select(c => c.Name).Append(Form.Name)
+            .Concat(Form.Descendants().OfType<UnknownControl>().SelectMany(u => u.ContainedNames)), StringComparer.OrdinalIgnoreCase);
         for (int n = 1; ; n++)
             if (!used.Contains(className + n)) return className + n;
     }
@@ -184,13 +192,13 @@ public sealed class DesignDocument
     /// <summary>Pastes a fragment into <paramref name="parent"/>, renaming clashes and offsetting copies.</summary>
     public List<Control> Paste(string fragment, Control parent, int offset = 8)
     {
-        var (controls, _) = FormReader.LoadFragment(fragment);
+        var (controls, _) = FormReader.LoadFragment(fragment, LoadOptions);
         if (controls.Count == 0) return controls;
         Snapshot();
         foreach (var c in controls)
         {
             foreach (var d in c.Descendants().Prepend(c))
-                if (d.Name.Length == 0 || Form.FindControl(d.Name) != null) d.Name = UniqueName(ComponentRegistry.Of(d).Name);
+                if (d.Name.Length == 0 || Form.FindControl(d.Name) != null) d.Name = UniqueName(d is UnknownControl u ? u.ClassName : ComponentRegistry.Of(d).Name);
             if (c.Align == Align.None) c.SetBounds(c.Left + offset, c.Top + offset, c.Width, c.Height);
             parent.Add(c);
         }
@@ -202,7 +210,8 @@ public sealed class DesignDocument
     /// <summary>Renames a control (the form generator turns the name into a field).</summary>
     public bool Rename(Control control, string name)
     {
-        if (name.Length == 0 || !IsIdentifier(name) || (Form.FindControl(name) is { } other && other != control)) return false;
+        if (name.Length == 0 || !IsIdentifier(name) || (Form.FindControl(name) is { } other && other != control)
+            || Form.Descendants().OfType<UnknownControl>().Any(u => u.ContainedNames.Contains(name, StringComparer.Ordinal))) return false;
         Snapshot();
         control.Name = name;
         NotifyChanged();

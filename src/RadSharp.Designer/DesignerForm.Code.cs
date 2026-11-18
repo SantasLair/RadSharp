@@ -201,7 +201,7 @@ public partial class DesignerForm
         foreach (var m in session.Messages) Output(m.ToString(), m);
         if (!session.Success)
         {
-            Output($"{session.Messages.Count} error(s).");
+            Output($"{session.Messages.Count(m => m.IsError)} error(s).");
             session.Dispose();
             return null;
         }
