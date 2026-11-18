@@ -5,18 +5,55 @@ next to three native libraries: SDL3, SkiaSharp and HarfBuzzSharp. Ship the whol
 
 ## Building for every OS
 
-NativeAOT can't cross-compile between operating systems, so build each on its own OS. New projects include
-`.github/workflows/build.yml`, which does exactly that on GitHub Actions (Windows, macOS, Linux) and uploads each
-build as an artifact.
+NativeAOT can't cross-compile between operating systems, so build each on its own OS. New projects (the designer's
+**New Project** and `dotnet new radsharp-app`) include `.github/workflows/build.yml`, which does exactly that on
+GitHub Actions from one push and uploads one package per OS as an artifact:
+
+| OS | Artifact | Contents |
+| --- | --- | --- |
+| Windows | `<app>-<version>-win-x64.zip` | the publish folder (exe with icon and version resource, plus SDL3, SkiaSharp, HarfBuzzSharp DLLs) |
+| macOS | `<app>-<version>-osx-arm64.zip`, `<app>-<version>-osx-x64.zip` | `<Product>.app` (`Contents/MacOS` holds the exe and dylibs, `Info.plist`, `Resources/<app>.icns`), zipped with `ditto` |
+| Linux | `<app>-<version>-linux-x64.tar.gz` | the exe, the libraries, `<app>.desktop` and `<app>.png` |
+| Linux | `<app>-<version>-linux-x64.AppImage` | built with a pinned, checksum-verified `appimagetool`; best effort (a failure does not fail the build, the tarball is the guaranteed Linux artifact) |
+
+Nothing is hard-coded in the YAML: the app name (`AssemblyName`), `<Version>`, `<Product>` and `<BundleId>` come from
+the `.csproj`. The same `.csproj` properties give the Windows exe its icon (`<ApplicationIcon>app.ico</ApplicationIcon>`)
+and version resource (`Version`, `Product`, `Company`, `Copyright`). Edit those, and replace `app.ico` (Windows) and
+`app.png`, a 1024 x 1024 PNG (macOS `.icns` and Linux), to brand the app. New projects ship a neutral default icon.
+
+## Signing and notarization
+
+Each signing step runs only when its repository secret exists (Settings > Secrets and variables > Actions); without
+them the build still succeeds and produces unsigned packages (macOS bundles are ad-hoc signed, which Apple silicon
+needs to run at all).
+
+| Secret | Format | Used for |
+| --- | --- | --- |
+| `WINDOWS_CERT_PFX` | base64 of an Authenticode `.pfx` (`[Convert]::ToBase64String([IO.File]::ReadAllBytes('cert.pfx'))`) | `signtool sign /fd sha256 /tr ... /td sha256` on the exe |
+| `WINDOWS_CERT_PASSWORD` | the `.pfx` password | same |
+| `WINDOWS_TIMESTAMP_URL` | optional; default `http://timestamp.digicert.com` | RFC 3161 timestamp server |
+| `MACOS_CERT` | base64 of a "Developer ID Application" `.p12` (`base64 -i cert.p12`) | imported into a temporary keychain; `codesign --options runtime --timestamp` |
+| `MACOS_CERT_PASSWORD` | the `.p12` password | same |
+| `MACOS_SIGN_IDENTITY` | e.g. `Developer ID Application: Name (TEAMID)` | `codesign --sign` |
+| `APPLE_ID`, `APPLE_TEAM_ID`, `APPLE_APP_PASSWORD` | Apple ID email, 10-character team id, app-specific password | `xcrun notarytool submit --wait`, then `xcrun stapler staple` (needs the `MACOS_*` secrets too) |
+
+Certificates cost money and need a human: an Authenticode certificate from a CA, and an Apple Developer Program
+membership for Developer ID and notarization.
+
+## Testing the workflow on a fork
+
+You can't run the workflow locally. Push the project (or a fork of it) to GitHub, open the Actions tab and watch
+the `Build` run (or start it with **Run workflow**, the `workflow_dispatch` trigger). Download the artifacts and check:
+on Windows, the exe's Properties > Details tab shows the version and the icon; on macOS, unzip, open the `.app`
+(right-click > Open if unsigned) and run `codesign -dv` on it; on Linux, unpack the tarball and run the exe, then
+`chmod +x` and run the AppImage. To exercise signing, add the secrets to the fork first; remove them afterwards.
 
 ## Before users download it
 
-- **Windows:** unsigned executables trigger SmartScreen warnings. Sign with an Authenticode certificate
-  (`signtool sign /fd sha256 /tr <timestamp-url> /td sha256 MyApp.exe`).
-- **macOS:** Gatekeeper blocks unsigned downloads. Put the executable and libraries in an `.app` bundle
-  (`Contents/MacOS`), sign it with a Developer ID certificate (`codesign --deep --options runtime`), and notarize it
-  (`xcrun notarytool submit … --wait`, then `xcrun stapler staple`). Signing needs an Apple Developer account.
-- **Linux:** distribute as a folder, tarball, AppImage or Flatpak; the app needs no runtime, only the three libraries.
+- **Windows:** unsigned executables trigger SmartScreen warnings; sign with an Authenticode certificate (the workflow
+  does when `WINDOWS_CERT_PFX` is set).
+- **macOS:** Gatekeeper blocks unsigned downloads; the workflow signs and notarizes when the secrets above are set.
+- **Linux:** distribute the tarball or AppImage (or a Flatpak); the app needs no runtime, only the three libraries.
 
 ## Code protection
 

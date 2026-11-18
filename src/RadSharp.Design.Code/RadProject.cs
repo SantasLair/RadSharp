@@ -84,6 +84,13 @@ public sealed class RadProject
                 <PublishAot>true</PublishAot>
                 <EnableAotAnalyzer>true</EnableAotAnalyzer>
                 <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
+                <!-- Packaging (read by .github/workflows/build.yml): exe icon and Windows version resource, .app bundle id. -->
+                <ApplicationIcon>app.ico</ApplicationIcon>
+                <Version>1.0.0</Version>
+                <Product>{name}</Product>
+                <Company>{name}</Company>
+                <Copyright>Copyright (c) {name}</Copyright>
+                <BundleId>com.example.{BundleSegment(name)}</BundleId>
               </PropertyGroup>
 
               <ItemGroup>
@@ -115,7 +122,9 @@ public sealed class RadProject
                 </configuration>
 
                 """);
-        File.WriteAllText(Path.Combine(directory, ".gitignore"), "bin/\nobj/\npackages/\n");
+        File.WriteAllText(Path.Combine(directory, ".gitignore"), "bin/\nobj/\npackages/\nout/\ndist/\n");
+        File.WriteAllBytes(Path.Combine(directory, "app.ico"), PackagingResource("app.ico"));
+        File.WriteAllBytes(Path.Combine(directory, "app.png"), PackagingResource("app.png"));
         var workflows = Path.Combine(directory, ".github", "workflows");
         System.IO.Directory.CreateDirectory(workflows);
         File.WriteAllText(Path.Combine(workflows, "build.yml"), CrossPlatformWorkflow);
@@ -389,34 +398,30 @@ public sealed class RadProject
     public string? FormFileFor(string className) =>
         FormFiles.FirstOrDefault(f => FormClassName(f) == className);
 
-    /// <summary>A GitHub Actions workflow that builds the app natively on Windows, macOS and Linux.</summary>
-    public const string CrossPlatformWorkflow = """
-        name: Build
+    /// <summary>
+    /// The GitHub Actions workflow new projects get (<c>.github/workflows/build.yml</c>): per OS, a NativeAOT build
+    /// packaged as a zip (Windows), a <c>.app</c> bundle zip (macOS) and a tarball plus AppImage (Linux), with signing
+    /// and notarization gated on repository secrets. Embedded from <c>Packaging/build.yml</c>; the
+    /// <c>dotnet new radsharp-app</c> template carries an identical copy.
+    /// </summary>
+    public static string CrossPlatformWorkflow => System.Text.Encoding.UTF8.GetString(PackagingResource("build.yml"));
 
-        # Builds a native executable for Windows, macOS and Linux (NativeAOT builds for the OS it runs on).
-        on:
-          push:
-          workflow_dispatch:
+    /// <summary>A file embedded from <c>Packaging/</c>: <c>build.yml</c>, <c>app.ico</c> or <c>app.png</c>.</summary>
+    public static byte[] PackagingResource(string name)
+    {
+        using var stream = typeof(RadProject).Assembly.GetManifestResourceStream("RadSharp.Packaging." + name)
+            ?? throw new InvalidOperationException($"Embedded packaging resource {name} is missing.");
+        using var ms = new MemoryStream();
+        stream.CopyTo(ms);
+        return ms.ToArray();
+    }
 
-        jobs:
-          build:
-            strategy:
-              matrix:
-                os: [windows-latest, macos-latest, ubuntu-latest]
-            runs-on: ${{ matrix.os }}
-            steps:
-              - uses: actions/checkout@v4
-              - uses: actions/setup-dotnet@v4
-                with:
-                  dotnet-version: 10.0.x
-              - run: dotnet publish -c Release --use-current-runtime -o out
-              - uses: actions/upload-artifact@v4
-                with:
-                  name: app-${{ matrix.os }}
-                  path: out/
-        # Before shipping: sign the Windows .exe (SmartScreen warns about unsigned apps) and sign and
-        # notarize the macOS app (Gatekeeper blocks unsigned downloads). See the RadSharp docs.
-        """;
+    /// <summary>The last segment of a reverse-DNS bundle id: letters and digits only (a bundle id allows '-' and '.').</summary>
+    static string BundleSegment(string name)
+    {
+        var s = new string([.. name.Where(char.IsAsciiLetterOrDigit)]);
+        return s.Length == 0 ? "app" : s;
+    }
 
     /// <summary>Adds an empty form and its code-behind; returns the form file.</summary>
     public string AddForm(string className, string? caption = null)
