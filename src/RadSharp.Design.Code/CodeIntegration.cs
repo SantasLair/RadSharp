@@ -92,7 +92,7 @@ public static class CodeIntegration
             return cls.Events.FirstOrDefault(e => !inherited.Contains(e.Name)
                 || cls.FindEvent(e.Name) != ComponentRegistry.Find(typeof(Control))!.FindEvent(e.Name));
         }
-        string[] order = control is EditBase or ListBox or ComboBox or TrackBar or ScrollBar or TreeView or ListView or CustomGrid or PageControl
+        string[] order = control is EditBase or ListBox or ComboBox or Calendar or DateTimePicker or TrackBar or ScrollBar or TreeView or ListView or CustomGrid or PageControl
             ? ["onChange", "onClick"]
             : control is Form ? ["onShow", "onClick"]
             : control is PaintBox ? ["onPaint", "onClick"]
