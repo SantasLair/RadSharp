@@ -225,6 +225,7 @@ internal sealed class ActionSlot(Func<ActionItem, ActionLink> createLink)
     /// <summary>Links to <paramref name="action"/> from code (copying every value), or unlinks with null.</summary>
     public void SetAction(ActionItem? action)
     {
+        if (action == null) { Unlink(); _name = ""; return; }   // also cancels a name that never resolved
         if (Link?.Action == action) return;
         Unlink();
         _name = action?.Name ?? "";
