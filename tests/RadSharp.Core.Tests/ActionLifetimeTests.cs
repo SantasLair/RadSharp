@@ -200,4 +200,35 @@ public class ActionLifetimeTests
         }
         finally { mine.Close(); other!.Close(); }
     }
+
+    // ---- shortcuts and bulk adds ----
+
+    [Fact]
+    public void A_shortcut_only_counts_as_handled_when_an_action_actually_ran()
+    {
+        Shortcut.CommandModifier = KeyModifiers.Ctrl;
+        var f = new Form();
+        f.SetBounds(0, 0, 300, 200);
+        var first = new ActionItem { Name = "actFirst", Shortcut = "Mod+N" };    // enabled, but nothing to run
+        var second = new ActionItem { Name = "actSecond", Shortcut = "Mod+N" };
+        int runs = 0;
+        second.Executed += _ => runs++;
+        f.Add(first);
+        f.Add(second);
+        f.PerformLayout();
+        f.Simulate.Key("Mod+N");
+        Assert.Equal(1, runs);                              // the handler-less action didn't swallow the key
+    }
+
+    [Fact]
+    public void Adding_many_controls_does_not_rebuild_the_action_list_each_time()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 300, 200);
+        f.Add(new ActionItem { Name = "actA", Shortcut = "F5" });
+        f.NotifyShown();
+        for (int i = 0; i < 20000; i++) f.Add(new Panel());   // quadratic if every add rescans the tree
+        Assert.Single(f.Descendants().OfType<ActionItem>());
+        f.Close();
+    }
 }

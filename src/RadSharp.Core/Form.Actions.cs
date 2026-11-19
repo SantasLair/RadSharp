@@ -14,7 +14,7 @@ public partial class Form
     static readonly List<WeakReference<Form>> ShownForms = [];
     readonly int _uiThread = Environment.CurrentManagedThreadId;   // forms and their actions belong to the thread that made them
     static bool _idleHooked;
-    bool _windowShown;
+    bool _windowShown, _idleTracked;
 
     /// <summary>Called from the constructor: a shown form with actions takes part in the idle update.</summary>
     void InitActions()
@@ -76,7 +76,10 @@ public partial class Form
 
     void SyncIdleTracking()
     {
-        bool track = _windowShown && ActionSlot.Used && ActionList.Count > 0;
+        // Tracked whenever shown and actions are in use; whether this form has any is looked at lazily, in the idle pass, so
+        // adding controls never rescans the tree here.
+        bool track = _windowShown && ActionSlot.Used;
+        _idleTracked = track;
         lock (ShownForms)   // UI code is single-threaded, but test runners show forms from several threads
         {
             ShownForms.RemoveAll(w => !w.TryGetTarget(out var f) || f == this);
@@ -99,7 +102,7 @@ public partial class Form
         }
         int thread = Environment.CurrentManagedThreadId;
         foreach (var form in forms)   // UI-thread-only: a form made on another thread is that thread's to update
-            if (form._uiThread == thread && form.TakesIdleUpdates) form.UpdateActions();
+            if (form._uiThread == thread && form.TakesIdleUpdates && form.ActionList.Count > 0) form.UpdateActions();
     }
 
     /// <summary>Called when controls are added or removed anywhere on the form.</summary>
@@ -107,7 +110,7 @@ public partial class Form
     {
         _actions = null;
         _actionLinksDirty = true;
-        if (_windowShown && ActionSlot.Used) SyncIdleTracking();   // an action may have been added or removed
+        if (_windowShown && ActionSlot.Used && !_idleTracked) SyncIdleTracking();   // the first action may just have been added
     }
 
     /// <summary>The form's actions, in tree order.</summary>
@@ -154,7 +157,7 @@ public partial class Form
         }
     }
 
-    /// <summary>A shortcut nothing else took: runs the first enabled action on this form with that shortcut.</summary>
+    /// <summary>A shortcut nothing else took: runs the first enabled action on this form with that shortcut that has a handler.</summary>
     bool ProcessActionShortcut(KeyEventArgs e)
     {
         if (!ActionSlot.Used) return false;
@@ -164,7 +167,7 @@ public partial class Form
             if (!action.MatchesShortcut(e)) continue;
             action.UpdateState();
             if (!action.Enabled) continue;
-            action.Execute(null, update: false);   // onUpdate just ran above
+            if (!action.Execute(null, update: false)) continue;   // onUpdate just ran above; no handler: the key isn't taken (Delphi's IsShortCut)
             e.Handled = true;
             return true;
         }
