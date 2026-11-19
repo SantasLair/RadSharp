@@ -750,4 +750,53 @@ public class ProjectControlsTests : IDisposable
         Assert.Equal(["Sidebar"], Category(d, PaletteCategories.Project));
         Assert.Contains("up to date", ((StatusBar)d.FindControl("sbMain")!).SimpleText);
     }
+
+    const string GaugeCode = """
+        using RadSharp;
+
+        namespace Gauges;
+
+        public class Gauge : Label { }
+        """;
+    const string GaugeNode = """{ "class": "Gauge", "name": "gauge1", "left": 8, "top": 8 }""";
+
+    [Fact]
+    public void A_transient_failure_while_rebuilding_is_retried_and_keeps_the_last_good_session_meanwhile()
+    {
+        var (project, _) = ProjectWith("Gauges", GaugeCode, GaugeNode);
+        int calls = 0, failFrom = int.MaxValue, failUntil = 0;
+        var resolver = new LiveRunOptions
+        {
+            // What File.ReadAllText does right after a watcher event: the editor still holds the file.
+            Resolver = (_, _, _) => ++calls >= failFrom && calls <= failUntil
+                ? throw new IOException("The process cannot access the file")
+                : new DependencyResolution(null, "not resolved in this test", false),
+        };
+        var (d, host) = Start(project.ProjectFile, new DesignerOptions
+        {
+            WatchProject = false, LiveRun = resolver, TransientRetries = 2, TransientRetryDelay = TimeSpan.FromMilliseconds(10),
+        });
+        host.Pump(d.ProjectControlsTask, "the design session");
+        var first = d.DesignSession;
+        Assert.NotNull(first);
+        Assert.Equal("Gauge", ClassOf(d, "gauge1"));
+
+        // One failure: retried, and the new session installs.
+        failFrom = calls + 1; failUntil = calls + 1;
+        host.Pump(d.RefreshProjectControls(), "the retried rebuild");
+        Assert.NotNull(d.DesignSession);
+        Assert.NotSame(first, d.DesignSession);
+        Assert.Equal("Gauge", ClassOf(d, "gauge1"));
+        Assert.Contains(d.OutputLines, l => l.Contains("trying again"));
+
+        // Failing every time: after the retries the last good session is kept, its controls stay real.
+        var second = d.DesignSession;
+        failFrom = calls + 1; failUntil = int.MaxValue;
+        var rebuild = d.RefreshProjectControls();
+        host.Pump(rebuild, "the failed rebuild");
+        Assert.Same(second, d.DesignSession);
+        Assert.Equal("Gauge", ClassOf(d, "gauge1"));
+        Assert.Equal(["Gauge"], Category(d, PaletteCategories.Project));
+        Assert.Contains(d.OutputLines, l => l.Contains("couldn't be loaded") && l.Contains("The process cannot access the file"));
+    }
 }

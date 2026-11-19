@@ -19,6 +19,16 @@ public sealed record DesignerOptions
     /// <summary>How long a burst of file changes must settle before the design session is rebuilt.</summary>
     public TimeSpan RefreshDelay { get; init; } = TimeSpan.FromMilliseconds(400);
 
+    /// <summary>
+    /// How often a rebuild is tried again when it fails with an exception (not compile errors: those are the project's
+    /// state, shown as placeholders): a source file the editor still holds, say, right after the watcher saw it change.
+    /// The last good session stays installed meanwhile, and after the last try.
+    /// </summary>
+    public int TransientRetries { get; init; } = 3;
+
+    /// <summary>How long to wait before each of those tries.</summary>
+    public TimeSpan TransientRetryDelay { get; init; } = TimeSpan.FromMilliseconds(500);
+
     /// <summary>How F9 and the design session compile (the dependency resolver, its timeout).</summary>
     public LiveRunOptions LiveRun { get; init; } = new();
 }
@@ -77,6 +87,7 @@ public partial class DesignerForm
             }),
         };
         bool told = false;
+        int faults = 0;
         void Finish(Task<DesignSession> t)
         {
             bool waiting = false;
@@ -99,17 +110,35 @@ public partial class DesignerForm
                 if (t.IsCompletedSuccessfully) Install(t.Result);
                 else
                 {
-                    Output($"{project.Name}'s controls couldn't be loaded: {(t.Exception?.InnerException ?? t.Exception)?.Message}");
-                    Install(null);
+                    // An exception, not compile errors (those come back as a session that didn't succeed): most likely
+                    // transient (a file still being written). Dropping the session would turn every project control
+                    // into a placeholder, so keep the last good one, and try again a few times.
+                    var why = (t.Exception?.InnerException ?? t.Exception)?.Message;
+                    if (++faults <= _options.TransientRetries)
+                    {
+                        waiting = true;
+                        Output($"{project.Name}'s controls couldn't be loaded ({why}); trying again ({faults}/{_options.TransientRetries}).");
+                        Task.Delay(_options.TransientRetryDelay).ContinueWith(_ => Post(() =>
+                        {
+                            if (generation == _designGeneration && _project == project) Start();
+                            else done.TrySetResult();
+                        }), TaskScheduler.Default);
+                        return;
+                    }
+                    Output($"{project.Name}'s controls couldn't be loaded: {why}");
+                    sbMain.SimpleText = _design == null
+                        ? $"{project.Name}'s controls aren't loaded"
+                        : $"{project.Name}'s controls couldn't be refreshed; showing the last loaded ones";
                 }
             }
             finally { if (!waiting) done.TrySetResult(); }
         }
-        Task.Run(() =>
+        void Start() => Task.Run(() =>
         {
-            if (refresh) ProjectDependencies.Invalidate(project);
+            if (refresh && faults == 0) ProjectDependencies.Invalidate(project);
             return DesignSession.Compile(project, options);
         }).ContinueWith(t => Post(() => Finish(t)), TaskScheduler.Default);
+        Start();
         return done.Task;
     }
 
