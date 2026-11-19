@@ -305,6 +305,69 @@ public class ProjectHostTests
         Assert.Empty(client.Ui(() => client.Server!.Projects.Keys.ToList()));
     }
 
+    /// <summary>Takes the rebuild check away from the host's loop: the test calls it with its own clock.</summary>
+    static void ManualChecks(HostClient client) => client.Ui(() =>
+    {
+        client.Server!.AutoCheckProjects = false;
+        client.Server.ProjectCheckInterval = TimeSpan.Zero;
+        client.Server.ProjectSettleTime = TimeSpan.FromMilliseconds(750);
+    });
+
+    static void Check(HostClient client, long now) => client.Ui(() => client.Server!.CheckProjects(now));
+
+    static ProjectAssembly Loaded(HostClient client) => client.Ui(() => client.Server!.Projects.Values.Single());
+
+    [Fact]
+    public void A_rebuild_that_keeps_changing_files_is_reloaded_only_once_it_has_settled()
+    {
+        var (dll, form) = Project();
+        using var client = Connect();
+        ManualChecks(client);
+        client.Send(new P.SetProjectAssembly { DocId = Doc, Path = dll });
+        client.Open(Doc, form);
+        client.Settle();
+        var first = Loaded(client);
+
+        Rebuild(dll, 5);
+        Check(client, 1000);                 // the rebuild is seen
+        Rebuild(dll, 6);                     // ... and the copy goes on
+        Check(client, 1600);                 // changed again: the wait starts over (it would be 600 ms since 1000)
+        Check(client, 1800);                 // 800 ms since the first sighting, but only 200 since the last change
+        Assert.Same(first, Loaded(client));
+        Check(client, 2400);                 // unchanged for 800 ms
+        Assert.NotSame(first, Loaded(client));
+        Assert.Null(Loaded(client).Error);
+    }
+
+    [Fact]
+    public void A_load_that_fails_right_after_a_rebuild_is_tried_once_more_when_it_has_settled()
+    {
+        var (dll, form) = Project();
+        var good = File.ReadAllBytes(dll);
+        using var client = Connect();
+        ManualChecks(client);
+        client.Send(new P.SetProjectAssembly { DocId = Doc, Path = dll });
+        client.Open(Doc, form);
+        client.Settle();
+
+        // A half-written file...
+        var stamp = DateTime.UtcNow.AddSeconds(5);
+        File.WriteAllBytes(dll, good.AsSpan(0, good.Length / 2).ToArray());
+        File.SetLastWriteTimeUtc(dll, stamp);
+        Check(client, 1000);
+        Check(client, 2000);
+        Assert.NotNull(Loaded(client).Error);
+
+        // ... which is complete a moment later, with the time stamp the failed read already saw.
+        File.WriteAllBytes(dll, good);
+        File.SetLastWriteTimeUtc(dll, stamp);
+        Check(client, 2500);                 // not yet: a retry waits as long as a rebuild does
+        Assert.NotNull(Loaded(client).Error);
+        Check(client, 2800);
+        Assert.Null(Loaded(client).Error);
+        Assert.Equal("SampleControls.Gauge", Gauge(client).GetType().FullName);
+    }
+
     [Fact]
     public void A_document_that_fails_to_open_does_not_keep_its_project_loaded()
     {

@@ -36,7 +36,10 @@ public sealed class DesignHostServer
     readonly Dictionary<int, PendingCode> _pendingCode = [];
     readonly Dictionary<string, ProjectAssembly> _projects = new(StringComparer.OrdinalIgnoreCase);
     readonly Dictionary<int, string> _docProject = [];
-    readonly Dictionary<string, long> _staleSince = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>When a rebuild was last seen changing (the host clock, ms), with the build's change stamp then.</summary>
+    readonly Dictionary<string, (long Since, long Stamp)> _staleSince = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Projects whose load failed after a rebuild: when to try once more (the file may have been half written).</summary>
+    readonly Dictionary<string, long> _retryAt = new(StringComparer.OrdinalIgnoreCase);
     readonly HashSet<string> _toldBusy = new(StringComparer.OrdinalIgnoreCase);
     long _nextProjectCheck;
     int _nextWindowId = 1, _activeDoc, _nextRequestId = 1;
@@ -171,7 +174,7 @@ public sealed class DesignHostServer
     {
         ExpireCodeRequests();
         long now = _clock.ElapsedMilliseconds;
-        CheckProjects(now);
+        if (AutoCheckProjects) CheckProjects(now);
         foreach (var doc in _docs.Values)
         {
             if (!doc.StateDirty && !doc.ModifiedStale) continue;
@@ -617,6 +620,9 @@ public sealed class DesignHostServer
     /// <summary>How long a rebuilt assembly must stay unchanged before it is reloaded (the build may still be writing).</summary>
     internal TimeSpan ProjectSettleTime { get; set; } = TimeSpan.FromMilliseconds(750);
 
+    /// <summary>False: the UI loop doesn't check for rebuilds itself (tests call <see cref="CheckProjects"/> with their own clock).</summary>
+    internal bool AutoCheckProjects { get; set; } = true;
+
     /// <summary>How often the loaded project assemblies are checked for a rebuild.</summary>
     internal TimeSpan ProjectCheckInterval { get; set; } = TimeSpan.FromSeconds(1);
 
@@ -691,6 +697,7 @@ public sealed class DesignHostServer
     {
         if (_docProject.ContainsValue(path) || !_projects.Remove(path, out var project)) return;
         _staleSince.Remove(path);
+        _retryAt.Remove(path);
         _toldBusy.Remove(path);
         project.Dispose();
     }
@@ -719,15 +726,28 @@ public sealed class DesignHostServer
     }
 
     /// <summary>Reloads every project assembly that was rebuilt and has stayed unchanged for <see cref="ProjectSettleTime"/>.</summary>
-    void CheckProjects(long now)
+    internal void CheckProjects(long now)
     {
         if (_projects.Count == 0 || now < _nextProjectCheck) return;
         _nextProjectCheck = now + (long)ProjectCheckInterval.TotalMilliseconds;
         foreach (var (path, project) in _projects.ToList())
         {
-            if (!project.IsStale()) { _staleSince.Remove(path); continue; }
-            if (!_staleSince.TryGetValue(path, out var since)) { _staleSince[path] = now; continue; }
-            if (now - since < ProjectSettleTime.TotalMilliseconds) continue;
+            bool retry = false;
+            if (_retryAt.TryGetValue(path, out var due))
+            {
+                // The load failed right after a rebuild: once more when it has settled (a slow copy, an antivirus scan).
+                if (now < due) continue;
+                _retryAt.Remove(path);
+                retry = true;
+            }
+            else if (!project.IsStale()) { _staleSince.Remove(path); continue; }
+            if (!retry)
+            {
+                // Settled: unchanged for ProjectSettleTime. A file that changes again restarts the wait.
+                var stamp = project.ChangeStamp();
+                if (!_staleSince.TryGetValue(path, out var seen) || seen.Stamp != stamp) { _staleSince[path] = (now, stamp); continue; }
+                if (now - seen.Since < ProjectSettleTime.TotalMilliseconds) continue;
+            }
             if (BusyWith(path) is { } busy)
             {
                 // Replacing the forms now would pull them from under what is editing them: wait until it is done.
@@ -737,6 +757,8 @@ public sealed class DesignHostServer
             _staleSince.Remove(path);
             _toldBusy.Remove(path);
             ReloadProject(path);
+            if (!retry && _projects.TryGetValue(path, out var reloaded) && reloaded.Error != null && reloaded.FileExists)
+                _retryAt[path] = now + (long)ProjectSettleTime.TotalMilliseconds;
         }
     }
 

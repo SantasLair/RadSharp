@@ -66,6 +66,18 @@ public sealed class ProjectAssemblyTests : IDisposable
     }
 
     [Fact]
+    public void A_locked_symbols_file_does_not_fail_the_load()
+    {
+        var path = CopyOfSampleControls();
+        var pdb = Path.ChangeExtension(path, ".pdb");
+        Assert.True(File.Exists(pdb), "the fixture has symbols");
+        using var lockedFile = new FileStream(pdb, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        var project = Load(path);
+        Assert.Null(project.Error);
+        Assert.NotNull(project.ClassSet.Find("Gauge"));
+    }
+
+    [Fact]
     public void Loading_offers_the_projects_and_its_librarys_controls_but_not_its_forms_or_one_that_throws()
     {
         var theme = Theme.Current;

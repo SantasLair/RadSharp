@@ -32,10 +32,12 @@ public sealed class ProjectAssembly : IDisposable
 
     ProjectAssembly(string path) => Path = path;
 
-    ProjectAssembly(string path, string error) : this(path)
+    /// <param name="stampBeforeReading">The file's time stamp from before it was read: a build that finishes while it
+    /// is being read gives a newer one, so the failure is retried rather than taken for the final state.</param>
+    ProjectAssembly(string path, string error, DateTime stampBeforeReading) : this(path)
     {
         Error = error;
-        _failedStamp = Stamp(path);
+        _failedStamp = stampBeforeReading;
     }
 
     /// <summary>The assembly file this was loaded from (the project's build output).</summary>
@@ -43,6 +45,9 @@ public sealed class ProjectAssembly : IDisposable
 
     /// <summary>The loaded assembly; null if loading failed (see <see cref="Error"/>) or after <see cref="Dispose"/>.</summary>
     public Assembly? Assembly { get; private set; }
+
+    /// <summary>True if the assembly file exists (a failed load of an existing file is worth a second try; of a missing one, not).</summary>
+    public bool FileExists => File.Exists(Path);
 
     /// <summary>Why it couldn't be loaded, or null.</summary>
     public string? Error { get; }
@@ -64,12 +69,13 @@ public sealed class ProjectAssembly : IDisposable
     {
         path = System.IO.Path.GetFullPath(path);
         var name = System.IO.Path.GetFileName(path);
-        if (!File.Exists(path)) return new ProjectAssembly(path, $"{name} isn't built yet: build the project to see its controls.");
+        var stampBefore = Stamp(path);
+        if (!File.Exists(path)) return new ProjectAssembly(path, $"{name} isn't built yet: build the project to see its controls.", stampBefore);
         Context context;
         try { context = new Context(path); }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
-            return new ProjectAssembly(path, $"Can't read {name}'s dependencies: {e.Message}");
+            return new ProjectAssembly(path, $"Can't read {name}'s dependencies: {e.Message}", stampBefore);
         }
         var result = new ProjectAssembly(path) { _context = context };
         try
@@ -92,7 +98,7 @@ public sealed class ProjectAssembly : IDisposable
         {
             result.Dispose();
             var inner = e is TargetInvocationException or TypeInitializationException && e.InnerException != null ? e.InnerException! : e;
-            return new ProjectAssembly(path, $"Can't load {name}: {inner.GetType().Name}: {inner.Message}");
+            return new ProjectAssembly(path, $"Can't load {name}: {inner.GetType().Name}: {inner.Message}", stampBefore);
         }
         return result;
     }
@@ -107,6 +113,25 @@ public sealed class ProjectAssembly : IDisposable
         foreach (var (file, stamp) in _context.Files)
             if (Stamp(file) != stamp) return true;
         return false;
+    }
+
+    /// <summary>
+    /// A value that changes whenever any file of the build (the assembly, its symbols and <c>.deps.json</c>, the
+    /// dependencies it loaded) is written, grows or goes: a rebuild is finished once it has stopped changing.
+    /// </summary>
+    public long ChangeStamp()
+    {
+        var files = new List<string> { Path, System.IO.Path.ChangeExtension(Path, ".pdb"), System.IO.Path.ChangeExtension(Path, ".deps.json") };
+        if (_context != null) files.AddRange(_context.Files.Select(f => f.File));
+        var hash = new HashCode();
+        foreach (var file in files.Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            hash.Add(file, StringComparer.OrdinalIgnoreCase);
+            hash.Add(Stamp(file));
+            try { hash.Add(File.Exists(file) ? new FileInfo(file).Length : -1); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { hash.Add(-2L); }
+        }
+        return hash.ToHashCode();
     }
 
     static DateTime Stamp(string file)
@@ -168,10 +193,17 @@ public sealed class ProjectAssembly : IDisposable
             var stamp = Stamp(path);
             var pdb = System.IO.Path.ChangeExtension(path, ".pdb");
             using var image = new MemoryStream(File.ReadAllBytes(path));
-            using var symbols = File.Exists(pdb) ? new MemoryStream(File.ReadAllBytes(pdb)) : null;
+            using var symbols = ReadSymbols(pdb);
             var assembly = LoadFromStream(image, symbols);
             lock (_lock) _files.Add((path, stamp));
             return assembly;
+        }
+
+        /// <summary>The symbols, or null (the assembly loads without them) if the file is missing, locked or unreadable.</summary>
+        static MemoryStream? ReadSymbols(string pdb)
+        {
+            try { return File.Exists(pdb) ? new MemoryStream(File.ReadAllBytes(pdb)) : null; }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
         }
 
         static bool IsShared(string name) =>
