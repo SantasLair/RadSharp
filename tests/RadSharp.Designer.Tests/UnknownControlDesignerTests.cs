@@ -132,4 +132,33 @@ public class UnknownControlDesignerTests
         Assert.False(doc.Rename(doc.Form.FindControl("btnOk")!, "btnReset"));
         Assert.Equal("btnReset1", doc.UniqueName("btnReset"));
     }
+
+    [Fact]
+    public void The_name_box_refuses_a_name_used_inside_a_placeholder_and_leaves_the_code_alone()
+    {
+        var project = RadProject.Create(TempDir(), "Keeps");
+        File.WriteAllText(project.FormFiles.Single(), FormText);
+        var helper = Path.Combine(project.Directory, "Helper.cs");
+        const string helperText = "class Helper { void Go(MainForm f) { f.btnOk.Caption = \"x\"; } }";
+        File.WriteAllText(helper, helperText);
+
+        Shortcut.CommandModifier = KeyModifiers.Ctrl;
+        PlatformHost.Current = new FakeHost();
+        var d = new DesignerForm(project.ProjectFile, Path.Combine(TempDir(), "designer.json"), new DesignerOptions { ProjectControls = false });
+        d.SetBounds(0, 0, 1220, 780);
+        d.PerformLayout();
+        var doc = d.ActiveForm!.Document;
+        var ok = doc.Form.FindControl("btnOk")!;
+        doc.Select(ok);
+
+        var nameField = (Edit)d.FindControl("edtName")!;
+        nameField.Focus();
+        nameField.SelectAll();
+        d.Simulate.Type("btnReset");   // a control inside the TallyCounter placeholder's raw children
+        d.Simulate.Key(Key.Enter);
+        Assert.Equal("btnOk", ok.Name);
+        Assert.Equal("btnOk", nameField.Text);
+        Assert.Contains("\"btnReset\" is not a valid, unused name", ((StatusBar)d.FindControl("sbMain")!).SimpleText);
+        Assert.Equal(helperText, File.ReadAllText(helper));
+    }
 }
