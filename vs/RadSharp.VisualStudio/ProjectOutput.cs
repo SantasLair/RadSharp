@@ -45,7 +45,11 @@ namespace RadSharp.VisualStudio
             }
         }
 
-        public static string? For(IServiceProvider services, string formFile) => For(services, formFile, out _);
+        public static string? For(IServiceProvider services, string formFile)
+        {
+            ThreadHelper.ThrowIfNotOnUIThread();
+            return For(services, formFile, out _);
+        }
 
         /// <summary>MSBuild's own answer: <c>TargetPath</c> evaluated for the active configuration.</summary>
         private static string? FromBuildProperties(IVsHierarchy project)
