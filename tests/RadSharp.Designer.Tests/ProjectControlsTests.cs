@@ -705,4 +705,18 @@ public class ProjectControlsTests : IDisposable
         Assert.True(d.Close());
         Assert.Null(ComponentRegistry.Find("Knob"));
     }
+
+    [Fact]
+    public async Task A_designer_without_a_platform_host_still_finishes_loading_the_project_controls()
+    {
+        var (project, _) = ProjectWith("Hostless", "namespace Hostless; public class Nothing { }");
+        Shortcut.CommandModifier = KeyModifiers.Ctrl;
+        PlatformHost.Current = null;
+        var d = new DesignerForm(project.ProjectFile, Path.Combine(TempDir(), "designer.json"), new DesignerOptions { WatchProject = false, LiveRun = NoPackages });
+        _started.Add(d);
+        // No host to post to: the callback runs where it is (it used to be dropped: the task never completed).
+        var finished = await Task.WhenAny(d.ProjectControlsTask, Task.Delay(TimeSpan.FromSeconds(20)));
+        Assert.Same(d.ProjectControlsTask, finished);
+        Assert.NotNull(d.DesignSession);
+    }
 }

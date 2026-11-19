@@ -44,8 +44,16 @@ public partial class DesignerForm
     /// <summary>The last design-session rebuild: completes on the UI thread once it is installed, or superseded.</summary>
     public Task ProjectControlsTask { get; private set; } = Task.CompletedTask;
 
-    /// <summary>Queues work for the UI thread through the host the designer was created on.</summary>
-    void Post(Action action) => (_host ?? PlatformHost.Current)?.PostToUiThread(action);
+    /// <summary>
+    /// Queues work for the UI thread through the host the designer was created on. With no host (a designer built
+    /// before one exists, headless) there is no queue: the work runs where it is, rather than being dropped (a dropped
+    /// rebuild would never complete <see cref="ProjectControlsTask"/> and would leak its session).
+    /// </summary>
+    void Post(Action action)
+    {
+        if ((_host ?? PlatformHost.Current) is { } host) host.PostToUiThread(action);
+        else action();
+    }
 
     /// <summary>
     /// Rebuilds the design session (in the background) and installs it: the palette, and every open document. With
