@@ -94,6 +94,21 @@ public sealed class DriverHost : IPlatformServices
         for (int i = 0; i < 10_000 && PumpOne(); i++) { }
     }
 
+    /// <summary>
+    /// Runs posted actions until <paramref name="done"/>, waiting for work that finishes off the UI thread (F9 resolves
+    /// and compiles in the background, then posts its result) instead of stopping when the queue is empty.
+    /// </summary>
+    public void PumpUntil(Func<bool> done, TimeSpan timeout, string what)
+    {
+        var watch = System.Diagnostics.Stopwatch.StartNew();
+        while (!done())
+        {
+            if (watch.Elapsed > timeout) throw new TimeoutException($"Timed out after {timeout.TotalSeconds:0} s waiting for {what}");
+            if (!PumpOne()) Thread.Sleep(5);
+        }
+        Pump();
+    }
+
     bool PumpOne()
     {
         if (!_posted.TryDequeue(out var action)) return false;

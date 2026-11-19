@@ -178,6 +178,8 @@ public sealed class DesignerDriver
     {
         int before = Host.Shown.Count;
         Input.Key(Key.F9);
+        // F9 resolves and compiles off the UI thread (M16) and posts its result, so wait for the run to finish.
+        if (Designer.LastRun is { } run) Host.PumpUntil(() => run.IsCompleted, TimeSpan.FromMinutes(5), "F9");
         Done();
         if (Host.Shown.Count <= before)
             throw new DriverException("F9 didn't start the application:\n" + string.Join("\n", Designer.OutputLines));
