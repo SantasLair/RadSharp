@@ -225,6 +225,8 @@ public partial class Control
         _aL = _left; _aT = _top; _aW = _width; _aH = _height;
         _pw0 = p._width; _ph0 = p._height;
         _captured = true;
+        _captureRescaled = false;
+        RecordCaptureDesign(p);
     }
 
     /// <summary>Sets a class default size without triggering layout; for constructors.</summary>
@@ -319,29 +321,169 @@ public partial class Control
 
     internal void PaintControl(Canvas canvas) => Paint(canvas);
 
+    // ---- Loading ----
+
+    /// <summary>
+    /// True while the form reader applies this control's members and children (Delphi's <c>csLoading</c>). A property
+    /// that depends on something read later, such as an index into items or pages, can hold its value while this is
+    /// true and apply it in <see cref="Loaded"/>.
+    /// </summary>
+    public bool Loading { get; internal set; }
+
+    /// <summary>
+    /// Called by the form reader once this control's members and children are read, before its parent's
+    /// <see cref="Loaded"/> (Delphi's <c>Loaded</c>). <see cref="Loading"/> is already false. Overrides call the base.
+    /// </summary>
+    protected internal virtual void Loaded() { }
+
     // ---- Scaling ----
+
+    // Lengths are stored in form pixels. _design remembers, per length, the 100 % value it was scaled from (see
+    // ScaleChange.Apply): it is trusted only while the pixel value is still what it gives at _lengthScale, so a length
+    // changed since (from code, or by layout) is converted back from its pixels instead. Allocated the first time the
+    // control is scaled; slots: left, top, width, height, margin l/t/r/b, padding l/t/r/b, min width/height,
+    // max width/height, then the anchor capture: left, top, width, height, parent width, parent height.
+    double[]? _design;
+    double _lengthScale = 1;
+    const int DesignSlots = 22, CaptureSlot = 16;
+    // After a scale change, for a capture whose parent was still at its captured size (it hadn't grown or shrunk since):
+    // the next layout takes PW0/PH0 from the parent's size laid out at the new scale, as a fresh load captures it
+    // (see ResolveRescaledCapture).
+    bool _captureRescaled, _rescaledAtParentW, _rescaledAtParentH;
 
     /// <summary>
     /// Multiplies every stored length in this subtree by <paramref name="scale"/> and rounds (spec, Appendix B,
     /// "Scaling"). Runs once on a freshly built tree, before its first layout; for a whole code-built form
     /// use <see cref="Form.ApplyScale"/>, which also records the scale. Calling it twice scales twice.
+    /// Each control remembers the 100 % lengths it was scaled from, so a later <see cref="Form.ChangeScale"/>
+    /// recomputes them instead of rounding the rounded values again.
     /// </summary>
     public void ScaleLengths(double scale)
     {
-        static int S(int v, double k) => LayoutMath.Round(v * k);
-        static Thickness T(Thickness t, double k) => new(S(t.L, k), S(t.T, k), S(t.R, k), S(t.B, k));
-        _left = S(_left, scale); _top = S(_top, scale);
-        _width = S(_width, scale); _height = S(_height, scale);
-        _margin = T(_margin, scale); _padding = T(_padding, scale);
-        _minWidth = S(_minWidth, scale); _minHeight = S(_minHeight, scale);
-        _maxWidth = S(_maxWidth, scale); _maxHeight = S(_maxHeight, scale);
-        _captured = false;
-        _needsArrange = true;
-        ScaleOwnLengths(scale);
+        if (!(scale > 0) || !double.IsFinite(scale)) throw new ArgumentOutOfRangeException(nameof(scale), "Scale must be positive.");
+        var change = new ScaleChange(_lengthScale, _lengthScale * scale);
+        RescaleSelf(change, keepCapture: false, 0, 0);
         foreach (var c in _children) c.ScaleLengths(scale);
     }
 
-    /// <summary>Scales lengths a subclass adds (e.g. a splitter's minimum size).</summary>
+    /// <summary>
+    /// Moves every length in this subtree from <paramref name="from"/> to <paramref name="to"/> (the form's old and
+    /// new scale) through the remembered 100 % values. Anchor captures are converted rather than dropped, so an
+    /// anchored control keeps its designed distances whatever size the parent has now.
+    /// </summary>
+    internal void RescaleTree(double from, double to) =>
+        RescaleTree(new ScaleChange(from, to), Parent?._width ?? 0, Parent?._height ?? 0);
+
+    void RescaleTree(ScaleChange change, int parentWidth, int parentHeight)
+    {
+        int w = _width, h = _height;   // the size the children's anchor captures are measured against, before it changes
+        RescaleSelf(change, keepCapture: true, parentWidth, parentHeight);
+        foreach (var c in _children) c.RescaleTree(change, w, h);
+    }
+
+    /// <summary>
+    /// Completes a capture converted by a scale change: where the parent was still at its captured size, the captured
+    /// parent size is the parent's size now, laid out at the new scale. A parent whose size is computed by layout (an
+    /// aligned panel) can be a pixel off the converted old size, because its siblings round separately; taking its laid
+    /// out size keeps the control where a fresh load at the new scale puts it. The 100 % value stays the one converted,
+    /// so the capture still comes back exactly.
+    /// </summary>
+    void ResolveRescaledCapture(int parentWidth, int parentHeight)
+    {
+        if (!_captureRescaled) return;
+        _captureRescaled = false;
+        if (_rescaledAtParentW) _pw0 = parentWidth;
+        if (_rescaledAtParentH) _ph0 = parentHeight;
+    }
+
+    /// <summary>After a scale change's layout: resolves the captures of controls the layout didn't place (invisible ones).</summary>
+    internal void ResolveRescaledCaptures()
+    {
+        foreach (var c in _children)
+        {
+            c.ResolveRescaledCapture(_width, _height);
+            c.ResolveRescaledCaptures();
+        }
+    }
+
+    /// <summary>Marks this subtree's lengths as being at 100 %, forgetting what earlier scaling remembered.</summary>
+    internal void ResetLengthScale()
+    {
+        _design = null;
+        _lengthScale = 1;
+        foreach (var c in _children) c.ResetLengthScale();
+    }
+
+    void RescaleSelf(ScaleChange change, bool keepCapture, int parentWidth, int parentHeight)
+    {
+        var d = _design ??= NewDesign();
+        int S(int v, int slot) => change.Apply(v, ref d[slot]);
+        Thickness T(Thickness t, int slot) => new(S(t.L, slot), S(t.T, slot + 1), S(t.R, slot + 2), S(t.B, slot + 3));
+        _left = S(_left, 0); _top = S(_top, 1);
+        _width = S(_width, 2); _height = S(_height, 3);
+        _margin = T(_margin, 4); _padding = T(_padding, 8);
+        _minWidth = S(_minWidth, 12); _minHeight = S(_minHeight, 13);
+        _maxWidth = S(_maxWidth, 14); _maxHeight = S(_maxHeight, 15);
+        if (keepCapture && _captured)
+        {
+            _aL = S(_aL, CaptureSlot); _aT = S(_aT, CaptureSlot + 1);
+            _aW = S(_aW, CaptureSlot + 2); _aH = S(_aH, CaptureSlot + 3);
+            // Two changes before a layout: the parent's size wasn't compared since; keep what the first one found.
+            if (!_captureRescaled) { _rescaledAtParentW = parentWidth == _pw0; _rescaledAtParentH = parentHeight == _ph0; }
+            // The captured parent size goes through its 100 % value without checking it against the pixels: it is set
+            // only by a capture (which records it) and by ResolveRescaledCapture, which may move it a pixel on purpose.
+            _pw0 = ConvertCaptured(_pw0, ref d[CaptureSlot + 4], change);
+            _ph0 = ConvertCaptured(_ph0, ref d[CaptureSlot + 5], change);
+            _captureRescaled = true;
+        }
+        else { _captured = false; _captureRescaled = false; }
+        _lengthScale = change.To;
+        _needsArrange = true;
+        RescaleOwnLengths(change);
+    }
+
+    static int ConvertCaptured(int pixels, ref double design, ScaleChange change)
+    {
+        if (double.IsNaN(design)) design = pixels / change.From;
+        return LayoutMath.Round(design * change.To);
+    }
+
+    static double[] NewDesign()
+    {
+        var d = new double[DesignSlots];
+        Array.Fill(d, double.NaN);
+        return d;
+    }
+
+    /// <summary>
+    /// Records the anchor capture's 100 % values from this control's (and its parent's) remembered lengths, while those
+    /// still match, so converting the capture at a later scale change is as exact as the lengths themselves.
+    /// </summary>
+    void RecordCaptureDesign(Control parent)
+    {
+        if (_design is not { } d) return;
+        double s = _lengthScale;
+        d[CaptureSlot] = ScaleChange.DesignOf(_aL, d[0], s);
+        d[CaptureSlot + 1] = ScaleChange.DesignOf(_aT, d[1], s);
+        d[CaptureSlot + 2] = ScaleChange.DesignOf(_aW, d[2], s);
+        d[CaptureSlot + 3] = ScaleChange.DesignOf(_aH, d[3], s);
+        var pd = parent._design;
+        d[CaptureSlot + 4] = pd != null ? ScaleChange.DesignOf(_pw0, pd[2], parent._lengthScale) : double.NaN;
+        d[CaptureSlot + 5] = pd != null ? ScaleChange.DesignOf(_ph0, pd[3], parent._lengthScale) : double.NaN;
+    }
+
+    /// <summary>
+    /// Scales lengths a subclass adds (e.g. a splitter's minimum size) when the control moves to another scale. Use
+    /// <see cref="ScaleChange.Apply"/> with a field per length that starts at <see cref="double.NaN"/>, so the length
+    /// comes back exactly after 100 % → 150 % → 100 %. The default calls <see cref="ScaleOwnLengths"/> with
+    /// <see cref="ScaleChange.Ratio"/>.
+    /// </summary>
+    protected virtual void RescaleOwnLengths(ScaleChange change) => ScaleOwnLengths(change.Ratio);
+
+    /// <summary>
+    /// Scales lengths a subclass adds by <paramref name="scale"/> (a ratio). Kept for existing subclasses; prefer
+    /// <see cref="RescaleOwnLengths"/>, which doesn't drift when the scale changes back and forth at run time.
+    /// </summary>
     protected virtual void ScaleOwnLengths(double scale) { }
 
     // ---- Layout ----
@@ -534,6 +676,7 @@ public partial class Control
     void LayoutAnchored(Control c)
     {
         if (!c._captured) c.Recapture();
+        else c.ResolveRescaledCapture(_width, _height);
         var (x, w) = AnchorAxis(c._anchors.HasFlag(Anchors.Left), c._anchors.HasFlag(Anchors.Right),
             c._aL, c._aW, c._pw0, _width);
         var (y, h) = AnchorAxis(c._anchors.HasFlag(Anchors.Top), c._anchors.HasFlag(Anchors.Bottom),

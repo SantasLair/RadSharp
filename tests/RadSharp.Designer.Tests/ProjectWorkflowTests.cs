@@ -103,8 +103,8 @@ public class ProjectWorkflowTests
         var code = Path.Combine(project.Directory, "MainForm.cs");
         var source = File.ReadAllText(code);
         Assert.Contains("void Button1_Click(Control sender)", source);
-        File.WriteAllText(code, source.Replace("    void Button1_Click(Control sender)\n    {\n        \n    }",
-            "    void Button1_Click(Control sender)\n    {\n        ((Button)sender).Caption = \"Clicked\";\n    }"));
+        File.WriteAllText(code, System.Text.RegularExpressions.Regex.Replace(source,
+            @"(void Button1_Click\(Control sender\)\r?\n\s*\{\r?\n)", "$1        ((Button)sender).Caption = \"Clicked\";\n"));
 
         d.Simulate.Key(Key.F9);
         // F9 compiles in the background; this host runs what it posts at once, on the thread that posts it.
@@ -114,6 +114,43 @@ public class ProjectWorkflowTests
         live.Simulate.Click(liveButton);
         Assert.Equal("Clicked", liveButton.Caption);
         Assert.Contains(d.OutputLines, l => l.StartsWith("Running MainForm"));
+    }
+
+    [Fact]
+    public void Typing_a_handler_name_into_an_event_row_writes_one_quiet_stub()
+    {
+        var project = RadProject.Create(TempDir(), "TypedHandler");
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        var a = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 10, 10);
+        var b = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 10, 50);
+        var code = Path.Combine(project.Directory, "MainForm.cs");
+        var before = File.ReadAllText(code);
+        var grid = (PropertyGrid)d.FindControl("gridEvents")!;
+
+        doc.Select(a);
+        Assert.True(grid.Apply(grid.IndexOf("onClick"), "Shared_Click"));   // what Enter in the row's editor does
+        var source = File.ReadAllText(code);
+        Assert.Equal("Shared_Click", a.EventHandlers["onClick"]);
+        Assert.Contains("void Shared_Click(Control sender)", source.Replace("\r\n", "\n"));
+
+        // A second control pointing at the same method writes nothing more.
+        doc.Select(b);
+        Assert.True(grid.Apply(grid.IndexOf("onClick"), "Shared_Click"));   // what Enter in the row's editor does
+        Assert.Equal(source, File.ReadAllText(code));
+
+        // Clearing the row writes nothing and removes nothing.
+        Assert.True(grid.Apply(grid.IndexOf("onClick"), ""));
+        Assert.False(b.EventHandlers.ContainsKey("onClick"));
+        Assert.Equal(source, File.ReadAllText(code));
+        Assert.NotEqual(before, source);
+
+        // Several controls at once: one stub.
+        doc.SelectMany([a, b]);
+        Assert.True(grid.Apply(grid.IndexOf("onClick"), "Both_Click"));
+        var multi = File.ReadAllText(code);
+        Assert.Equal(1, multi.Split("void Both_Click(").Length - 1);
+        Assert.Equal("Both_Click", b.EventHandlers["onClick"]);
     }
 
     [Fact]
@@ -299,6 +336,31 @@ public class ProjectWorkflowTests
 
         Assert.Contains("f.btnGo.Caption", File.ReadAllText(helperFile));
         Assert.DoesNotContain("Button1", File.ReadAllText(helperFile));
+    }
+
+    [Fact]
+    public void The_name_box_refuses_a_name_that_hides_an_inherited_form_member()
+    {
+        var project = RadProject.Create(TempDir(), "HiddenName");
+        var (d, _) = Start(project.ProjectFile);
+        var doc = d.Document!;
+        var button = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 10, 10);
+        doc.Select(button);
+
+        var nameField = (Edit)d.FindControl("edtName")!;
+        nameField.Focus();
+        nameField.SelectAll();
+        d.Simulate.Type("Monitor");
+        d.Simulate.Key(Key.Enter);
+        Assert.Equal("Button1", button.Name);
+        Assert.Equal("Button1", nameField.Text);
+        var status = (StatusBar)d.FindControl("sbMain")!;
+        Assert.Contains("\"Monitor\" would hide the inherited member Form.Monitor", status.SimpleText);
+
+        nameField.SelectAll();
+        d.Simulate.Type("btnMonitor");
+        d.Simulate.Key(Key.Enter);
+        Assert.Equal("btnMonitor", button.Name);
     }
 
     [Fact]

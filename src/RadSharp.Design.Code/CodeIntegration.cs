@@ -26,7 +26,8 @@ public static class CodeIntegration
         string indent = cls.Members.Count > 0 ? Indentation(source, cls.Members[0].SpanStart) : classIndent + "    ";
 
         int closeLineStart = source.LastIndexOf('\n', Math.Max(0, cls.CloseBraceToken.SpanStart - 1)) + 1;
-        var method = $"\n{indent}void {handler}({parameters})\n{indent}{{\n{indent}    \n{indent}}}\n";
+        string nl = NewLineOf(source);
+        var method = $"{nl}{indent}void {handler}({parameters}){nl}{indent}{{{nl}{nl}{indent}}}{nl}";
         var result = source.Insert(closeLineStart, method);
         int line = LineOf(result, closeLineStart) + 3;   // blank line, signature, brace, body
 
@@ -48,7 +49,16 @@ public static class CodeIntegration
     {
         var root = CSharpSyntaxTree.ParseText(source).GetCompilationUnitRoot();
         int at = root.Usings.Count > 0 ? root.Usings.Last().FullSpan.End : 0;
-        return source.Insert(at, $"using {ns};\n");
+        return source.Insert(at, $"using {ns};{NewLineOf(source)}");
+    }
+
+    /// <summary>The newline the file mostly uses (CRLF or LF; LF when it has no line breaks).</summary>
+    static string NewLineOf(string source)
+    {
+        int crlf = 0, lf = 0;
+        for (int i = 0; i < source.Length; i++)
+            if (source[i] == '\n') { if (i > 0 && source[i - 1] == '\r') crlf++; else lf++; }
+        return crlf > lf ? "\r\n" : "\n";
     }
 
     static string Indentation(string source, int position)
@@ -92,7 +102,7 @@ public static class CodeIntegration
             return cls.Events.FirstOrDefault(e => !inherited.Contains(e.Name)
                 || cls.FindEvent(e.Name) != ComponentRegistry.Find(typeof(Control))!.FindEvent(e.Name));
         }
-        string[] order = control is EditBase or ListBox or ComboBox or TrackBar or ScrollBar or TreeView or ListView or CustomGrid or PageControl
+        string[] order = control is EditBase or ListBox or ComboBox or Calendar or DateTimePicker or TrackBar or ScrollBar or TreeView or ListView or CustomGrid or PageControl
             ? ["onChange", "onClick"]
             : control is Form ? ["onShow", "onClick"]
             : control is PaintBox ? ["onPaint", "onClick"]

@@ -208,14 +208,25 @@ public static class FormReader
         return ComponentRegistry.Find(className);
     }
 
-    /// <summary>Applies a node's name, properties, event handler names and children to a control.</summary>
     /// <summary>A node <see cref="ReadInto"/> can't read whole (with <c>keepWhole</c>): read it as a placeholder.</summary>
     sealed class UnreadNodeException(string here, string message) : Exception(message)
     {
         public string Here { get; } = here;
     }
 
+    /// <summary>
+    /// Applies a node's name, properties, event handler names and children to a control, with
+    /// <see cref="Control.Loading"/> set, then calls <see cref="Control.Loaded"/>.
+    /// </summary>
     static void ReadInto(Control control, JsonElement node, List<string> warnings, string path, FormLoadOptions options, bool keepWhole = false)
+    {
+        control.Loading = true;
+        try { ReadMembersAndChildren(control, node, warnings, path, options, keepWhole); }
+        finally { control.Loading = false; }
+        control.Loaded();
+    }
+
+    static void ReadMembersAndChildren(Control control, JsonElement node, List<string> warnings, string path, FormLoadOptions options, bool keepWhole)
     {
         var cls = ComponentRegistry.Of(control);
         if (node.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)

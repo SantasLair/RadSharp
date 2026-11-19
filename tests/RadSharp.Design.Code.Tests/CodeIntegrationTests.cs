@@ -22,8 +22,8 @@ public class CodeIntegrationTests
     public void Handler_stubs_are_inserted_once_with_matching_indentation()
     {
         var (source, line) = CodeIntegration.EnsureHandler(Code, "MainForm", "btnSave_Click", "Control sender");
-        Assert.Contains("    void btnSave_Click(Control sender)\n    {\n        \n    }\n}", source.Replace("\r\n", "\n"));
-        Assert.Equal("        ", source.Replace("\r\n", "\n").Split('\n')[line - 1]);   // the caret line is the empty body
+        Assert.Contains("    void btnSave_Click(Control sender)\n    {\n\n    }\n}", source.Replace("\r\n", "\n"));
+        Assert.Equal("", source.Replace("\r\n", "\n").Split('\n')[line - 1]);   // the caret line is the empty body
 
         var (again, line2) = CodeIntegration.EnsureHandler(source, "MainForm", "btnSave_Click", "Control sender");
         Assert.Equal(source, again);
@@ -31,6 +31,19 @@ public class CodeIntegrationTests
 
         var (paint, _) = CodeIntegration.EnsureHandler(Code, "MainForm", "pbx_Paint", "Control sender, Canvas canvas");
         Assert.Contains("using RadSharp.Drawing;", paint);
+    }
+
+    [Fact]
+    public void Stubs_use_the_files_dominant_newline_and_have_a_clean_empty_body()
+    {
+        var crlf = Code.Replace("\r\n", "\n").Replace("\n", "\r\n");
+        var (source, line) = CodeIntegration.EnsureHandler(crlf, "MainForm", "pbx_Paint", "Control sender, Canvas canvas");
+        Assert.DoesNotMatch("(?<!\r)\n", source);   // no bare \n anywhere, usings included
+        Assert.Equal("", source.Split("\r\n")[line - 1]);   // the caret line: empty body, no trailing spaces
+        Assert.Contains("using RadSharp.Drawing;\r\n", source);
+
+        var (lf, _) = CodeIntegration.EnsureHandler(Code.Replace("\r\n", "\n"), "MainForm", "x_Click", "Control sender");
+        Assert.DoesNotContain("\r", lf);
     }
 
     [Fact]

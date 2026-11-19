@@ -199,6 +199,15 @@ public partial class DesignerForm
     }
 
     /// <summary>
+    /// A handler name typed into an Events row: makes sure the method exists (with the event's signature) without
+    /// opening the editor. A name that already exists is left alone, so several controls can share one handler.
+    /// </summary>
+    void EnsureHandlerQuietly(EventMeta ev, string handler)
+    {
+        if (_active is { } form) EnsureStub(form, handler, ev.Parameters);
+    }
+
+    /// <summary>
     /// The menu editor's code side: makes sure the handler of the <paramref name="items"/> (a <see cref="MenuItem"/> click,
     /// <c>(MenuItem sender)</c>) exists in the code-behind, saves the form, and opens the IDE there when
     /// <paramref name="open"/>. Wired to <see cref="MenuEditor.HandlerRequested"/>.

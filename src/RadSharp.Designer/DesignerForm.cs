@@ -54,6 +54,7 @@ public partial class DesignerForm : Form
             grid.PropertyChanged += (_, _) => Document?.NotifyChanged();
         }
         gridEvents.EventDoubleClick += (_, ev) => { if (Document is { } d) EditHandler(d.Primary, ev); };
+        gridEvents.EventHandlerAssigned += (_, ev, handler) => EnsureHandlerQuietly(ev, handler);
         gridProps.CollectionEditRequested += (_, target, name) =>
         {
             if (Document is not { } d) return;
@@ -371,12 +372,13 @@ public partial class DesignerForm : Form
         var name = edtName.Text.Trim();
         if (name == target.Name) return;
         var old = target.Name;
-        if (!doc.Rename(target, name))
+        if (doc.NameProblem(target, name) is { } problem)
         {
-            sbMain.SimpleText = $"\"{name}\" is not a valid, unused name";
+            sbMain.SimpleText = problem;
             edtName.Text = target.Name;
             return;
         }
+        doc.Rename(target, name);
         if (old.Length > 0) RenameInCode(old, name);
     }
 
