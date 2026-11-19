@@ -81,8 +81,7 @@ public sealed class DesignDocument
 
     public IReadOnlyList<string> Load(string json)
     {
-        FormLoadResult result;
-        using (Control.EnterDesignMode()) result = FormReader.Load(json, Options);
+        var result = Read(json);
         Replace(result.Form);
         _undo.Clear();
         _redo.Clear();
@@ -102,8 +101,7 @@ public sealed class DesignDocument
         json ??= Save();
         bool modified = json != _savedText;
         var names = _selection.Select(c => c.Name).ToList();
-        FormLoadResult result;
-        using (Control.EnterDesignMode()) result = FormReader.Load(json, Options);
+        var result = Read(json);
         Replace(result.Form);
         foreach (var n in names)
             if (result.Form.FindControl(n) is { } c && c != result.Form) _selection.Add(c);
@@ -113,6 +111,29 @@ public sealed class DesignDocument
         SelectionChanged?.Invoke();
         Changed?.Invoke();
         return result.Warnings;
+    }
+
+    /// <summary>
+    /// Reads form text in design mode with <see cref="Options"/>. A project's control that throws while it is created
+    /// or read is a placeholder on its own (the reader sees to that); one that throws once the form is laid out (it
+    /// looks for the running application around it, say) can't be singled out, so the form is read again without the
+    /// project's classes: all of them placeholders on it, which keep their text, with a warning that says why.
+    /// </summary>
+    FormLoadResult Read(string json)
+    {
+        using var designing = Control.EnterDesignMode();
+        if (ProjectClasses == null) return FormReader.Load(json, Options);
+        try { return FormReader.Load(json, Options); }
+        catch (Exception e) when (e is not (OutOfMemoryException or FormFileException))
+        {
+            var fallback = FormReader.Load(json, LoadOptions);
+            var inner = e is System.Reflection.TargetInvocationException { InnerException: { } i } ? i : e;
+            return fallback with
+            {
+                Warnings = [$"The project's controls threw while the form was laid out ({inner.GetType().Name}: {inner.Message}); " +
+                    "they are placeholders on this form until that is fixed and the project rebuilt.", .. fallback.Warnings],
+            };
+        }
     }
 
     /// <summary>The form file text (deterministic, spec Appendix A).</summary>
@@ -160,8 +181,7 @@ public sealed class DesignDocument
         if (from.Count == 0) return false;
         to.Push(Current());
         var (json, names) = from.Pop();
-        Form form;
-        using (Control.EnterDesignMode()) form = FormReader.Load(json, Options).Form;
+        var form = Read(json).Form;
         Replace(form);
         foreach (var n in names)
             if (form.FindControl(n) is { } c && c != form) _selection.Add(c);

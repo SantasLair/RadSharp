@@ -12,7 +12,7 @@ public static class FormRenderer
     /// <summary>Lays out the form if needed, then paints it (or only <paramref name="clip"/>) onto <paramref name="canvas"/>.</summary>
     public static void Render(Form form, SKCanvas canvas, Rect? clip = null)
     {
-        form.PerformLayout();
+        LayoutForPainting(form);
         var c = new Canvas(canvas, form.Theme, form.Scale);
         c.Save();
         if (clip is { } r) c.ClipRect(r);
@@ -25,6 +25,18 @@ public static class FormRenderer
         c.Restore();
     }
 
+    /// <summary>
+    /// Lays <paramref name="form"/> out before it is painted. A form being designed (<see cref="Control.DesignMode"/>)
+    /// may hold an application's control whose layout code throws at design time: it is painted as far as it got,
+    /// rather than the exception taking the designer down (the change that caused it reports it).
+    /// </summary>
+    public static void LayoutForPainting(Form form)
+    {
+        if (!form.DesignMode) { form.PerformLayout(); return; }
+        try { form.PerformLayout(); }
+        catch (Exception e) when (e is not OutOfMemoryException) { }
+    }
+
     static void PaintTree(Control control, Canvas c, bool translate)
     {
         if (!control.IsShown) return;
@@ -34,7 +46,8 @@ public static class FormRenderer
         if (!c.IsClippedOut(local))
         {
             c.ClipRect(local);
-            control.PaintControl(c);
+            if (control.DesignMode) PaintAtDesignTime(control, c, local);
+            else control.PaintControl(c);
             if (control.Children.Count > 0)
             {
                 c.Save();
@@ -46,6 +59,27 @@ public static class FormRenderer
             }
         }
         c.Restore();
+    }
+
+    /// <summary>
+    /// A control the designer created (<see cref="Control.DesignMode"/>) may run an application's own painting code
+    /// inside the designer: if that throws (it needs what only the running application has, say), the control is drawn
+    /// as a box with the error, as Delphi's designer does, instead of the exception taking the designer down with its
+    /// unsaved work. Its children are still painted.
+    /// </summary>
+    static void PaintAtDesignTime(Control control, Canvas c, Rect local)
+    {
+        int saved = c.SaveCount;
+        try { control.PaintControl(c); }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            c.RestoreToCount(saved);
+            c.FillRect(local, new Color(255, 236, 236));
+            c.DrawBorder(local, new Color(200, 0, 0));
+            var inner = e is System.Reflection.TargetInvocationException { InnerException: { } i } ? i : e;
+            c.DrawText($"{inner.GetType().Name}: {inner.Message}", c.DefaultFont, new Color(160, 0, 0), Canvas.Inflate(local, -c.Px(4)),
+                TextAlign.Left, VerticalAlign.Top, ellipsis: true);
+        }
     }
 
     static void PaintShadow(Canvas c, Rect r)

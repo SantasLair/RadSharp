@@ -57,9 +57,9 @@ public partial class DesignerForm : Form
         gridProps.CollectionEditRequested += (_, target, name) =>
         {
             if (Document is not { } d) return;
-            if (name == "columns" && target is CustomGrid g) GridColumnsEditor.Edit(d, g, this);
-            else if (name == "columns" && target is ListView lv) GridColumnsEditor.Edit(d, lv, this);
-            else if (name == "nodes" && target is TreeView tv) TreeNodesEditor.Edit(d, tv, this);
+            if (name == "columns" && target is CustomGrid g) EditModally(() => GridColumnsEditor.Edit(d, g, this));
+            else if (name == "columns" && target is ListView lv) EditModally(() => GridColumnsEditor.Edit(d, lv, this));
+            else if (name == "nodes" && target is TreeView tv) EditModally(() => TreeNodesEditor.Edit(d, tv, this));
         };
         gridProps.Arrangement = PropertyGridArrangement.Categorized;   // matches cboPropsArrange's default selection
 
@@ -465,12 +465,12 @@ public partial class DesignerForm : Form
         if (Document is not { } doc) return;
         var menu = doc.Primary as IMenuOwner ?? doc.Form.Descendants().OfType<IMenuOwner>().FirstOrDefault();
         if (menu == null) { Dialogs.ShowMessage("Add a MainMenu or PopupMenu to the form first.", this); return; }
-        MenuEditor.Edit(doc, menu, this, EditMenuHandlers);
+        EditModally(() => MenuEditor.Edit(doc, menu, this, EditMenuHandlers));
     }
 
     void mnuTabOrder_Click(object sender)
     {
-        if (Document is { } doc) TabOrderEditor.Edit(doc, doc.PasteTarget(), this);
+        if (Document is { } doc) EditModally(() => TabOrderEditor.Edit(doc, doc.PasteTarget(), this));
     }
 
     void mnuBringToFront_Click(object sender) => Reorder(toFront: true);
@@ -562,6 +562,7 @@ public partial class DesignerForm : Form
         if (!e.CanClose) return;
         CloseLiveForm();
         _runGeneration++;
-        StopWatching();
+        // Unregisters and unloads the project's controls (and drops a rebuild still compiling): nothing is designed any more.
+        DropProjectControls();
     }
 }

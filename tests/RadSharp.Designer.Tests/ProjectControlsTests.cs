@@ -14,8 +14,20 @@ namespace RadSharp.Tests;
 /// is the UI thread and runs the queue (<see cref="QueueHost.Pump"/>).
 /// </summary>
 [Collection("PlatformHost")]   // each test installs its own PlatformHost.Current (process-wide)
-public class ProjectControlsTests
+public class ProjectControlsTests : IDisposable
 {
+    /// <summary>The designers a test started: closed after it, so no design session stays registered for the next test.</summary>
+    readonly List<DesignerForm> _started = [];
+
+    public void Dispose()
+    {
+        foreach (var d in _started)
+        {
+            foreach (var f in d.OpenForms) f.Document.MarkSaved();
+            d.CloseProject();
+        }
+    }
+
     /// <summary>A host whose <see cref="PostToUiThread"/> queues, and that records how long each queued action ran.</summary>
     sealed class QueueHost : IPlatformServices
     {
@@ -25,8 +37,11 @@ public class ProjectControlsTests
         /// <summary>The longest a single queued action kept the UI thread busy.</summary>
         public TimeSpan Longest { get; private set; }
 
+        /// <summary>What the "user" does while a modal form is open (its nested loop runs the UI queue, as SDL's does).</summary>
+        public Action<Form>? OnModal;
+
         public void ShowForm(Form form) { Shown.Add(form); form.PerformLayout(); }
-        public void RunModal(Form form) { form.PerformLayout(); if (form.IsModal) form.Close(); }
+        public void RunModal(Form form) { form.PerformLayout(); OnModal?.Invoke(form); if (form.IsModal) form.Close(); }
         public void CloseForm(Form form) => Shown.Remove(form);
         public void ProcessEventsUntil(Func<bool> done) => Pump(done, TimeSpan.FromMinutes(5));
         public void ShowFileDialog(FileDialogKind kind, Form? owner, FileDialogOptions options, Action<FileResult[]?> done) => done(null);
@@ -87,7 +102,7 @@ public class ProjectControlsTests
         return root;
     }
 
-    static (DesignerForm Designer, QueueHost Host) Start(string? project, DesignerOptions options)
+    (DesignerForm Designer, QueueHost Host) Start(string? project, DesignerOptions options)
     {
         Shortcut.CommandModifier = KeyModifiers.Ctrl;
         var host = new QueueHost();
@@ -97,6 +112,7 @@ public class ProjectControlsTests
         designer.Settings.CustomEditorCommand = "dotnet --version";
         designer.SetBounds(0, 0, 1220, 780);
         designer.PerformLayout();
+        _started.Add(designer);
         return (designer, host);
     }
 
@@ -403,5 +419,290 @@ public class ProjectControlsTests
             Assert.Equal(3, runs);
         }
         finally { ProjectDependencies.MSBuildStarting -= Started; }
+    }
+
+    // ---- Review: what a swap must not lose ----
+
+    /// <summary>Compiles against the designer's own assemblies (no MSBuild, no network).</summary>
+    static readonly LiveRunOptions NoPackages = new() { Resolver = (_, _, _) => new DependencyResolution(null, "not resolved in this test", false) };
+
+    /// <summary>A new project with <paramref name="controls"/> as Controls.cs and <paramref name="children"/> (JSON nodes) on its form.</summary>
+    static (RadProject Project, string ControlsFile) ProjectWith(string name, string controls, params string[] children)
+    {
+        var project = RadProject.Create(TempDir(), name);
+        var controlsFile = Path.Combine(project.Directory, "Controls.cs");
+        File.WriteAllText(controlsFile, controls);
+        var formFile = project.FormFiles.Single();
+        var form = System.Text.Json.Nodes.JsonNode.Parse(File.ReadAllText(formFile))!;
+        var root = form["root"]!.AsObject();
+        if (root["children"] is not System.Text.Json.Nodes.JsonArray list) root["children"] = list = [];
+        foreach (var child in children) list.Add(System.Text.Json.Nodes.JsonNode.Parse(child));
+        File.WriteAllText(formFile, form.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+        return (project, controlsFile);
+    }
+
+    [Fact]
+    public void A_value_of_a_property_the_projects_class_stops_publishing_is_kept_not_dropped()
+    {
+        var (project, controlsFile) = ProjectWith("Gauges", """
+            using RadSharp;
+
+            namespace Gauges;
+
+            public class Gauge : Label
+            {
+                [Published(Category = "Behavior")] public int Level { get; set; }
+            }
+            """, """{ "class": "Gauge", "name": "gauge1", "left": 8, "top": 8, "level": 5 }""");
+        var (d, host) = Start(project.ProjectFile, new DesignerOptions { WatchProject = false, LiveRun = NoPackages });
+        host.Pump(d.ProjectControlsTask, "the design session");
+        var doc = d.Document!;
+        Assert.Equal("Gauge", ClassOf(d, "gauge1"));
+        Assert.Contains("\"level\": 5", doc.Save());
+
+        // Halfway through renaming the property (an editor's autosave): the project still compiles, without "level".
+        var good = File.ReadAllText(controlsFile);
+        File.WriteAllText(controlsFile, good.Replace("int Level", "int Lev"));
+        host.Pump(d.RefreshProjectControls(), "the rebuild");
+        Assert.Contains("\"level\": 5", doc.Save());
+
+        // The rename is undone: the value is still there.
+        File.WriteAllText(controlsFile, good);
+        host.Pump(d.RefreshProjectControls(), "the rebuild");
+        Assert.Equal("Gauge", ClassOf(d, "gauge1"));
+        Assert.Contains("\"level\": 5", doc.Save());
+        Assert.False(doc.Modified);
+    }
+
+    [Fact]
+    public void A_project_control_named_like_a_RadSharp_one_keeps_its_own_properties_before_it_loads_and_while_the_project_is_broken()
+    {
+        var (project, controlsFile) = ProjectWith("Shadow", """
+            using RadSharp;
+
+            namespace Shadow;
+
+            /// <summary>The application's own Button: form files can't tell it from RadSharp's.</summary>
+            public class Button : RadSharp.Button
+            {
+                [Published(Category = "Behavior")] public int Extra { get; set; }
+            }
+            """, """{ "class": "Button", "name": "btnMine", "caption": "Mine", "left": 8, "top": 8, "extra": 3 }""");
+        var (d, host) = Start(project.ProjectFile, new DesignerOptions { WatchProject = false, LiveRun = NoPackages });
+        var doc = d.Document!;
+        Assert.Contains("\"extra\": 3", doc.Save());   // before the project's controls are loaded
+        host.Pump(d.ProjectControlsTask, "the design session");
+        Assert.True(doc.Form.FindControl("btnMine")!.GetType().Assembly.IsCollectible, "the project's Button");
+        Assert.Contains("\"extra\": 3", doc.Save());
+
+        var good = File.ReadAllText(controlsFile);
+        File.WriteAllText(controlsFile, good.Replace("{ get; set; }", "{ get; set; } = ;"));
+        host.Pump(d.RefreshProjectControls(), "the broken rebuild");
+        Assert.Null(d.DesignSession);
+        Assert.Contains("\"extra\": 3", doc.Save());
+        Assert.False(doc.Modified);
+    }
+
+    /// <summary>Waits until the rebuild is installed, or is waiting for the designer to be idle.</summary>
+    static void PumpUntilRebuiltOrWaiting(DesignerForm d, QueueHost host, Task rebuild) =>
+        host.Pump(() => rebuild.IsCompleted || d.OutputLines.Any(l => l.Contains("controls load once")), TimeSpan.FromMinutes(1), "the rebuild");
+
+    [Fact]
+    public void A_rebuild_that_finishes_while_an_editor_dialog_is_open_does_not_lose_its_edits()
+    {
+        var (project, _) = ProjectWith("Grids", "namespace Grids; public class Nothing { }");
+        var (d, host) = Start(project.ProjectFile, new DesignerOptions { WatchProject = false, LiveRun = NoPackages });
+        host.Pump(d.ProjectControlsTask, "the design session");
+        var doc = d.Document!;
+        doc.Create(ComponentRegistry.Find("StringGrid")!, doc.Form, 16, 16);
+        var props = (PropertyGrid)d.FindControl("gridProps")!;
+        Task? rebuild = null;
+        host.OnModal = editor =>
+        {
+            // The watcher saw a source change: the rebuild finishes while the Columns editor is open.
+            rebuild = d.RefreshProjectControls();
+            PumpUntilRebuiltOrWaiting(d, host, rebuild);
+            editor.Simulate.Click(editor.FindControl("btnAdd")!);
+        };
+        props.BeginEdit(props.IndexOf("columns"));
+        host.OnModal = null;
+        Assert.NotNull(rebuild);
+        host.Pump(rebuild, "the rebuild");
+        Assert.Contains("\"title\": \"Column\"", doc.Save());
+    }
+
+    [Fact]
+    public void A_rebuild_that_finishes_during_a_drag_does_not_lose_the_move()
+    {
+        var (project, _) = ProjectWith("Drags", "namespace Drags; public class Nothing { }");
+        var (d, host) = Start(project.ProjectFile, new DesignerOptions { WatchProject = false, LiveRun = NoPackages });
+        host.Pump(d.ProjectControlsTask, "the design session");
+        var doc = d.Document!;
+        var button = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 24, 24);
+        var surface = d.ActiveForm!.Surface;
+        (int X, int Y) At(int x, int y) { var (sx, sy) = surface.DesignToScreen(x, y); return (surface.AbsoluteLeft + sx, surface.AbsoluteTop + sy); }
+
+        var (px, py) = At(30, 30);
+        d.Simulate.Press(px, py);
+        var (mx, my) = At(70, 30);
+        d.Simulate.MoveTo(mx, my);
+        var rebuild = d.RefreshProjectControls();
+        PumpUntilRebuiltOrWaiting(d, host, rebuild);
+        var (ex, ey) = At(110, 70);
+        d.Simulate.MoveTo(ex, ey);
+        d.Simulate.Release(ex, ey);
+        host.Pump(rebuild, "the rebuild");
+        var moved = doc.Form.FindControl(button.Name)!;
+        Assert.Equal((104, 64), (moved.Left, moved.Top));
+    }
+
+    [Fact]
+    public void A_name_being_typed_survives_a_rebuild()
+    {
+        var (project, _) = ProjectWith("Names", "namespace Names; public class Nothing { }");
+        var (d, host) = Start(project.ProjectFile, new DesignerOptions { WatchProject = false, LiveRun = NoPackages });
+        host.Pump(d.ProjectControlsTask, "the design session");
+        var doc = d.Document!;
+        var button = doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 24, 24);
+        var edtName = (Edit)d.FindControl("edtName")!;
+        d.Simulate.Click(edtName);
+        edtName.Text = "btnOk";   // typed, not applied yet (Enter or leaving the box applies it)
+        var rebuild = d.RefreshProjectControls();
+        PumpUntilRebuiltOrWaiting(d, host, rebuild);
+        d.Simulate.Key(Key.Enter);
+        host.Pump(rebuild, "the rebuild");
+        Assert.NotNull(doc.Form.FindControl("btnOk"));
+    }
+
+    [Fact]
+    public void A_project_control_that_throws_while_painted_at_design_time_does_not_stop_the_designer_painting()
+    {
+        var (project, _) = ProjectWith("Fussy", """
+            using RadSharp;
+            using RadSharp.Drawing;
+
+            namespace Fussy;
+
+            public class Chart : Label
+            {
+                protected override void Paint(Canvas canvas)
+                {
+                    if (DesignMode) throw new InvalidOperationException("no data at design time");
+                    base.Paint(canvas);
+                }
+            }
+            """, """{ "class": "Chart", "name": "chart1", "left": 8, "top": 8 }""");
+        var (d, host) = Start(project.ProjectFile, new DesignerOptions { WatchProject = false, LiveRun = NoPackages });
+        host.Pump(d.ProjectControlsTask, "the design session");
+        Assert.Equal("Chart", ClassOf(d, "chart1"));
+        // What the host does every frame (SdlHost's loop doesn't catch it: the designer would close, unsaved work and all).
+        using var frame = RadSharp.Drawing.FormRenderer.RenderToBitmap(d);
+    }
+
+    [Fact]
+    public void A_project_control_that_throws_while_laid_out_at_design_time_leaves_the_form_open_and_the_swap_whole()
+    {
+        var (project, controlsFile) = ProjectWith("Layouts", """
+            using RadSharp;
+
+            namespace Layouts;
+
+            /// <summary>Fine on its own; throws once it is on a form (it looks for the application's data there).</summary>
+            public class Sidebar : Panel
+            {
+                protected override void OnResize()
+                {
+                    base.OnResize();
+                    if (DesignMode && Parent is Form) throw new InvalidOperationException("no data at design time");
+                }
+            }
+            """, """{ "class": "Sidebar", "name": "side1", "align": "client" }""",
+            """{ "class": "Label", "name": "lblHello", "caption": "Hello" }""");
+        var (d, host) = Start(project.ProjectFile, new DesignerOptions { WatchProject = false, LiveRun = NoPackages });
+        var doc = d.Document!;
+        var text = doc.Save();
+        host.Pump(d.ProjectControlsTask, "the design session");
+        Assert.True(d.DesignSession != null, string.Join("\n", d.OutputLines));
+        Assert.Equal(text, doc.Save());
+        Assert.NotNull(doc.Form.FindControl("lblHello"));
+        Assert.Contains(d.OutputLines, l => l.Contains("no data at design time"));
+        // The swap went through: the palette shows the new session's class.
+        Assert.Equal(["Sidebar"], Category(d, PaletteCategories.Project));
+
+        // Undo and redo still work on it.
+        doc.Create(ComponentRegistry.Find("Button")!, doc.Form, 8, 8);
+        Assert.True(doc.Undo());
+        Assert.Equal(text, doc.Save());
+        Assert.True(doc.Redo());
+        Assert.NotNull(doc.Form.FindControl("Button1"));
+
+        // Placing one from the palette, then aligning it: its layout throws from then on; the designer still paints.
+        var surface = d.ActiveForm!.Surface;
+        var (sx, sy) = surface.DesignToScreen(200, 100);
+        var placed = surface.CreateAt(d.DesignSession!.Find("Sidebar")!, sx, sy)!;
+        placed.Align = Align.Client;
+        using var frame = RadSharp.Drawing.FormRenderer.RenderToBitmap(d);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    static void Handle(DesignerForm d, QueueHost host, string name)
+    {
+        var doc = d.Document!;
+        var surface = d.ActiveForm!.Surface;
+        var dial = doc.Form.FindControl(name)!;
+        var (sx, sy) = surface.DesignToScreen(dial.Left + 4, dial.Top + 4);
+        d.Simulate.MoveTo(surface.AbsoluteLeft + sx, surface.AbsoluteTop + sy);   // hover
+        d.Simulate.Click(surface.AbsoluteLeft + sx, surface.AbsoluteTop + sy);   // select
+        Assert.Same(dial, doc.Primary);
+        var props = (PropertyGrid)d.FindControl("gridProps")!;
+        int row = props.IndexOf("value");
+        props.BeginEdit(row);
+        d.Simulate.Type("7");
+        d.Simulate.Key(Key.Enter);
+        Assert.True(doc.Undo());
+        Assert.True(doc.Redo());
+        d.ActiveForm!.Surface.CopySelection();
+        var events = (PropertyGrid)d.FindControl("gridEvents")!;
+        Assert.Same(doc.Primary, events.Targets.Single());
+        host.PumpFor(TimeSpan.FromMilliseconds(50));
+    }
+
+    [Fact]
+    public void A_replaced_session_unloads_after_its_control_was_hovered_selected_edited_undone_and_copied()
+    {
+        var (project, controlsFile) = ProjectWith("Dials", """
+            using RadSharp;
+
+            namespace Dials;
+
+            public class Dial : Label
+            {
+                [Published(Category = "Behavior")] public int Value { get; set; }
+            }
+            """, """{ "class": "Dial", "name": "dial1", "left": 40, "top": 40, "width": 120, "height": 40 }""");
+        var (d, host) = Start(project.ProjectFile, new DesignerOptions { WatchProject = false, LiveRun = NoPackages });
+        host.Pump(d.ProjectControlsTask, "the design session");
+        Assert.Equal("Dial", ClassOf(d, "dial1"));
+        var context = ContextOf(d, PaletteCategories.Project, "Dial");
+        Handle(d, host, "dial1");
+
+        // A rebuild (the project changed, and still compiles): the old session's context must go.
+        File.AppendAllText(controlsFile, "\npublic class Other { }\n");
+        host.Pump(d.RefreshProjectControls(), "the rebuild");
+        Assert.Equal("Dial", ClassOf(d, "dial1"));
+        Assert.Contains("\"value\": 7", d.Document!.Save());
+        Collect(context, host);
+        Assert.False(context.IsAlive, "the replaced design session's load context is still alive");
+    }
+
+    [Fact]
+    public void Closing_the_designer_unloads_the_projects_controls()
+    {
+        var (project, _) = ProjectWith("Closing", "using RadSharp; namespace Closing; public class Knob : Label { }");
+        var (d, host) = Start(project.ProjectFile, new DesignerOptions { WatchProject = false, LiveRun = NoPackages });
+        host.Pump(d.ProjectControlsTask, "the design session");
+        Assert.NotNull(ComponentRegistry.Find("Knob"));
+        Assert.True(d.Close());
+        Assert.Null(ComponentRegistry.Find("Knob"));
     }
 }

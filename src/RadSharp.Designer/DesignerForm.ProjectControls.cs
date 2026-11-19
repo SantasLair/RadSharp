@@ -68,17 +68,24 @@ public partial class DesignerForm
                 Output(line);
             }),
         };
-        Task.Run(() =>
+        bool told = false;
+        void Finish(Task<DesignSession> t)
         {
-            if (refresh) ProjectDependencies.Invalidate(project);
-            return DesignSession.Compile(project, options);
-        }).ContinueWith(t => Post(() =>
-        {
+            bool waiting = false;
             try
             {
                 if (generation != _designGeneration || _project != project)
                 {
                     if (t.IsCompletedSuccessfully) t.Result.Dispose();
+                    return;
+                }
+                if (BusyWithDocuments() is { } busy)
+                {
+                    // Reloading now would pull the form from under what is editing it: wait until it is done.
+                    waiting = true;
+                    if (!told) Output($"{project.Name}'s controls load once {busy} is done.");
+                    told = true;
+                    Task.Delay(SwapRetryDelay).ContinueWith(_ => Post(() => Finish(t)), TaskScheduler.Default);
                     return;
                 }
                 if (t.IsCompletedSuccessfully) Install(t.Result);
@@ -88,9 +95,40 @@ public partial class DesignerForm
                     Install(null);
                 }
             }
-            finally { done.TrySetResult(); }
-        }), TaskScheduler.Default);
+            finally { if (!waiting) done.TrySetResult(); }
+        }
+        Task.Run(() =>
+        {
+            if (refresh) ProjectDependencies.Invalidate(project);
+            return DesignSession.Compile(project, options);
+        }).ContinueWith(t => Post(() => Finish(t)), TaskScheduler.Default);
         return done.Task;
+    }
+
+    static readonly TimeSpan SwapRetryDelay = TimeSpan.FromMilliseconds(100);
+
+    /// <summary>The editors that open while it is running (they hold controls of the document, not the document).</summary>
+    int _modalEditors;
+
+    /// <summary>Runs a modal editor of the document's controls: no design session is installed until it closes.</summary>
+    void EditModally(Action edit)
+    {
+        _modalEditors++;
+        try { edit(); }
+        finally { _modalEditors--; }
+    }
+
+    /// <summary>
+    /// What holds controls of an open document, rather than the document (null: nothing): a reload replaces every
+    /// control, so an edit they make afterwards would go to a control no longer on the form, and be lost.
+    /// </summary>
+    string? BusyWithDocuments()
+    {
+        if (_modalEditors > 0) return "the editor";
+        if (gridProps.IsEditing || gridEvents.IsEditing) return "the Object Inspector's edit";
+        if (_forms.Any(f => f.Surface.IsTracking)) return "the drag on the form";
+        if (edtName.Focused && Document is { } doc && edtName.Text.Trim() != doc.Primary.Name) return "the rename";
+        return null;
     }
 
     void Install(DesignSession? next)
@@ -117,7 +155,9 @@ public partial class DesignerForm
             foreach (var (f, text) in texts)
             {
                 f.Document.ProjectClasses = next == null ? null : next.Find;
-                foreach (var w in f.Document.Reload(text).Where(w => w.Contains(" threw while it was created", StringComparison.Ordinal)))
+                // Not the "unknown class" ones: a broken project says so once, above.
+                foreach (var w in f.Document.Reload(text).Where(w => w.Contains(" threw while ", StringComparison.Ordinal)
+                             || w.Contains(" has no published property ", StringComparison.Ordinal)))
                     Output($"{Path.GetFileName(f.Path)}: {w}");
             }
             RebuildPalette();

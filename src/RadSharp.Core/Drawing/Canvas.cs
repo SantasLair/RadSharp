@@ -43,6 +43,8 @@ public sealed class Canvas
 
     public void Save() => _sk.Save();
     public void Restore() => _sk.Restore();
+    internal int SaveCount => _sk.SaveCount;
+    internal void RestoreToCount(int count) => _sk.RestoreToCount(count);
     public void Translate(int dx, int dy) => _sk.Translate(dx, dy);
     public void ClipRect(Rect r) => _sk.ClipRect(ToSK(r));
     public bool IsClippedOut(Rect r) => _sk.QuickReject(ToSK(r));

@@ -15,8 +15,10 @@ public sealed record FormLoadOptions
 
     /// <summary>
     /// Keeps a node whose class isn't registered as an <see cref="UnknownControl"/> placeholder (still with a warning)
-    /// instead of skipping it, so saving the form writes it back unchanged. The designer sets this; an application
-    /// leaves it off, so a control it can't create is skipped as before.
+    /// instead of skipping it, so saving the form writes it back unchanged; so is a node (other than the root) with a
+    /// property its class doesn't publish or a value it can't take, whose class throws while it is created, or whose
+    /// class the reader can't create. The designer sets this; an application leaves it off, so a control it can't
+    /// create is skipped and a property it doesn't know is ignored, as before.
     /// </summary>
     public bool KeepUnknownClasses { get; init; }
 
@@ -120,7 +122,7 @@ public static class FormReader
             ReadInto(target, rootJson, warnings, "root", options);
             form = target;
         }
-        else if (ReadNode(rootJson, warnings, "root", options) is Form created) form = created;
+        else if (ReadNode(rootJson, warnings, "root", options, root: true) is Form created) form = created;
         else throw new FormFileException("The root node must be a Form.");
 
         form.ApplyScaleCore(options.Scale);
@@ -147,7 +149,7 @@ public static class FormReader
     static ComponentClass? ClassOf(JsonElement node) =>
         node.TryGetProperty("class", out var c) && c.ValueKind == JsonValueKind.String ? ComponentRegistry.Find(c.GetString()!) : null;
 
-    static Control? ReadNode(JsonElement node, List<string> warnings, string path, FormLoadOptions options)
+    static Control? ReadNode(JsonElement node, List<string> warnings, string path, FormLoadOptions options, bool root = false)
     {
         var className = node.TryGetProperty("class", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString()! : null;
         if (className == null)
@@ -174,8 +176,16 @@ public static class FormReader
         try
         {
             var control = cls.Create();
-            ReadInto(control, node, warnings, path, options);
+            // Not the root: a placeholder can't stand in for the form itself.
+            ReadInto(control, node, warnings, path, options, keepWhole: !root);
             return control;
+        }
+        catch (UnreadNodeException e)
+        {
+            // The class doesn't publish what the file holds (a project's control whose property was renamed or removed,
+            // or another class of its name): ignoring the value would lose it when the form is saved.
+            warnings.Add($"{e.Here}: {e.Message}; kept as a placeholder (written back unchanged).");
+            return UnknownControl.Read(node, className);
         }
         catch (Exception e) when (e is not (OutOfMemoryException or FormFileException))
         {
@@ -199,7 +209,13 @@ public static class FormReader
     }
 
     /// <summary>Applies a node's name, properties, event handler names and children to a control.</summary>
-    static void ReadInto(Control control, JsonElement node, List<string> warnings, string path, FormLoadOptions options)
+    /// <summary>A node <see cref="ReadInto"/> can't read whole (with <c>keepWhole</c>): read it as a placeholder.</summary>
+    sealed class UnreadNodeException(string here, string message) : Exception(message)
+    {
+        public string Here { get; } = here;
+    }
+
+    static void ReadInto(Control control, JsonElement node, List<string> warnings, string path, FormLoadOptions options, bool keepWhole = false)
     {
         var cls = ComponentRegistry.Of(control);
         if (node.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
@@ -226,15 +242,17 @@ public static class FormReader
                 foreach (var item in prop.Value.EnumerateArray()) owner.Items.Add(MenuItem.Read(item, warnings, $"{here}.items[{i++}]"));
                 continue;
             }
-            try
-            {
-                if (!SetProperty(control, cls, prop.Name, prop.Value))
-                    warnings.Add($"{here}: {cls.Name} has no published property \"{prop.Name}\"; ignored.");
-            }
+            bool set;
+            try { set = SetProperty(control, cls, prop.Name, prop.Value); }
             catch (FormatException e)
             {
+                if (keepWhole) throw new UnreadNodeException(here, $"{cls.Name}.{prop.Name}: {e.Message}");
                 warnings.Add($"{here}.{prop.Name}: {e.Message}; ignored.");
+                continue;
             }
+            if (set) continue;
+            if (keepWhole) throw new UnreadNodeException(here, $"{cls.Name} has no published property \"{prop.Name}\"");
+            warnings.Add($"{here}: {cls.Name} has no published property \"{prop.Name}\"; ignored.");
         }
 
         if (collections != null && deferred != null)

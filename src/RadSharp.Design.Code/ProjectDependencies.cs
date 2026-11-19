@@ -200,7 +200,8 @@ public sealed partial class ProjectDependencies
 
     /// <summary>
     /// What a failed resolve read, as far as it can be known without MSBuild: the project file, its restore output,
-    /// the settings files above it, and its project references (their project files, and their folders' sources).
+    /// the settings files above it, and its project references, theirs and so on (their project files, and their
+    /// folders' sources): MSBuild builds every one of them, and any of them can be what failed.
     /// </summary>
     static (string Key, IReadOnlyList<string> ReferenceDirectories) FailureInputs(RadProject project)
     {
@@ -208,21 +209,31 @@ public sealed partial class ProjectDependencies
         for (var dir = new DirectoryInfo(project.Directory); dir != null; dir = dir.Parent)
             foreach (var f in AncestorFiles) files.Add(Path.Combine(dir.FullName, f));
         var referenceDirs = new List<string>();
-        try
+        var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase) { project.ProjectFile };
+        var pending = new Queue<string>([project.ProjectFile]);
+        while (pending.Count > 0)
         {
-            foreach (Match m in ProjectReferencePattern().Matches(File.ReadAllText(project.ProjectFile)))
+            var file = pending.Dequeue();
+            try
             {
-                var path = Path.GetFullPath(m.Groups[1].Value.Replace('\\', Path.DirectorySeparatorChar), project.Directory);
-                files.Add(path);
-                referenceDirs.Add(Path.GetDirectoryName(path)!);
+                var folder = Path.GetDirectoryName(file)!;
+                foreach (Match m in ProjectReferencePattern().Matches(File.ReadAllText(file)))
+                {
+                    var path = Path.GetFullPath(m.Groups["path"].Value.Replace('\\', Path.DirectorySeparatorChar), folder);
+                    if (!seen.Add(path)) continue;
+                    files.Add(path);
+                    referenceDirs.Add(Path.GetDirectoryName(path)!);
+                    pending.Enqueue(path);
+                }
             }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { }
         }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException) { }
         try { return (Stamp(files.Distinct(StringComparer.OrdinalIgnoreCase)), referenceDirs); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return (Guid.NewGuid().ToString(), referenceDirs); }
     }
 
-    [GeneratedRegex("""<ProjectReference\s+Include\s*=\s*"([^"]+)" """, RegexOptions.IgnoreCase | RegexOptions.IgnorePatternWhitespace)]
+    // Include in either quotes, after any other attribute (a Condition, say).
+    [GeneratedRegex("""<ProjectReference\b[^>]*?\bInclude\s*=\s*(?:"(?<path>[^"]+)"|'(?<path>[^']+)')""", RegexOptions.IgnoreCase)]
     private static partial Regex ProjectReferencePattern();
 
     bool IsCurrent()

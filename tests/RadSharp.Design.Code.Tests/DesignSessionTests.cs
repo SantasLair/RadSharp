@@ -87,6 +87,65 @@ public class DesignSessionTests
     }
 
     [Fact]
+    public void A_failed_resolve_is_forgotten_when_a_reference_of_a_reference_is_fixed()
+    {
+        var root = TempDir();
+        // App -> Mid -> Leaf, and Leaf doesn't compile: MSBuild builds both references while it resolves App, and fails.
+        var leafCode = Path.Combine(root, "Leaf", "Class1.cs");
+        WriteProject(Path.Combine(root, "Leaf"), "Leaf", code: "namespace Leaf; public class Class1 { int x = ; }\n");
+        WriteProject(Path.Combine(root, "Mid"), "Mid", """
+              <ItemGroup>
+                <ProjectReference Include="..\Leaf\Leaf.csproj" />
+              </ItemGroup>
+            """);
+        var project = WriteProject(Path.Combine(root, "App"), "App", """
+              <ItemGroup>
+                <ProjectReference Include="..\Mid\Mid.csproj" />
+              </ItemGroup>
+            """);
+        CountingMSBuild(project, runs =>
+        {
+            var first = ProjectDependencies.Resolve(project, Timeout);
+            Assert.Null(first.Dependencies);
+            Assert.Contains("CS1525", first.Error);
+            Assert.True(ProjectDependencies.Resolve(project, Timeout).FromCache);
+            Assert.Equal(1, runs());
+
+            // Leaf's code fixed: what the failed resolve read has changed, so it is resolved again.
+            File.WriteAllText(leafCode, "namespace Leaf; public class Class1 { }\n");
+            File.SetLastWriteTimeUtc(leafCode, DateTime.UtcNow.AddSeconds(5));
+            var fixedOne = ProjectDependencies.Resolve(project, Timeout);
+            Assert.True(fixedOne.Dependencies != null, fixedOne.Error);
+            Assert.Equal(2, runs());
+        });
+    }
+
+    [Theory]
+    [InlineData("""<ProjectReference Include='..\Lib\Lib.csproj' />""")]
+    [InlineData("""<ProjectReference Condition="'$(Configuration)' != ''" Include="..\Lib\Lib.csproj" />""")]
+    public void A_failed_resolve_is_forgotten_when_a_reference_written_another_way_is_fixed(string reference)
+    {
+        var root = TempDir();
+        var libCode = Path.Combine(root, "Lib", "Class1.cs");
+        WriteProject(Path.Combine(root, "Lib"), "Lib", code: "namespace Lib; public class Class1 { int x = ; }\n");
+        var project = WriteProject(Path.Combine(root, "App"), "App", $"""
+              <ItemGroup>
+                {reference}
+              </ItemGroup>
+            """);
+        CountingMSBuild(project, runs =>
+        {
+            Assert.Contains("CS1525", ProjectDependencies.Resolve(project, Timeout).Error);
+            Assert.True(ProjectDependencies.Resolve(project, Timeout).FromCache);
+            File.WriteAllText(libCode, "namespace Lib; public class Class1 { }\n");
+            File.SetLastWriteTimeUtc(libCode, DateTime.UtcNow.AddSeconds(5));
+            var fixedOne = ProjectDependencies.Resolve(project, Timeout);
+            Assert.True(fixedOne.Dependencies != null, fixedOne.Error);
+            Assert.Equal(2, runs());
+        });
+    }
+
+    [Fact]
     public async Task Cancelling_ResolveAsync_stops_the_wait_not_the_resolve_and_the_next_caller_takes_its_result()
     {
         var project = WriteProject(TempDir(), "Waits");

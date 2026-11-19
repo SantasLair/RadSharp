@@ -53,6 +53,12 @@ public class DesignSurface : Control
     /// </summary>
     [Published(Category = "Behavior")] public bool Locked { get; set; }
 
+    /// <summary>
+    /// A mouse gesture (move, resize, rubber band, create) is under way: it holds the document's controls until the
+    /// button is released, so the document's form must not be replaced meanwhile.
+    /// </summary>
+    public bool IsTracking => _mode != Mode.None;
+
     /// <summary>The class the next press creates (set by the component palette); cleared after creating.</summary>
     public ComponentClass? PendingClass { get; set; }
 
@@ -538,7 +544,7 @@ public class DesignSurface : Control
         canvas.FillRect(new Rect(0, 0, Width, Height), t.SplitterFace);
         if (_doc == null) return;
         var form = _doc.Form;
-        form.PerformLayout();
+        FormRenderer.LayoutForPainting(form);
         var formRect = ScreenRect(new Rect(0, 0, form.Width, form.Height));
         canvas.FillRect(new Rect(formRect.X + Px(3), formRect.Y + Px(3), formRect.Width, formRect.Height), new Color(0, 0, 0, 30));
         canvas.DrawForm(form, formRect.X, formRect.Y, Zoom);
