@@ -13,23 +13,39 @@ namespace RadSharp.VisualStudio
     /// </summary>
     internal static class ProjectOutput
     {
-        public static string? For(IServiceProvider services, string formFile)
+        /// <summary>
+        /// The project's built assembly. <paramref name="failed"/> is true when the project system could not answer (busy,
+        /// threw): the caller keeps what it had. False with a null result: the file is definitely in no project (or the
+        /// project has no build output).
+        /// </summary>
+        public static string? For(IServiceProvider services, string formFile, out bool failed)
         {
             ThreadHelper.ThrowIfNotOnUIThread();
+            failed = false;
             try
             {
                 if (!(services.GetService(typeof(SVsUIShellOpenDocument)) is IVsUIShellOpenDocument open))
+                {
+                    failed = true;
                     return null;
-                if (ErrorHandler.Failed(open.IsDocumentInAProject(formFile, out var hierarchy, out _, out _, out int found))
-                    || found == 0 || !(hierarchy is IVsHierarchy project))
+                }
+                if (ErrorHandler.Failed(open.IsDocumentInAProject(formFile, out var hierarchy, out _, out _, out int found)))
+                {
+                    failed = true;
+                    return null;
+                }
+                if (found == 0 || !(hierarchy is IVsHierarchy project))
                     return null;
                 return FromBuildProperties(project) ?? FromAutomation(project);
             }
             catch (Exception ex) when (!ErrorHandler.IsCriticalException(ex))
             {
+                failed = true;
                 return null;
             }
         }
+
+        public static string? For(IServiceProvider services, string formFile) => For(services, formFile, out _);
 
         /// <summary>MSBuild's own answer: <c>TargetPath</c> evaluated for the active configuration.</summary>
         private static string? FromBuildProperties(IVsHierarchy project)
@@ -42,7 +58,7 @@ namespace RadSharp.VisualStudio
             {
                 if (ErrorHandler.Succeeded(storage.GetPropertyValue("TargetPath", name, (uint)_PersistStorageType.PST_PROJECT_FILE, out var value))
                     && OutputPaths.IsAssembly(value))
-                    return value;
+                    return OutputPaths.PreferManaged(value);
             }
             return null;
         }

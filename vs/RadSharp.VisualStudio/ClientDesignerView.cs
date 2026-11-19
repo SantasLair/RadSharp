@@ -312,7 +312,9 @@ namespace RadSharp.VisualStudio
             if (Connected)
             {
                 // The active configuration may have changed since the form was opened (Debug to Release, say).
-                _doc!.SetProjectAssembly(ProjectOutput.For(_package, _path));
+                // A failed lookup (project system busy) keeps the path the host already has; only "no project" clears it.
+                var output = ProjectOutput.For(_package, _path, out var failed);
+                _doc!.SetProjectAssembly(OutputPaths.AfterLookup(_doc.ProjectAssembly, output, failed));
                 _doc.Activate();
             }
             if (_surface.IsVisible && _surface.WindowId != 0 && !_surface.IsKeyboardFocusWithin)

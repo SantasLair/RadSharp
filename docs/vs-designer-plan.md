@@ -395,5 +395,9 @@ Run these in the experimental instance only, never in the main VS hive.
     - Make the constructor throw when `DesignMode` is true, then build. The Output pane says it "can't be created at
       design time", and the form keeps it as a placeholder. Make `Paint` throw instead, then build. A red box with the
       message appears, and the Output pane reports it once.
+    - Hand-check `IVsBuildPropertyStorage.GetPropertyValue("TargetPath", ..., PST_PROJECT_FILE)` on a CPS/SDK-style
+      project: it must return the full `.dll` path (the code falls back to the DTE `OutputPath` + `OutputFileName`, and
+      prefers the managed `.dll` next to an `.exe` apphost). If it returns nothing, the Output pane says "not in a
+      project with a build output". A project system that is busy or throws keeps the previous path on tab activation.
     - Switch the configuration to Release, build, then reactivate the tab. The Output pane shows the
       `bin\Release\...` path.

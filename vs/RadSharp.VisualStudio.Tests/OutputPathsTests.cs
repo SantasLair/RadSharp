@@ -23,6 +23,23 @@ namespace RadSharp.VisualStudio.Tests
             Assert.Equal(@"D:\out\App.dll", OutputPaths.Combine(@"C:\src\App", @"D:\out\", "App.dll"));
 
         [Fact]
+        public void An_exe_apphost_gives_way_to_the_managed_dll_next_to_it()
+        {
+            Assert.Equal(@"C:\p\bin\App.dll", OutputPaths.PreferManaged(@"C:\p\bin\App.exe", p => p == @"C:\p\bin\App.dll"));
+            Assert.Equal(@"C:\p\bin\App.exe", OutputPaths.PreferManaged(@"C:\p\bin\App.exe", _ => false));   // a real managed exe
+            Assert.Equal(@"C:\p\bin\App.dll", OutputPaths.PreferManaged(@"C:\p\bin\App.dll", _ => true));
+            Assert.Equal(@"C:\p\bin\App.dll", OutputPaths.Combine(@"C:\p", @"bin\", "App.exe", p => p.EndsWith("App.dll")));
+        }
+
+        [Fact]
+        public void A_failed_project_lookup_keeps_the_previous_path_and_only_no_project_clears_it()
+        {
+            Assert.Equal(@"C:\p\App.dll", OutputPaths.AfterLookup(@"C:\p\App.dll", null, lookupFailed: true));
+            Assert.Null(OutputPaths.AfterLookup(@"C:\p\App.dll", null, lookupFailed: false));
+            Assert.Equal(@"C:\q\App.dll", OutputPaths.AfterLookup(@"C:\p\App.dll", @"C:\q\App.dll", lookupFailed: false));
+        }
+
+        [Fact]
         public void Missing_parts_give_nothing()
         {
             Assert.Null(OutputPaths.Combine(@"C:\src\App", null, "App.dll"));
