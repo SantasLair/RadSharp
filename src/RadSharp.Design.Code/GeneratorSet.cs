@@ -39,7 +39,14 @@ sealed class GeneratorSet : IDisposable
         Failures = failures;
     }
 
-    public void Dispose() => _loader.Unload();
+    /// <summary>Whether the load contexts were unloaded.</summary>
+    public bool IsUnloaded { get; private set; }
+
+    public void Dispose()
+    {
+        IsUnloaded = true;
+        _loader.Unload();
+    }
 
     sealed class Loader : IAnalyzerAssemblyLoader
     {
