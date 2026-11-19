@@ -16,7 +16,7 @@ public partial class Form
     /// <summary>Called from the constructor: a shown form with actions takes part in the idle update.</summary>
     void InitActions()
     {
-        Shown += _ => { _windowShown = true; SyncIdleTracking(); };
+        Shown += _ => { _windowShown = true; HostClosed = false; ForEachActionSlot(this, s => s.Resume()); SyncIdleTracking(); };
         Closed += _ => NotifyHostClosed();
     }
 
@@ -27,7 +27,45 @@ public partial class Form
     public void NotifyHostClosed()
     {
         _windowShown = false;
+        HostClosed = true;
+        ForEachActionSlot(this, s => s.Suspend());   // links made from code stop holding this form's buttons and menu items
         SyncIdleTracking();
+    }
+
+    /// <summary>True from the host taking the window away until the form is shown again: explicit action links are suspended.</summary>
+    internal bool HostClosed { get; private set; }
+
+    /// <summary>A control (and its subtree) was added to this form: its code links to actions are live again.</summary>
+    internal void ControlAdded(Control child)
+    {
+        if (ActionSlot.Used && !HostClosed) ForEachActionSlot(child, s => s.Resume());
+    }
+
+    /// <summary>A control (and its subtree) left this form: its code links to actions stop listing it as a client.</summary>
+    internal void ControlRemoved(Control child)
+    {
+        if (ActionSlot.Used) ForEachActionSlot(child, s => s.Suspend());
+    }
+
+    /// <summary>Visits the action slot of every button and menu item at or below <paramref name="root"/>.</summary>
+    static void ForEachActionSlot(Control root, Action<ActionSlot> visit)
+    {
+        if (!ActionSlot.Used) return;
+        Visit(root);
+
+        void Visit(Control c)
+        {
+            if (c is Button { PeekActionSlot: { } slot }) visit(slot);
+            if (c is IMenuOwner menu)
+                foreach (var item in menu.Items) VisitItem(item);
+            foreach (var child in c.Children) Visit(child);
+        }
+
+        void VisitItem(MenuItem item)
+        {
+            if (item.PeekActionSlot is { } slot) visit(slot);
+            foreach (var sub in item.Items) VisitItem(sub);
+        }
     }
 
     /// <summary>Whether idle updates apply now: shown, visible and not blocked by a modal form (Delphi doesn't update disabled windows).</summary>

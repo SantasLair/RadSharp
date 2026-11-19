@@ -188,6 +188,8 @@ public class Button : Control
 
     internal void ResolveAction(Form form, int stamp) => _actionSlot?.Resolve(form, stamp);
 
+    internal ActionSlot? PeekActionSlot => _actionSlot;
+
     // Only an action on this form gives the value back when the file is loaded (a code link may point to another form's).
     internal override bool IsActionLinked(string publishedName) =>
         _actionSlot?.Link is { } link && link.Action.OwningForm is { } form && form == OwningForm

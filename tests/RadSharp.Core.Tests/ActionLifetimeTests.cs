@@ -70,4 +70,82 @@ public class ActionLifetimeTests
         Assert.Equal("Mod+S", item.Shortcut);               // default in the file: from the action
         Assert.Contains("\"Keep me\"", FormWriter.Save(form));   // and the designer saves it back
     }
+
+    // ---- links made from code across forms ----
+
+    static (Form main, ActionItem act, Form dlg, Button btn) TwoForms()
+    {
+        var main = new Form();
+        main.SetBounds(0, 0, 300, 200);
+        var act = new ActionItem { Name = "actSave", Caption = "&Save" };
+        main.Add(act);
+        var dlg = new Form();
+        dlg.SetBounds(0, 0, 300, 100);
+        var btn = new Button { Name = "dlgBtn" };
+        btn.SetBounds(10, 10, 100, 26);
+        dlg.Add(btn);
+        btn.Action = act;
+        return (main, act, dlg, btn);
+    }
+
+    [Fact]
+    public void A_code_link_to_another_forms_action_is_dropped_when_the_clients_form_closes_and_comes_back_when_it_is_shown_again()
+    {
+        var (_, act, dlg, btn) = TwoForms();
+        dlg.PerformLayout();
+        dlg.NotifyShown();
+        Assert.Contains(btn, act.Clients);
+        Assert.Equal("&Save", btn.Caption);
+
+        dlg.Close();
+        Assert.DoesNotContain(btn, act.Clients);            // a closed dialog is no client: no leak, no writes to it
+        act.Caption = "&Store";
+        Assert.Equal("&Save", btn.Caption);
+        Assert.Same(act, btn.Action);                       // the reference is still there for the next show
+
+        dlg.NotifyShown();                                  // reusing the dialog needs no re-linking
+        Assert.Contains(btn, act.Clients);
+        Assert.Equal("&Store", btn.Caption);
+        act.Caption = "&Keep";
+        Assert.Equal("&Keep", btn.Caption);
+    }
+
+    [Fact]
+    public void A_button_removed_from_its_form_is_no_longer_a_client_and_links_again_when_added_back()
+    {
+        var (_, act, dlg, btn) = TwoForms();
+        dlg.PerformLayout();
+        Assert.Contains(btn, act.Clients);
+        dlg.Remove(btn);
+        Assert.DoesNotContain(btn, act.Clients);
+        act.Caption = "&Gone";
+        Assert.NotEqual("&Gone", btn.Caption);
+
+        var panel = new Panel();
+        dlg.Add(panel);
+        panel.Add(btn);                                     // moved: back on the form
+        Assert.Contains(btn, act.Clients);
+        Assert.Equal("&Gone", btn.Caption);
+    }
+
+    [Fact]
+    public void A_menu_item_of_a_removed_menu_bar_is_no_longer_a_client()
+    {
+        var (_, act, dlg, _) = TwoForms();
+        var menu = new MainMenu();
+        var top = new MenuItem { Caption = "&File" };
+        var item = new MenuItem();
+        top.Items.Add(item);
+        menu.Items.Add(top);
+        dlg.Add(menu);
+        item.Action = act;
+        Assert.Contains(item, act.Clients);
+        dlg.Remove(menu);
+        Assert.DoesNotContain(item, act.Clients);
+        dlg.Add(menu);
+        Assert.Contains(item, act.Clients);
+        dlg.NotifyShown();
+        dlg.Close();
+        Assert.DoesNotContain(item, act.Clients);
+    }
 }

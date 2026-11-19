@@ -196,6 +196,7 @@ internal abstract class ActionLink(ActionItem action)
 internal sealed class ActionSlot(Func<ActionItem, ActionLink> createLink)
 {
     string _name = "";
+    ActionItem? _explicit;   // the action given from code: kept while the client is off a form, linked only while it is on an open one
     bool _keepOwnValues;   // the pending name came from a form file: the file's explicit values win when it resolves
 
     /// <summary>Set once any action exists or any client names one: until then forms skip the link walk entirely.</summary>
@@ -206,9 +207,9 @@ internal sealed class ActionSlot(Func<ActionItem, ActionLink> createLink)
 
     public ActionLink? Link { get; private set; }
 
-    public string Name => Link?.Action.Name ?? _name;
+    public string Name => Link?.Action.Name ?? _explicit?.Name ?? _name;
 
-    public ActionItem? Action => Link?.Action;
+    public ActionItem? Action => Link?.Action ?? _explicit;
 
     /// <summary>
     /// Sets the name; links at once when <paramref name="form"/> has that action, else when the form next walks its links.
@@ -221,6 +222,7 @@ internal sealed class ActionSlot(Func<ActionItem, ActionLink> createLink)
         if (Link != null && Link.Action.Name == name) return;
         Unlink();
         _name = name;
+        _explicit = null;
         _keepOwnValues = loading;
         if (name.Length == 0) return;
         Used = true;
@@ -231,11 +233,30 @@ internal sealed class ActionSlot(Func<ActionItem, ActionLink> createLink)
     /// <summary>Links to <paramref name="action"/> from code (copying every value), or unlinks with null.</summary>
     public void SetAction(ActionItem? action)
     {
-        if (action == null) { Unlink(); _name = ""; return; }   // also cancels a name that never resolved
-        if (Link?.Action == action) return;
+        if (action == null) { Unlink(); _explicit = null; _name = ""; return; }   // also cancels a name that never resolved
+        if (_explicit == action && Link?.Action == action) return;
         Unlink();
-        _name = action?.Name ?? "";
-        if (action != null) Attach(action, explicitLink: true, onlyDefaults: false);
+        _explicit = action;
+        _name = action.Name;
+        Attach(action, explicitLink: true, onlyDefaults: false);
+    }
+
+    /// <summary>
+    /// The client left its form's tree or the form closed: an explicit (code) link is taken off the action's client list, so the
+    /// action doesn't keep a dead or hidden client alive and doesn't write to it (Delphi's <c>FreeNotification</c>). The
+    /// reference stays, so <see cref="Resume"/> links again when the client is back on an open form.
+    /// </summary>
+    public void Suspend()
+    {
+        if (Link is not { Explicit: true } link) return;
+        link.Action.RemoveLink(link);
+        Link = null;
+    }
+
+    /// <summary>The client is on an open form again: links an explicit action again, taking its current values.</summary>
+    public void Resume()
+    {
+        if (_explicit != null && Link == null) Attach(_explicit, explicitLink: true, onlyDefaults: false);
     }
 
     void Attach(ActionItem action, bool explicitLink, bool onlyDefaults)
@@ -250,6 +271,7 @@ internal sealed class ActionSlot(Func<ActionItem, ActionLink> createLink)
     void Unlink()
     {
         if (Link == null) return;
+        if (Link.Explicit) _explicit = null;
         _name = Link.Action.Name;
         Link.Action.RemoveLink(Link);
         Link = null;
@@ -258,6 +280,12 @@ internal sealed class ActionSlot(Func<ActionItem, ActionLink> createLink)
     /// <summary>Part of a form's link walk: keeps a valid link, drops one to an action that left the form, resolves a pending name.</summary>
     public void Resolve(Form form, int stamp)
     {
+        if (_explicit != null)   // a code link: not name-resolved; it follows its client on and off open forms
+        {
+            if (Link == null && !form.HostClosed) Resume();
+            if (Link != null) { Link.Stamp = stamp; Link.Action.AddLink(Link); }
+            return;
+        }
         if (Link != null)
         {
             if (Link.Explicit || Link.Action.OwningForm == form)

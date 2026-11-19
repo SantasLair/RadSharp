@@ -62,6 +62,8 @@ public sealed class MenuItem
         if (_actionSlot?.Action?.OwningForm is { } form && form != _host) form.InvalidateAll();
     }
 
+    internal ActionSlot? PeekActionSlot => _actionSlot;
+
     internal void ResolveAction(Form form, int stamp)
     {
         _host = form;
