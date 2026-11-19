@@ -121,6 +121,23 @@ public sealed class ProjectAssemblyTests : IDisposable
     }
 
     [Fact]
+    public void A_framework_form_loaded_with_LoadInto_never_takes_a_class_of_a_loaded_project()
+    {
+        var project = Load();
+        Assert.Same(project.Assembly, ComponentRegistry.Find("Gauge")!.Type.Assembly);   // the registry's "Gauge" is the project's
+        var json = Form("""{ "class": "Gauge", "name": "gauge1", "left": 8, "top": 8 }""", """{ "class": "Button", "name": "btn1", "left": 8, "top": 60 }""");
+        var form = new Form();
+        var warnings = new List<string>();
+        var previous = FormReader.Warning;
+        FormReader.Warning = warnings.Add;
+        try { FormReader.LoadInto(form, json); }
+        finally { FormReader.Warning = previous; }
+        Assert.Equal(["btn1"], form.Children.Select(c => c.Name));   // the Gauge is skipped, not created from the project
+        Assert.DoesNotContain(form.Children, c => c.GetType().Assembly.IsCollectible);
+        Assert.Contains(warnings, w => w.Contains("Gauge"));
+    }
+
+    [Fact]
     public void A_locked_symbols_file_does_not_fail_the_load()
     {
         var path = CopyOfSampleControls();
