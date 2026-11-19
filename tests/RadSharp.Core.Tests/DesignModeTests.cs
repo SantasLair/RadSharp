@@ -11,6 +11,15 @@ public class DesignTimeBomb : Label
     [Published(Category = "Behavior")] public int Fuse { get; set; }
 }
 
+/// <summary>A form the application defines that can't be created at design time.</summary>
+public class DesignTimeBombForm : Form
+{
+    public DesignTimeBombForm()
+    {
+        if (DesignMode) throw new InvalidOperationException("no database at design time");
+    }
+}
+
 /// <summary>Remembers whether its constructor ran in design mode.</summary>
 public class DesignModeProbe : Label
 {
@@ -113,6 +122,18 @@ public class DesignModeTests
         var saved = FormWriter.Save(form);
         Assert.Contains("\"max\": -1", saved);
         Assert.Equal(saved, FormWriter.Save(FormReader.Load(saved, new FormLoadOptions { KeepUnknownClasses = true }).Form));
+    }
+
+    [Fact]
+    public void A_root_that_throws_at_design_time_reports_why_not_just_that_the_root_must_be_a_form()
+    {
+        var text = """
+            { "format": "radform", "version": "1.0", "root": { "class": "DesignTimeBombForm", "name": "frmBomb" } }
+            """;
+        using var designing = Control.EnterDesignMode();
+        var e = Assert.Throws<FormFileException>(() => FormReader.Load(text, new FormLoadOptions { KeepUnknownClasses = true }));
+        Assert.Contains("DesignTimeBombForm", e.Message);
+        Assert.Contains("no database at design time", e.Message);
     }
 
     [Fact]

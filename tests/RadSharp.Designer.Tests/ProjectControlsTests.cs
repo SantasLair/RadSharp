@@ -799,4 +799,17 @@ public class ProjectControlsTests : IDisposable
         Assert.Equal(["Gauge"], Category(d, PaletteCategories.Project));
         Assert.Contains(d.OutputLines, l => l.Contains("couldn't be loaded") && l.Contains("The process cannot access the file"));
     }
+
+    [Fact]
+    public void Build_output_is_ignored_below_the_project_folder_only()
+    {
+        // A project that lives under a folder called "bin" is still watched; its own bin and obj are not.
+        var root = Path.Combine(Path.GetTempPath(), "bin", "src", "App");
+        Assert.False(DesignerForm.IsBuildOutput(root, Path.Combine(root, "MainForm.cs")));
+        Assert.False(DesignerForm.IsBuildOutput(root, Path.Combine(root, "Forms", "MainForm.cs")));
+        Assert.True(DesignerForm.IsBuildOutput(root, Path.Combine(root, "obj", "Debug", "App.AssemblyInfo.cs")));
+        Assert.True(DesignerForm.IsBuildOutput(root, Path.Combine(root, "bin", "Debug", "net10.0", "Gen.cs")));
+        Assert.True(DesignerForm.IsBuildOutput(root, Path.Combine(root, ".git", "hooks", "x.cs")));
+        Assert.False(DesignerForm.IsBuildOutput(root, Path.Combine(root, "bin.cs")));   // a file, not a folder
+    }
 }

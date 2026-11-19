@@ -288,6 +288,8 @@ public partial class DesignerForm
                 watcher.Created += changed;
                 watcher.Deleted += changed;
                 watcher.Renamed += (_, e) => FileChanged(project, e.FullPath);
+                // The event buffer overflowed (a branch switch, a big restore): changes were missed, so refresh everything.
+                watcher.Error += (_, _) => Post(() => ScheduleRefresh(project));
                 watcher.EnableRaisingEvents = true;
                 _watchers.Add(watcher);
             }
@@ -301,20 +303,37 @@ public partial class DesignerForm
         _watchers.Clear();
     }
 
+    /// <summary>
+    /// Whether <paramref name="path"/> is the build's own output or tooling state: some folder between the project's
+    /// folder and the file is named bin, obj, .vs or .git. Only the part below <paramref name="root"/> counts (a
+    /// project that lives under a folder called "bin" or "obj" is still watched).
+    /// </summary>
+    internal static bool IsBuildOutput(string root, string path)
+    {
+        var relative = Path.GetRelativePath(root, path);
+        if (relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative)) relative = path;   // not under it (a project reference's folder is a root of its own)
+        var parts = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return parts.Take(parts.Length - 1).Any(p => p is "bin" or "obj" or ".vs" or ".git");
+    }
+
     /// <summary>On a watcher thread: a source of the project changed (not the build's own output).</summary>
     void FileChanged(RadProject project, string path)
     {
         if (!WatchedExtensions.Any(e => path.EndsWith(e, StringComparison.OrdinalIgnoreCase))) return;
-        var parts = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        if (parts.Any(p => p is "bin" or "obj" or ".vs" or ".git")) return;
-        Post(() =>
+        if (_watchers.Where(w => path.StartsWith(w.Path, StringComparison.OrdinalIgnoreCase)).Select(w => w.Path)
+                .OrderByDescending(p => p.Length).FirstOrDefault() is not { } root) root = project.Directory;
+        if (IsBuildOutput(root, path)) return;
+        Post(() => ScheduleRefresh(project));
+    }
+
+    /// <summary>On the UI thread: rebuild the design session once a burst of changes has settled.</summary>
+    void ScheduleRefresh(RadProject project)
+    {
+        if (_project != project) return;
+        int generation = ++_watchGeneration;
+        Task.Delay(_options.RefreshDelay).ContinueWith(_ => Post(() =>
         {
-            if (_project != project) return;
-            int generation = ++_watchGeneration;
-            Task.Delay(_options.RefreshDelay).ContinueWith(_ => Post(() =>
-            {
-                if (generation == _watchGeneration && _project == project) RefreshProjectControls();
-            }), TaskScheduler.Default);
-        });
+            if (generation == _watchGeneration && _project == project) RefreshProjectControls();
+        }), TaskScheduler.Default);
     }
 }

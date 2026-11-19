@@ -192,6 +192,9 @@ public static class FormReader
             // The designer: a class whose constructor or a property setter throws at design time (an application's own
             // control, say) must not stop the form from opening, nor lose the node: it stays as written.
             var name = node.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() : null;
+            // The form itself can't be a placeholder: say what went wrong, not just that the root isn't a form.
+            if (root)
+                throw new FormFileException($"The root {className}{(name is { Length: > 0 } ? $" \"{name}\"" : "")} threw while it was created ({e.GetType().Name}: {e.Message}).");
             warnings.Add($"{(name is { Length: > 0 } ? name : path)}: {className} threw while it was created " +
                 $"({e.GetType().Name}: {e.Message}); kept as a placeholder (written back unchanged).");
             return UnknownControl.Read(node, className);
