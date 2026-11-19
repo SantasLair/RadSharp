@@ -31,9 +31,13 @@ Measured on win-x64, .NET 10.0.404, SkiaSharp 4.152.1, Release.
 **Apps (NativeAOT).** Hello, ControlsDemo and GridDemo publish to a 5.4-5.5 MB executable plus 17.6 MB of native
 libraries (`libSkiaSharp.dll` 12.8 MB, `SDL3.dll` 2.9 MB, `libHarfBuzzSharp.dll` 1.9 MB). The folder also holds
 debug symbols (`<App>.pdb`, 16-17 MB, plus two small RadSharp ones); leave every `*.pdb` out of what you ship, and
-keep them if you want readable native crash stacks. The SkiaSharp and HarfBuzzSharp NuGet packages also carry
-their own native `.pdb` files (116 MB for win-x64); the RadSharp build targets keep those out of a publish
-(`RadSharpKeepPackagePdbs=true` brings them back). A whole sample publish folder is 40 MB, down from 156 MB.
+keep them if you want readable native crash stacks (the generated Windows workflow does delete the app's own `*.pdb`
+from `out\` before zipping, so the "ship the whole folder" rule above applies to the zip, not to the raw publish folder).
+The SkiaSharp and HarfBuzzSharp NuGet packages also carry their own native `.pdb` files (`libSkiaSharp.pdb` and
+`libHarfBuzzSharp.pdb`, 116 MB for win-x64). The RadSharp build targets drop exactly the `.pdb` files that come from the
+`SkiaSharp*` and `HarfBuzzSharp*` packages (matched by NuGet package id) from a publish; `.pdb` files from any other
+package, the app's own and RadSharp's stay. `RadSharpKeepPackagePdbs=true` brings the dropped ones back. A whole sample
+publish folder is 40 MB, down from 156 MB.
 
 **The designer.** It runs on the JIT (it compiles your project with Roslyn for F9), so it is a normal .NET app.
 
