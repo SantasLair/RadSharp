@@ -310,4 +310,19 @@ public class BinderLifetimeTests
         Assert.Equal("Ada", d.Name.Text);
         Assert.False(d.Binder.IsDirty);
     }
+
+    [Fact]
+    public void A_closed_dialog_does_not_listen_to_a_model_set_before_it_is_shown_again()
+    {
+        var d = new Dialog();
+        d.Binder.Current = new Rec("A");
+        d.Show();
+        d.Form.Close();
+        var b = new Rec("B");
+        d.Binder.Current = b;
+        Assert.Equal(0, b.Subscribers);
+        d.Show();
+        Assert.Equal(1, b.Subscribers);
+        Assert.Equal("B", d.Name.Text);
+    }
 }

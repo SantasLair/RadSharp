@@ -399,7 +399,9 @@ public class BinderTests
 
         binder.Revert();                                    // still usable: reloads
         Assert.Equal("Ada", edit.Text);
-        binder.Current = model;                             // setting the model listens again (see BinderLifetimeTests)
+        binder.Current = model;                             // a closed form doesn't listen: only showing it again does
+        Assert.Equal(0, model.Subscribers);
+        f.NotifyShown();
         Assert.Equal(1, model.Subscribers);
         binder.Dispose();
         Assert.Equal(0, model.Subscribers);

@@ -119,9 +119,11 @@ they show), and afterwards setting `Current`, `Commit`, `Validate`, `Revert` and
 Disposing twice is safe. Create the binder with its form (`new Binder<Client>(this)`, or `new Binder<Client>(this, client)`)
 and the form's lifetime is handled without ending the binder: when the form closes (`Closed`) the binder stops listening to
 the model, so a closed dialog can't keep a long-lived model's `PropertyChanged` alive, and when the form is shown again
-(`Shown`) it listens again and reloads the controls from `Current`. A dialog can therefore be created once and shown many
-times (the Delphi pattern): set `Current` before each `ShowModal`, `Commit` on OK. Setting `Current` always listens to the new
-model. The constructors are `Binder<T>()` and `Binder<T>(Form owner)` (plus `(owner, current)`); to start with a model
+(`Shown`) it listens again. A closed form doesn't listen, so setting `Current` on a closed dialog subscribes nothing until it
+is shown. A dialog can therefore be created once and shown many times (the Delphi pattern): set `Current` before each
+`ShowModal`, `Commit` on OK. On `Shown` the controls are reloaded from the model only when `Current` was *not* set since the
+form last closed (the same record shown again drops an edit left from a cancelled show); after a new `Current`, values the
+code or the form's own `onShow` put into the controls survive, and only untouched fields the model changed are refreshed. The constructors are `Binder<T>()` and `Binder<T>(Form owner)` (plus `(owner, current)`); to start with a model
 without an owner write `new Binder<T> { Current = model }`. Dispose a binder with no owner yourself.
 
 Every getter is read before any control changes: if one throws, the exception propagates and the controls, `Current` and the
