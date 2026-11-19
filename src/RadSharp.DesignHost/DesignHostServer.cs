@@ -173,6 +173,7 @@ public sealed class DesignHostServer
     void Flush()
     {
         ExpireCodeRequests();
+        _paintErrorsThisFlush = 0;
         long now = _clock.ElapsedMilliseconds;
         if (AutoCheckProjects) CheckProjects(now);
         foreach (var doc in _docs.Values)
@@ -219,10 +220,29 @@ public sealed class DesignHostServer
         }
     }
 
+    /// <summary>The least time between two reports about the same control (its message may change on every paint).</summary>
+    internal TimeSpan PaintErrorInterval { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>The most paint errors reported in one pass over the windows, whatever the controls.</summary>
+    const int MaxPaintErrorsPerFlush = 5;
+
+    readonly System.Runtime.CompilerServices.ConditionalWeakTable<Control, System.Runtime.CompilerServices.StrongBox<long>> _paintErrorAt = new();
+    int _paintErrorsThisFlush;
+
     void OnPaintError(Control control, Exception e)
     {
         // Only this host's designed forms (painting runs on this thread; a test process may paint others elsewhere).
         if (!_docs.Values.Any(d => ReferenceEquals(d.Doc.Form, control.Root))) return;
+        // The first failure of a control is reported at once; after that one per interval, and a few per pass.
+        long now = _clock.ElapsedMilliseconds;
+        if (_paintErrorAt.TryGetValue(control, out var last))
+        {
+            if (now - last.Value < PaintErrorInterval.TotalMilliseconds) return;
+            last.Value = now;
+        }
+        else if (_paintErrorsThisFlush >= MaxPaintErrorsPerFlush) return;   // not recorded: reported on a later paint
+        else _paintErrorAt.Add(control, new System.Runtime.CompilerServices.StrongBox<long>(now));
+        if (++_paintErrorsThisFlush > MaxPaintErrorsPerFlush) return;
         var name = control.Name.Length > 0 ? $"{control.Name} ({control.GetType().Name})" : control.GetType().Name;
         Log(2, $"{name} can't paint at design time: {e.GetType().Name}: {e.Message}");
     }

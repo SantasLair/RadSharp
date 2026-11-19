@@ -258,6 +258,36 @@ public class ProjectHostTests
     }
 
     [Fact]
+    public void A_control_whose_paint_error_message_changes_every_frame_is_reported_at_most_once_per_interval()
+    {
+        var (dll, form) = Project();
+        File.WriteAllText(form, FormText.Replace("\"class\": \"Gauge\"", "\"class\": \"ChattyPainter\"").Replace("\"value\": 7", "\"width\": 90"));
+        using var client = Connect();
+        client.Ui(() => client.Server!.PaintErrorInterval = TimeSpan.FromMilliseconds(600));
+        client.Send(new P.SetProjectAssembly { DocId = Doc, Path = dll });
+        var panes = client.Open(Doc, form);
+        client.Send(new P.AttachWindow { WindowId = panes.Surface });
+        client.Send(new P.ResizeWindow { WindowId = panes.Surface, Width = 800, Height = 600, Scale = 1 });
+        var first = client.Expect<P.Log>(l => l.Text.Contains("can't paint at design time"));   // immediate
+        Assert.StartsWith("gauge1 (ChattyPainter) can't paint at design time: InvalidOperationException: paint broke ", first.Text);
+
+        // Every repaint has a new message ("paint broke 2", "3", ...), but within the interval none is reported.
+        var stop = DateTime.UtcNow.AddMilliseconds(400);
+        while (DateTime.UtcNow < stop)
+        {
+            client.Ui(() => Document(client).Surface!.Invalidate());
+            Thread.Sleep(10);
+        }
+        Assert.Throws<TimeoutException>(() => client.Expect<P.Log>(l => l.Text.Contains("can't paint at design time"), timeoutMs: 100));
+
+        // After the interval the next one comes through.
+        Thread.Sleep(300);
+        client.Ui(() => Document(client).Surface!.Invalidate());
+        var later = client.Expect<P.Log>(l => l.Text.Contains("can't paint at design time"), timeoutMs: 5000);
+        Assert.NotEqual(first.Text, later.Text);
+    }
+
+    [Fact]
     public void Closing_the_last_document_of_a_project_unloads_it_and_two_documents_share_one_load()
     {
         var (dll, form) = Project();
