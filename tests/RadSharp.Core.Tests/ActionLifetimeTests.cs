@@ -21,4 +21,53 @@ public class ActionLifetimeTests
         Assert.Null(btn.Action);                            // the cancelled name doesn't resolve later
         Assert.DoesNotContain(btn, act.Clients);
     }
+
+    // ---- MenuItem.ActionName from code adopts the action's values; the form file keeps its own ----
+
+    static (Form form, MainMenu menu, MenuItem item, ActionItem act) MenuRig()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 400, 200);
+        var act = new ActionItem { Name = "actSave", Caption = "&Save", Shortcut = "Mod+S", Enabled = false };
+        var item = new MenuItem { Caption = "Mine", Shortcut = "F2" };
+        var menu = new MainMenu();
+        var top = new MenuItem { Caption = "&File" };
+        top.Items.Add(item);
+        menu.Items.Add(top);
+        f.Add(act);
+        f.Add(menu);
+        return (f, menu, item, act);
+    }
+
+    [Fact]
+    public void A_menu_item_whose_ActionName_is_set_from_code_takes_the_actions_values_and_follows_it()
+    {
+        var (f, _, item, act) = MenuRig();
+        item.ActionName = "actSave";
+        f.PerformLayout();                                  // the form resolves the name
+        Assert.Equal(("&Save", "Mod+S", false), (item.Caption, item.Shortcut, item.Enabled));
+        act.Caption = "&Store";
+        Assert.Equal("&Store", item.Caption);
+        Assert.Same(act, item.Action);
+    }
+
+    [Fact]
+    public void A_menu_item_loaded_from_a_form_file_keeps_the_values_the_file_sets()
+    {
+        const string json = """
+            { "format": "radform", "version": "1.0", "root": { "class": "Form", "name": "frmA", "width": 400, "height": 300,
+              "children": [
+                { "class": "MainMenu", "name": "mnu", "items": [ { "caption": "&File", "items": [
+                  { "name": "mnuSave", "caption": "Keep me", "action": "actSave" } ] } ] },
+                { "class": "Action", "name": "actSave", "caption": "&Save", "shortcut": "Mod+S", "left": 10, "top": 200 }
+              ] } }
+            """;
+        var (form, warnings) = FormReader.Load(json);
+        Assert.Empty(warnings);
+        form.PerformLayout();
+        var item = ((MainMenu)form.FindControl("mnu")!).Items[0].Items[0];
+        Assert.Equal("Keep me", item.Caption);              // explicit in the file: the file wins, as in Delphi
+        Assert.Equal("Mod+S", item.Shortcut);               // default in the file: from the action
+        Assert.Contains("\"Keep me\"", FormWriter.Save(form));   // and the designer saves it back
+    }
 }

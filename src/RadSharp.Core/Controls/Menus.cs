@@ -40,8 +40,11 @@ public sealed class MenuItem
     public string ActionName
     {
         get => _actionSlot?.Name ?? "";
-        set => Slot.SetName(value, null);
+        set => Slot.SetName(value, null);   // from code: adopts the action's values when the form resolves it
     }
+
+    /// <summary>The form-file path: like <see cref="ActionName"/>, but values the file sets explicitly are kept.</summary>
+    internal void LoadActionName(string name) => Slot.SetName(name, null, loading: true);
 
     /// <summary>The linked action: set from code (linking at once, from any form), or found by <see cref="ActionName"/>.</summary>
     public ActionItem? Action
@@ -194,7 +197,7 @@ public sealed class MenuItem
                 {
                     case "name": item.Name = Converters.String.Read(p.Value); break;
                     case "caption": item.Caption = Converters.String.Read(p.Value); break;
-                    case "action": item.ActionName = Converters.String.Read(p.Value); break;
+                    case "action": item.LoadActionName(Converters.String.Read(p.Value)); break;
                     case "shortcut": item.Shortcut = Converters.String.Read(p.Value); break;
                     case "altShortcut": item.AltShortcut = Converters.String.Read(p.Value); break;
                     case "enabled": item.Enabled = Converters.Bool.Read(p.Value); break;

@@ -196,6 +196,7 @@ internal abstract class ActionLink(ActionItem action)
 internal sealed class ActionSlot(Func<ActionItem, ActionLink> createLink)
 {
     string _name = "";
+    bool _keepOwnValues;   // the pending name came from a form file: the file's explicit values win when it resolves
 
     /// <summary>Set once any action exists or any client names one: until then forms skip the link walk entirely.</summary>
     internal static bool Used;
@@ -209,16 +210,21 @@ internal sealed class ActionSlot(Func<ActionItem, ActionLink> createLink)
 
     public ActionItem? Action => Link?.Action;
 
-    /// <summary>Sets the name; links at once (copying every value) when <paramref name="form"/> has that action, else later.</summary>
-    public void SetName(string? name, Form? form)
+    /// <summary>
+    /// Sets the name; links at once when <paramref name="form"/> has that action, else when the form next walks its links.
+    /// Set from code the client adopts every value of the action; with <paramref name="loading"/> (a form file is being read)
+    /// the values the file set explicitly are kept and only defaults come from the action, as Delphi does when loading.
+    /// </summary>
+    public void SetName(string? name, Form? form, bool loading = false)
     {
         name ??= "";
         if (Link != null && Link.Action.Name == name) return;
         Unlink();
         _name = name;
+        _keepOwnValues = loading;
         if (name.Length == 0) return;
         Used = true;
-        if (form?.FindControl(name) is ActionItem a) Attach(a, explicitLink: false, onlyDefaults: false);
+        if (form?.FindControl(name) is ActionItem a) Attach(a, explicitLink: false, onlyDefaults: loading);
         else Interlocked.Increment(ref PendingVersion);
     }
 
@@ -264,7 +270,7 @@ internal sealed class ActionSlot(Func<ActionItem, ActionLink> createLink)
         }
         if (_name.Length > 0 && form.FindControl(_name) is ActionItem a)
         {
-            Attach(a, explicitLink: false, onlyDefaults: true);
+            Attach(a, explicitLink: false, onlyDefaults: _keepOwnValues);
             Link!.Stamp = stamp;
         }
     }

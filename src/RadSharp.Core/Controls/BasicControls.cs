@@ -169,7 +169,7 @@ public class Button : Control
     public string ActionName
     {
         get => _actionSlot?.Name ?? "";
-        set => Slot.SetName(value, OwningForm);
+        set => Slot.SetName(value, OwningForm, Loading);   // from a form file the file's own values win
     }
 
     /// <summary>The linked action: set from code (it may be on another form), or found by <see cref="ActionName"/>.</summary>
