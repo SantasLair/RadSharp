@@ -22,8 +22,10 @@ namespace RadSharp;
 /// </code>
 /// </example>
 /// <remarks>
-/// <para>Create it with the owner form (<c>new Binder&lt;T&gt;(this)</c>) and it disposes itself when that form closes; without an
-/// owner, call <see cref="Dispose"/> when done, or it keeps listening to the model.</para>
+/// <para>Create it with the owner form (<c>new Binder&lt;T&gt;(this)</c>) and it stops listening to the model when that form
+/// closes and listens again (reloading the controls) when it is shown again, so a dialog created once can be shown for many
+/// records: set <see cref="Current"/> before each show. Without an owner, or to end the binder for good, call
+/// <see cref="Dispose"/>; a binder nobody disposes keeps listening to its model.</para>
 /// <para>When <typeparamref name="T"/> implements <see cref="INotifyPropertyChanged"/>, a change made to <see cref="Current"/>
 /// elsewhere reloads every field the user hasn't edited; a field the user has edited keeps the edit (and <see cref="Commit"/>
 /// writes it over the outside change). <see cref="Refresh"/> does the same on demand for other models. Raise
@@ -40,22 +42,28 @@ public sealed class Binder<T> : IDisposable where T : class
     T? _current;
     bool _loading, _committing, _lastDirty, _disposed;
     readonly Form? _owner;
-    readonly NotifyEvent? _ownerClosed;
+    readonly NotifyEvent? _ownerClosed, _ownerShown;
+    INotifyPropertyChanged? _listening;   // the model whose PropertyChanged this binder is subscribed to
 
     public Binder() => _changed = OnControlChanged;
 
     public Binder(T? current) : this() => Current = current;
 
     /// <summary>
-    /// A binder that disposes itself when <paramref name="owner"/> closes (its <see cref="Form.Closed"/> event), so it stops
-    /// listening to the model and the controls without the form having to remember to call <see cref="Dispose"/>.
+    /// A binder tied to <paramref name="owner"/>'s lifetime without being used up by it: when the form closes
+    /// (<see cref="Form.Closed"/>) the binder stops listening to the model, so a closed dialog can't keep a record alive or hear
+    /// it, and when the form is shown again (<see cref="Form.Shown"/>) it listens again and reloads the controls from
+    /// <see cref="Current"/>. A dialog can therefore be created once and shown many times, with <see cref="Current"/> set
+    /// before each show. Only an explicit <see cref="Dispose"/> ends the binder.
     /// </summary>
     public Binder(Form owner) : this()
     {
         ArgumentNullException.ThrowIfNull(owner);
         _owner = owner;
-        _ownerClosed = _ => Dispose();
+        _ownerClosed = _ => Unlisten();
+        _ownerShown = _ => { if (_disposed) return; Listen(); LoadAll(); };
         owner.Closed += _ownerClosed;
+        owner.Shown += _ownerShown;
     }
 
     /// <summary>Like <see cref="Binder(Form)"/>, and starts with <paramref name="current"/> as <see cref="Current"/>.</summary>
@@ -63,16 +71,18 @@ public sealed class Binder<T> : IDisposable where T : class
 
     /// <summary>
     /// The object being edited. Setting it (even to the same object) loads every bound control from it and discards unsaved
-    /// edits (check <see cref="IsDirty"/> first); null clears and disables the controls.
+    /// edits (check <see cref="IsDirty"/> first); null clears and disables the controls. Throws
+    /// <see cref="ObjectDisposedException"/> once the binder is disposed.
     /// </summary>
     public T? Current
     {
         get => _current;
         set
         {
-            if (_current is INotifyPropertyChanged oldModel) oldModel.PropertyChanged -= OnModelPropertyChanged;
+            ObjectDisposedException.ThrowIf(_disposed, this);
+            Unlisten();
             _current = value;
-            if (value is INotifyPropertyChanged newModel && !_disposed) newModel.PropertyChanged += OnModelPropertyChanged;
+            Listen();
             LoadAll();
         }
     }
@@ -203,7 +213,11 @@ public sealed class Binder<T> : IDisposable where T : class
     // ---- Loading and saving ----
 
     /// <summary>Reloads every bound control from <see cref="Current"/>, discarding the user's edits and errors.</summary>
-    public void Revert() => LoadAll();
+    public void Revert()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        LoadAll();
+    }
 
     /// <summary>
     /// Re-reads <see cref="Current"/> into every field the user hasn't edited (what a <c>PropertyChanged</c> event does
@@ -211,7 +225,8 @@ public sealed class Binder<T> : IDisposable where T : class
     /// </summary>
     public void Refresh()
     {
-        if (_current == null || _disposed) return;
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        if (_current == null) return;
         _loading = true;
         try { foreach (var f in _fields) f.Refresh(_current); }
         finally { _loading = false; }
@@ -223,7 +238,11 @@ public sealed class Binder<T> : IDisposable where T : class
     /// checked as loaded (so a new record with an empty required name fails too). Returns false and fills <see cref="Errors"/> if
     /// any is invalid.
     /// </summary>
-    public bool Validate() => Prepare() is not null;
+    public bool Validate()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        return Prepare() is not null;
+    }
 
     /// <summary>
     /// Writes the edited fields to <see cref="Current"/> through their setters, all or nothing: every writable field is validated
@@ -236,6 +255,7 @@ public sealed class Binder<T> : IDisposable where T : class
     /// </summary>
     public bool Commit()
     {
+        ObjectDisposedException.ThrowIf(_disposed, this);
         if (_current == null) { SetErrors([]); return true; }
         if (Prepare() is not { } dirty) return false;
         if (dirty.Count == 0) return true;
@@ -306,6 +326,23 @@ public sealed class Binder<T> : IDisposable where T : class
         CheckDirty();
     }
 
+    void Listen()
+    {
+        if (_listening != null || _disposed) return;
+        if (_current is INotifyPropertyChanged model)
+        {
+            model.PropertyChanged += OnModelPropertyChanged;
+            _listening = model;
+        }
+    }
+
+    void Unlisten()
+    {
+        if (_listening == null) return;
+        _listening.PropertyChanged -= OnModelPropertyChanged;
+        _listening = null;
+    }
+
     void OnControlChanged()
     {
         if (_loading || _disposed) return;
@@ -326,14 +363,19 @@ public sealed class Binder<T> : IDisposable where T : class
         DirtyChanged?.Invoke(this, EventArgs.Empty);
     }
 
-    /// <summary>Stops listening to the controls, the model and the owner form; the controls keep what they show. Safe to call twice.</summary>
+    /// <summary>
+    /// Ends the binder for good: stops listening to the controls, the model and the owner form (the controls keep what they
+    /// show). Afterwards <see cref="Current"/> can't be set and <see cref="Commit"/>, <see cref="Validate"/>,
+    /// <see cref="Revert"/> and <see cref="Refresh"/> throw <see cref="ObjectDisposedException"/>. Safe to call twice.
+    /// </summary>
     public void Dispose()
     {
         if (_disposed) return;
         _disposed = true;
         foreach (var f in _fields) f.Detach();
         if (_owner != null && _ownerClosed != null) _owner.Closed -= _ownerClosed;
-        if (_current is INotifyPropertyChanged model) model.PropertyChanged -= OnModelPropertyChanged;
+        if (_owner != null && _ownerShown != null) _owner.Shown -= _ownerShown;
+        Unlisten();
     }
 }
 

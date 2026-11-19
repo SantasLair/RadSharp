@@ -377,7 +377,7 @@ public class BinderTests
     }
 
     [Fact]
-    public void A_binder_made_with_its_owner_form_disposes_itself_when_the_form_closes()
+    public void A_binder_made_with_its_owner_form_stops_listening_when_the_form_closes_and_is_not_disposed()
     {
         var f = new Form();
         f.SetBounds(0, 0, 300, 80);
@@ -397,12 +397,12 @@ public class BinderTests
         Assert.True(f.Close());
         Assert.Equal(0, model.Subscribers);                 // no PropertyChanged subscription left on the model
 
-        f.Simulate.Type("?");                               // and the controls are no longer watched
-        binder.Revert();                                    // a disposed binder ignores loads
-        Assert.Equal("Ada!?", edit.Text);
-        binder.Current = model;                             // setting the model again doesn't re-subscribe
+        binder.Revert();                                    // still usable: reloads
+        Assert.Equal("Ada", edit.Text);
+        binder.Current = model;                             // setting the model listens again (see BinderLifetimeTests)
+        Assert.Equal(1, model.Subscribers);
+        binder.Dispose();
         Assert.Equal(0, model.Subscribers);
-        binder.Dispose();                                   // safe after the form disposed it
     }
 
     [Fact]
