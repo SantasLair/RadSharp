@@ -9,7 +9,10 @@ public partial class Form
     int _actionVersion = -1;
     int _actionStamp;
 
-    static readonly List<Form> ShownForms = [];   // shown forms that have actions: updated while the application is idle
+    // Shown forms that have actions: updated while the application is idle. Weak, so a form whose window the host took away
+    // without telling it (a torn-down live-run session) isn't kept alive, and with it the collectible load context of its type.
+    static readonly List<WeakReference<Form>> ShownForms = [];
+    readonly int _uiThread = Environment.CurrentManagedThreadId;   // forms and their actions belong to the thread that made them
     static bool _idleHooked;
     bool _windowShown;
 
@@ -76,8 +79,8 @@ public partial class Form
         bool track = _windowShown && ActionSlot.Used && ActionList.Count > 0;
         lock (ShownForms)   // UI code is single-threaded, but test runners show forms from several threads
         {
-            if (track) { if (!ShownForms.Contains(this)) ShownForms.Add(this); }
-            else ShownForms.Remove(this);
+            ShownForms.RemoveAll(w => !w.TryGetTarget(out var f) || f == this);
+            if (track) ShownForms.Add(new WeakReference<Form>(this));
             if (ShownForms.Count > 0 && !_idleHooked) { Application.Idle += OnApplicationIdle; _idleHooked = true; }
             else if (ShownForms.Count == 0 && _idleHooked) { Application.Idle -= OnApplicationIdle; _idleHooked = false; }
         }
@@ -86,10 +89,17 @@ public partial class Form
     /// <summary>Runs onUpdate for the actions of every shown, visible form that no modal form blocks. Never asks for another idle call at once (no busy loop).</summary>
     static void OnApplicationIdle(object? sender, IdleEventArgs e)
     {
-        Form[] forms;
-        lock (ShownForms) forms = [.. ShownForms];
-        foreach (var form in forms)
-            if (form.TakesIdleUpdates) form.UpdateActions();
+        var forms = new List<Form>();
+        lock (ShownForms)
+        {
+            ShownForms.RemoveAll(w => !w.TryGetTarget(out _));
+            foreach (var w in ShownForms)
+                if (w.TryGetTarget(out var f)) forms.Add(f);
+            if (ShownForms.Count == 0 && _idleHooked) { Application.Idle -= OnApplicationIdle; _idleHooked = false; }
+        }
+        int thread = Environment.CurrentManagedThreadId;
+        foreach (var form in forms)   // UI-thread-only: a form made on another thread is that thread's to update
+            if (form._uiThread == thread && form.TakesIdleUpdates) form.UpdateActions();
     }
 
     /// <summary>Called when controls are added or removed anywhere on the form.</summary>

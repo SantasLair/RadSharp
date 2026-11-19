@@ -148,4 +148,56 @@ public class ActionLifetimeTests
         dlg.Close();
         Assert.DoesNotContain(item, act.Clients);
     }
+
+    // ---- the idle list ----
+
+    static (Form form, Func<int> updates) ShownWithUpdate()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 200, 100);
+        int n = 0;
+        var act = new ActionItem { Name = "actX" };
+        act.Update += _ => n++;
+        f.Add(act);
+        f.NotifyShown();
+        return (f, () => n);
+    }
+
+    [System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+    static WeakReference ShowAndAbandon()
+    {
+        var (f, _) = ShownWithUpdate();
+        Application.RaiseIdle();
+        return new WeakReference(f);                        // never closed, never told the host closed it (a torn-down live-run session)
+    }
+
+    [Fact]
+    public void A_shown_form_nobody_closed_can_still_be_collected()
+    {
+        var weak = ShowAndAbandon();
+        for (int i = 0; i < 5 && weak.IsAlive; i++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+        }
+        Assert.False(weak.IsAlive);                         // the idle list holds forms weakly
+    }
+
+    [Fact]
+    public void Idle_updates_only_touch_forms_owned_by_the_thread_that_raises_idle()
+    {
+        Form? other = null;
+        Func<int>? otherUpdates = null;
+        var t = new Thread(() => (other, otherUpdates) = ShownWithUpdate());
+        t.Start();
+        t.Join();
+        var (mine, mineUpdates) = ShownWithUpdate();
+        try
+        {
+            Application.RaiseIdle();
+            Assert.Equal(1, mineUpdates());
+            Assert.Equal(0, otherUpdates!());               // another thread's form: not touched from here
+        }
+        finally { mine.Close(); other!.Close(); }
+    }
 }
