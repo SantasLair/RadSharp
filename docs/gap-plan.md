@@ -550,6 +550,17 @@ categorized/filterable palette is exercised by a designer UI test (the Anchors e
 note — its tests landed in `RadSharp.Core.Tests` since `PropertyGrid` lives in `RadSharp.Core`).
 Review fixes (2026-11-19): the name box refuses a name held inside a placeholder's raw children ("is not a valid, unused name") and leaves the code-behind alone; a failed design-session rebuild (an exception, not compile errors) keeps the last good session and is retried (`DesignerOptions.TransientRetries`, default 3); the project watcher refreshes after an overflow and ignores only bin/obj/.vs/.git below the project folder; a root form that throws at design time says so instead of "The root node must be a Form".
 
+**Status (2026-11-19): the Visual Studio designer is in 1.0 (user decision 2026-11-19).** The VS-embedded designer
+(`vs/` with `RadSharp.DesignHost`) joins the 1.0 scope. Its share of "project controls on the palette" is done on
+branch `m16-vs-project-controls`, built on `m16-palette`. Protocol 4 adds `SetProjectAssembly`, so VS sends the
+project's `TargetPath` and the host loads that build (`ProjectAssembly`), puts the project's controls first in the
+RadSharp Toolbox, and reloads them after every build, keeping unsaved changes and undo. Both designers apply the same
+rules through `ProjectClassSet`, which also gives the standalone designer `[assembly: DesignTimeSetup]`. The children
+a control's constructor adds are no longer saved, and clicking one selects the control. Details and the manual VS
+checklist (step 18) are in `docs/vs-designer-plan.md`, "Project controls". The automated tests run the host in
+process and as the real executable over a named pipe. The VS-side calls (`ProjectOutput`) still need the hand check
+in the experimental instance.
+
 ## M17: Ship it (M)
 
 *Closes gap 26 and the roadmap's "left for a person" list.*
