@@ -100,6 +100,16 @@ public sealed class DesignDocument
     /// <summary>The file this document was opened from (or last successfully saved to).</summary>
     public string Path { get; private set; }
 
+    /// <summary>
+    /// The built assembly of the document's project (its <c>TargetPath</c>), whose controls the host shows; null: none,
+    /// only RadSharp's. Sent before the document, again after a host restart, and when <see cref="SetProjectAssembly"/>
+    /// changes it.
+    /// </summary>
+    public string? ProjectAssembly { get; internal set; }
+
+    /// <summary>Changes <see cref="ProjectAssembly"/> (null: none); the host reads the form again with that project's controls.</summary>
+    public void SetProjectAssembly(string? path) => Session.SetProjectAssembly(this, path);
+
     public bool IsDirty { get; private set; }
     public bool CanUndo { get; private set; }
     public bool CanRedo { get; private set; }

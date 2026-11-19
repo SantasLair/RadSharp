@@ -140,7 +140,12 @@ namespace RadSharp.VisualStudio
             if (_disposed || (_doc != null && ReferenceEquals(_doc.Session, session) && !_doc.IsClosed))
                 return;
             UnhookDocument();
-            _doc = session.OpenDocument(_path);
+            // The project's own controls: the host loads its build output, and reloads it after each build.
+            var output = ProjectOutput.For(_package, _path);
+            _package.Output.WriteLine(output != null
+                ? $"{Path.GetFileName(_path)}: project controls from {output}"
+                : $"{Path.GetFileName(_path)}: not in a project with a build output; only RadSharp's controls.");
+            _doc = session.OpenDocument(_path, output);
             _doc.WindowOpened += OnWindowOpened;
             _doc.WindowClosed += OnWindowClosed;
             _doc.StateChanged += OnStateChanged;
@@ -305,7 +310,11 @@ namespace RadSharp.VisualStudio
             ThreadHelper.ThrowIfNotOnUIThread();
             _active = true;
             if (Connected)
-                _doc!.Activate();
+            {
+                // The active configuration may have changed since the form was opened (Debug to Release, say).
+                _doc!.SetProjectAssembly(ProjectOutput.For(_package, _path));
+                _doc.Activate();
+            }
             if (_surface.IsVisible && _surface.WindowId != 0 && !_surface.IsKeyboardFocusWithin)
                 _surface.Focus();
         }
