@@ -44,6 +44,7 @@ public sealed class Binder<T> : IDisposable where T : class
     bool _committing, _lastDirty, _disposed;
     readonly Form? _owner;
     readonly NotifyEvent? _ownerClosed, _ownerShown;
+    bool _currentSetSinceClose;   // Current was set since the owner last closed (or it never closed yet)
     INotifyPropertyChanged? _listening;   // the model whose PropertyChanged this binder is subscribed to
 
     public Binder() => _changed = OnControlChanged;
@@ -59,8 +60,15 @@ public sealed class Binder<T> : IDisposable where T : class
     {
         ArgumentNullException.ThrowIfNull(owner);
         _owner = owner;
-        _ownerClosed = _ => Unlisten();
-        _ownerShown = _ => { if (_disposed) return; Listen(); Reload(); };
+        _ownerClosed = _ => { Unlisten(); _currentSetSinceClose = false; };
+        _ownerShown = _ => {
+            if (_disposed) return;
+            Listen();
+            // A record set since the form closed is fresh: what the code or the form's onShow put in the controls stays (Refresh
+            // only takes over untouched fields the model changed). The same record shown again starts from the model, so an
+            // edit left over from a cancelled show is dropped.
+            if (_currentSetSinceClose) Refresh(); else Reload();
+        };
         owner.Closed += _ownerClosed;
         owner.Shown += _ownerShown;
     }
@@ -83,6 +91,7 @@ public sealed class Binder<T> : IDisposable where T : class
             if (value != null) FetchAll(value);   // before anything changes: a getter that throws leaves everything as it was
             Unlisten();
             _current = value;
+            _currentSetSinceClose = true;
             Listen();
             LoadAll();
         }

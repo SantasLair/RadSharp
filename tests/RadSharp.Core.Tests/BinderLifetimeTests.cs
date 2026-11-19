@@ -266,4 +266,48 @@ public class BinderLifetimeTests
         Assert.Throws<InvalidOperationException>(b.Revert);
         Assert.Equal("edited", e1.Text);
     }
+
+    // ---- what Shown reloads, and when a closed dialog listens ----
+
+    [Fact]
+    public void A_value_the_forms_own_onShow_sets_in_a_bound_control_survives_the_binders_Shown()
+    {
+        var form = new Form();
+        form.SetBounds(0, 0, 300, 100);
+        var name = new Edit();
+        name.SetBounds(10, 10, 200, 26);
+        form.Add(name);
+        form.Shown += _ => name.Text = "from onShow";        // the form's own handler, hooked before the binder's
+        var binder = new Binder<Rec>(form);
+        binder.Bind(name, r => r.Name, (r, v) => r.Name = v);
+        binder.Current = new Rec("Ada");
+        form.PerformLayout();
+        form.NotifyShown();
+        Assert.Equal("from onShow", name.Text);
+        Assert.True(binder.IsDirty);
+    }
+
+    [Fact]
+    public void A_control_set_in_code_between_Current_and_the_show_keeps_its_value()
+    {
+        var d = new Dialog();
+        d.Binder.Current = new Rec("Ada");
+        d.Name.Text = "preset";
+        d.Show();
+        Assert.Equal("preset", d.Name.Text);
+        Assert.True(d.Binder.IsDirty);
+    }
+
+    [Fact]
+    public void Showing_the_same_record_again_after_a_cancelled_edit_discards_the_stale_edit()
+    {
+        var d = new Dialog();
+        d.Binder.Current = new Rec("Ada");
+        d.Show();
+        d.Type("stale");
+        d.Form.Close();
+        d.Show();
+        Assert.Equal("Ada", d.Name.Text);
+        Assert.False(d.Binder.IsDirty);
+    }
 }
