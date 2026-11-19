@@ -711,17 +711,28 @@ public sealed class DesignHostServer
     {
         foreach (var doc in docs.ToList())
         {
+            var name = Path.GetFileName(doc.Path);
             string json;
             try { json = doc.Doc.Save(); }
             catch (Exception e) when (e is not OutOfMemoryException)
             {
-                Log(3, $"{Path.GetFileName(doc.Path)}: can't keep the form across a project reload ({e.Message}); it keeps the old controls.");
-                continue;
+                // The old controls can't be written. Keeping them would leave the form on code that is about to be
+                // unloaded (a later save would write their base classes): go back to the last text that could be saved.
+                json = doc.Doc.LastGoodText;
+                Log(2, $"{name}: a control on the form can't be saved ({e.GetType().Name}: {e.Message}); the form is reloaded from its last good state, so changes made since are lost.");
             }
-            var messages = KeepingTheme(() => doc.SwapProjectClasses(next, json));
-            // Not the "unknown class" ones: a project that isn't built says so once, when it is loaded.
-            foreach (var m in messages.Where(m => !m.Contains("unknown class", StringComparison.Ordinal)).Take(10))
-                Log(2, $"{Path.GetFileName(doc.Path)}: {m}");
+            try
+            {
+                var messages = KeepingTheme(() => doc.SwapProjectClasses(next, json));
+                // Not the "unknown class" ones: a project that isn't built says so once, when it is loaded.
+                foreach (var m in messages.Where(m => !m.Contains("unknown class", StringComparison.Ordinal)).Take(10))
+                    Log(2, $"{name}: {m}");
+            }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                // One form failing must not stop the others from moving to the new code.
+                Log(3, $"{name}: can't move the form onto the rebuilt project ({e.GetType().Name}: {e.Message}).");
+            }
         }
     }
 

@@ -47,6 +47,26 @@ public sealed class BadPainter : Control
     protected override void Paint(Canvas canvas) => throw new InvalidOperationException("paint broke");
 }
 
+/// <summary>A control whose painting throws a different message every time (a stack of counters, a time stamp).</summary>
+public sealed class ChattyPainter : Control
+{
+    static int _paints;
+    protected override void Paint(Canvas canvas) => throw new InvalidOperationException("paint broke " + ++_paints);
+}
+
+/// <summary>A control that can't be saved while <see cref="Break"/> is set (its property getter throws).</summary>
+public sealed class Fragile : Control
+{
+    public static bool Break;
+    int _level;
+
+    [Published] public int Level
+    {
+        get => Break ? throw new InvalidOperationException("level broke") : _level;
+        set => _level = value;
+    }
+}
+
 /// <summary>A project form: the designer must never create it.</summary>
 public sealed class SampleForm : Form
 {

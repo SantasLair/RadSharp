@@ -167,7 +167,18 @@ public sealed class DesignDocument
     }
 
     /// <summary>The form file text (deterministic, spec Appendix A).</summary>
-    public string Save() => FormWriter.Save(Form);
+    public string Save()
+    {
+        var text = FormWriter.Save(Form);
+        LastGoodText = text;
+        return text;
+    }
+
+    /// <summary>
+    /// The text of the last <see cref="Save"/> that succeeded: what a document falls back on if the form can't be
+    /// written any more (a project control's property getter that throws, say).
+    /// </summary>
+    public string LastGoodText { get; private set; } = "";
 
     /// <summary>Marks the current state as saved (after writing <see cref="Save"/> to disk).</summary>
     public void MarkSaved() => _savedText = Save();

@@ -83,7 +83,7 @@ public sealed class ProjectAssemblyTests : IDisposable
         var theme = Theme.Current;
         var project = Load();
         Assert.Null(project.Error);
-        Assert.Equal(["BadPainter", "Gauge", "TitleBar", "Swatch"], project.Classes.Select(c => c.Name));
+        Assert.Equal(["BadPainter", "ChattyPainter", "Fragile", "Gauge", "TitleBar", "Swatch"], project.Classes.Select(c => c.Name));
         Assert.Equal(PaletteCategories.Project, project.ClassSet.CategoryOf(project.ClassSet.Find("Gauge")!));
         Assert.Equal("SampleData", project.ClassSet.CategoryOf(project.ClassSet.Find("Swatch")!));
         Assert.Null(project.ClassSet.Find("SampleForm"));
@@ -102,7 +102,7 @@ public sealed class ProjectAssemblyTests : IDisposable
         ComponentPalette.Fill(tree, set.PaletteClasses(ComponentPalette.Classes()), "", set.PaletteCategory);
         var categories = tree.Nodes.Select(n => n.Text).ToList();
         Assert.Equal([PaletteCategories.Project, "SampleData"], categories.Skip(categories.Count - 2));
-        Assert.Equal(["BadPainter", "Gauge", "TitleBar"], tree.Nodes.Single(n => n.Text == PaletteCategories.Project).Nodes.Select(n => n.Text));
+        Assert.Equal(["BadPainter", "ChattyPainter", "Fragile", "Gauge", "TitleBar"], tree.Nodes.Single(n => n.Text == PaletteCategories.Project).Nodes.Select(n => n.Text));
 
         // The Visual Studio toolbox lists them first, as Visual Studio lists a project's own components.
         ComponentPalette.Fill(tree, set.PaletteClasses(ComponentPalette.Classes()), "", set.PaletteCategory, projectFirst: true);

@@ -369,6 +369,36 @@ public class ProjectHostTests
     }
 
     [Fact]
+    public void A_form_that_cannot_be_saved_during_a_reload_goes_back_to_its_last_good_state_not_to_unloaded_controls()
+    {
+        var (dll, form) = Project();
+        File.WriteAllText(form, FormText.Replace("\"class\": \"Gauge\"", "\"class\": \"Fragile\"").Replace("\"value\": 7", "\"level\": 5"));
+        using var client = Connect();
+        ManualChecks(client);
+        client.Send(new P.SetProjectAssembly { DocId = Doc, Path = dll });
+        client.Open(Doc, form);
+        client.Settle();
+        var before = Gauge(client).GetType();
+        Assert.Equal("SampleControls.Fragile", before.FullName);
+        before.GetField("Break")!.SetValue(null, true);   // from now on, saving the form throws
+
+        Rebuild(dll);
+        Check(client, 1000);
+        Check(client, 2000);
+
+        var warning = client.Expect<P.Log>(l => l.Text.Contains("last good state"));
+        Assert.Equal(2, warning.Level);
+        var after = Gauge(client);
+        Assert.Equal("SampleControls.Fragile", after.GetType().FullName);
+        Assert.NotSame(before.Assembly, after.GetType().Assembly);   // not left on the code that was unloaded
+        Assert.Equal(5, (int)after.GetType().GetProperty("Level")!.GetValue(after)!);
+        Assert.Null(client.Ui(() => ComponentRegistry.Find(before)));
+        client.Send(new P.SaveDocument { DocId = Doc, Path = "" });
+        Assert.True(client.Expect<P.DocumentSaved>().Ok);
+        Assert.Contains("\"class\": \"Fragile\"", File.ReadAllText(form));
+    }
+
+    [Fact]
     public void A_document_that_fails_to_open_does_not_keep_its_project_loaded()
     {
         var (dll, _) = Project();

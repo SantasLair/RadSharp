@@ -192,10 +192,19 @@ internal sealed class HostDocument
     public IReadOnlyList<string> SwapProjectClasses(ProjectClassSet next, string json)
     {
         ProjectClasses = next;
-        var (warnings, problem) = Doc.ReloadWith(json, next.Classes.Count == 0 ? null : next.Find);
-        FillPalette();
-        StateDirty = ModifiedStale = true;
-        Surface?.Invalidate();
+        IReadOnlyList<string> warnings;
+        string? problem;
+        try { (warnings, problem) = Doc.ReloadWith(json, next.Classes.Count == 0 ? null : next.Find); }
+        finally
+        {
+            // Whatever happened above (or in the palette): the panes show the new state.
+            try { FillPalette(); }
+            finally
+            {
+                StateDirty = ModifiedStale = true;
+                Surface?.Invalidate();
+            }
+        }
         return problem == null ? warnings : [problem, .. warnings];
     }
 
