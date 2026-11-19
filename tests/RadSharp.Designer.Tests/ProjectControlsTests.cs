@@ -719,4 +719,35 @@ public class ProjectControlsTests : IDisposable
         Assert.Same(d.ProjectControlsTask, finished);
         Assert.NotNull(d.DesignSession);
     }
+
+    [Fact]
+    public void A_document_that_cannot_be_reloaded_with_the_new_classes_falls_back_to_placeholders_and_the_swap_still_completes()
+    {
+        var (project, _) = ProjectWith("Strict", """
+            using RadSharp;
+
+            namespace Strict;
+
+            /// <summary>Fails the way a form file reader does (an exception the reader never absorbs) once it is on a form.</summary>
+            public class Sidebar : Panel
+            {
+                protected override void OnResize()
+                {
+                    base.OnResize();
+                    if (DesignMode && Parent is Form) throw new FormFileException("sidebar refuses");
+                }
+            }
+            """, """{ "class": "Sidebar", "name": "side1", "align": "client" }""",
+            """{ "class": "Label", "name": "lblHello", "caption": "Hello" }""");
+        var (d, host) = Start(project.ProjectFile, new DesignerOptions { WatchProject = false, LiveRun = NoPackages });
+        var doc = d.Document!;
+        var text = doc.Save();
+        host.Pump(d.ProjectControlsTask, "the design session");
+        Assert.True(d.DesignSession != null, string.Join("\n", d.OutputLines));
+        Assert.Equal(text, doc.Save());
+        Assert.Equal("placeholder Sidebar", ClassOf(d, "side1"));
+        Assert.Contains(d.OutputLines, l => l.Contains("sidebar refuses"));
+        Assert.Equal(["Sidebar"], Category(d, PaletteCategories.Project));
+        Assert.Contains("up to date", ((StatusBar)d.FindControl("sbMain")!).SimpleText);
+    }
 }

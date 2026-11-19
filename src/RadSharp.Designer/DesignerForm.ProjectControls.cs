@@ -159,17 +159,17 @@ public partial class DesignerForm
         {
             // While the old classes are still registered: their instances save as themselves.
             var texts = _forms.Select(f => (Form: f, Text: f.Document.Save())).ToList();
-            _design = next;
-            foreach (var (f, text) in texts)
+            try
             {
-                f.Document.ProjectClasses = next == null ? null : next.Find;
-                // Not the "unknown class" ones: a broken project says so once, above.
-                foreach (var w in f.Document.Reload(text).Where(w => w.Contains(" threw while ", StringComparison.Ordinal)
-                             || w.Contains(" has no published property ", StringComparison.Ordinal)))
-                    Output($"{Path.GetFileName(f.Path)}: {w}");
+                _design = next;
+                foreach (var (f, text) in texts) ReloadWith(f, text, next);
             }
-            RebuildPalette();
-            old?.Dispose();
+            finally
+            {
+                // Whatever happened above: no stale palette, and the old session never leaks.
+                RebuildPalette();
+                old?.Dispose();
+            }
         }
 
         var names = next?.Classes.Select(c => $"{c.Name} ({next.CategoryOf(c)})").ToList() ?? [];
@@ -178,6 +178,35 @@ public partial class DesignerForm
         _lastProjectControls = names;
         sbMain.SimpleText = next == null ? $"{project.Name}'s controls aren't loaded" : $"{project.Name}'s controls are up to date";
         if (next?.Dependencies is { } deps) WatchProject(project, deps.ProjectReferences);
+    }
+
+    /// <summary>
+    /// Reloads one document with <paramref name="next"/>'s classes. If that throws (an exception the form reader doesn't
+    /// absorb), the document is read again with no project classes, so every one is a placeholder that keeps its text.
+    /// </summary>
+    void ReloadWith(OpenForm f, string text, DesignSession? next)
+    {
+        try
+        {
+            f.Document.ProjectClasses = next == null ? null : next.Find;
+            // Not the "unknown class" ones: a broken project says so once, above.
+            foreach (var w in f.Document.Reload(text).Where(w => w.Contains(" threw while ", StringComparison.Ordinal)
+                         || w.Contains(" has no published property ", StringComparison.Ordinal)))
+                Output($"{Path.GetFileName(f.Path)}: {w}");
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            Output($"{Path.GetFileName(f.Path)}: the project's controls couldn't be loaded onto it ({e.GetType().Name}: {e.Message}); they are placeholders on it.");
+            try
+            {
+                f.Document.ProjectClasses = null;
+                f.Document.Reload(text);
+            }
+            catch (Exception e2) when (e2 is not OutOfMemoryException)
+            {
+                Output($"{Path.GetFileName(f.Path)}: it couldn't be reloaded either ({e2.GetType().Name}: {e2.Message}); it keeps what it had.");
+            }
+        }
     }
 
     /// <summary>Drops the design session (closing the project): its documents are gone, so nothing to reload.</summary>
