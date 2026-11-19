@@ -53,6 +53,12 @@ public class DesignSurface : Control
     /// </summary>
     [Published(Category = "Behavior")] public bool Locked { get; set; }
 
+    /// <summary>
+    /// A mouse gesture (move, resize, rubber band, create) is under way: it holds the document's controls until the
+    /// button is released, so the document's form must not be replaced meanwhile.
+    /// </summary>
+    public bool IsTracking => _mode != Mode.None;
+
     /// <summary>The class the next press creates (set by the component palette); cleared after creating.</summary>
     public ComponentClass? PendingClass { get; set; }
 
@@ -177,9 +183,23 @@ public class DesignSurface : Control
         int sx = Snap(dx, free: false), sy = Snap(dy, free: false);
         var parent = ContainerAt(sx, sy, cls);
         var (ox, oy) = ParentOrigin(parent);
-        var control = _doc.Create(cls, typeof(Component).IsAssignableFrom(cls.Type) ? _doc.Form : parent, sx - ox, sy - oy);
-        Created?.Invoke(control);
+        var control = TryCreate(cls, parent, sx - ox, sy - oy, null, null);
+        if (control != null) Created?.Invoke(control);
         return control;
+    }
+
+    /// <summary>Raised instead of <see cref="Created"/> when the class's constructor threw (an application's control at design time).</summary>
+    public event Action<ComponentClass, Exception>? CreateFailed;
+
+    Control? TryCreate(ComponentClass cls, Control parent, int left, int top, int? width, int? height)
+    {
+        try { return _doc!.Create(cls, typeof(Component).IsAssignableFrom(cls.Type) ? _doc.Form : parent, left, top, width, height); }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            if (CreateFailed == null) throw;
+            CreateFailed(cls, e);
+            return null;
+        }
     }
 
     // ---- Mouse ----
@@ -333,17 +353,16 @@ public class DesignSurface : Control
             {
                 bool sized = r.Width >= 4 && r.Height >= 4;
                 var (ox, oy) = ParentOrigin(parent);
-                var created = cls.Create();  // for its default size only
-                var control = _doc.Create(cls, typeof(Component).IsAssignableFrom(cls.Type) ? _doc.Form : parent,
-                    r.X - ox, r.Y - oy, sized ? r.Width : created.Width, sized ? r.Height : created.Height);
-                if (!e.Modifiers.HasFlag(KeyModifiers.Shift)) PendingClass = null;
-                Created?.Invoke(control);
+                var control = TryCreate(cls, parent, r.X - ox, r.Y - oy, sized ? r.Width : null, sized ? r.Height : null);
+                if (!e.Modifiers.HasFlag(KeyModifiers.Shift) || control == null) PendingClass = null;
+                if (control != null) Created?.Invoke(control);
                 break;
             }
         }
         if (_changed) _doc.NotifyChanged();
         _mode = Mode.None;
         _rubber = null;
+        _createParent = null;
         _guides.Clear();
         _startBounds.Clear();
         Invalidate();
@@ -525,7 +544,7 @@ public class DesignSurface : Control
         canvas.FillRect(new Rect(0, 0, Width, Height), t.SplitterFace);
         if (_doc == null) return;
         var form = _doc.Form;
-        form.PerformLayout();
+        FormRenderer.LayoutForPainting(form);
         var formRect = ScreenRect(new Rect(0, 0, form.Width, form.Height));
         canvas.FillRect(new Rect(formRect.X + Px(3), formRect.Y + Px(3), formRect.Width, formRect.Height), new Color(0, 0, 0, 30));
         canvas.DrawForm(form, formRect.X, formRect.Y, Zoom);

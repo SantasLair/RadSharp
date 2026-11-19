@@ -1,0 +1,241 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmClients",
+    "caption": "Clients",
+    "height": 420,
+    "width": 640,
+    "children": [
+      {
+        "class": "MainMenu",
+        "name": "mnuMain",
+        "items": [
+          {
+            "caption": "&File",
+            "items": [
+              {
+                "name": "mnuSave",
+                "action": "actSave"
+              },
+              {
+                "name": "mnuRevert",
+                "action": "actRevert"
+              }
+            ]
+          },
+          {
+            "caption": "&Client",
+            "items": [
+              {
+                "name": "mnuNew",
+                "action": "actNew"
+              },
+              {
+                "name": "mnuDelete",
+                "action": "actDelete"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "class": "ToolBar",
+        "name": "tbMain",
+        "children": [
+          {
+            "class": "ToolButton",
+            "name": "tbSave",
+            "action": "actSave",
+            "left": 4,
+            "top": 4
+          },
+          {
+            "class": "ToolButton",
+            "name": "tbNew",
+            "action": "actNew",
+            "left": 70,
+            "top": 4,
+            "width": 90
+          },
+          {
+            "class": "ToolButton",
+            "name": "tbDelete",
+            "action": "actDelete",
+            "left": 162,
+            "top": 4
+          }
+        ]
+      },
+      {
+        "class": "ListBox",
+        "name": "lstClients",
+        "align": "left",
+        "onChange": "lstClients_Change",
+        "popupMenu": "pmClients",
+        "width": 180
+      },
+      {
+        "class": "Panel",
+        "name": "pnlDetail",
+        "align": "client",
+        "children": [
+          {
+            "class": "Label",
+            "name": "lblName",
+            "caption": "&Name",
+            "focusControl": "edtName",
+            "left": 16,
+            "top": 16
+          },
+          {
+            "class": "Edit",
+            "name": "edtName",
+            "left": 120,
+            "top": 14,
+            "width": 240
+          },
+          {
+            "class": "Label",
+            "name": "lblEmail",
+            "caption": "E-mail",
+            "left": 16,
+            "top": 50
+          },
+          {
+            "class": "Edit",
+            "name": "edtEmail",
+            "left": 120,
+            "top": 48,
+            "width": 240
+          },
+          {
+            "class": "CheckBox",
+            "name": "chkActive",
+            "caption": "Active",
+            "left": 120,
+            "top": 82
+          },
+          {
+            "class": "Label",
+            "name": "lblRate",
+            "caption": "Hourly rate",
+            "left": 16,
+            "top": 112
+          },
+          {
+            "class": "Edit",
+            "name": "edtRate",
+            "alignment": "right",
+            "left": 120,
+            "top": 110
+          },
+          {
+            "class": "Label",
+            "name": "lblSince",
+            "caption": "Client since",
+            "left": 16,
+            "top": 146
+          },
+          {
+            "class": "DateTimePicker",
+            "name": "dtpSince",
+            "format": "yyyy-MM-dd",
+            "left": 120,
+            "top": 144
+          },
+          {
+            "class": "Label",
+            "name": "lblTerms",
+            "caption": "Terms",
+            "left": 16,
+            "top": 180
+          },
+          {
+            "class": "ComboBox",
+            "name": "cboTerms",
+            "items": [
+              "Net 14",
+              "Net 30",
+              "Net 60"
+            ],
+            "left": 120,
+            "top": 178
+          },
+          {
+            "class": "Button",
+            "name": "btnSave",
+            "action": "actSave",
+            "left": 120,
+            "top": 230
+          },
+          {
+            "class": "Button",
+            "name": "btnRevert",
+            "action": "actRevert",
+            "left": 210,
+            "top": 230
+          }
+        ]
+      },
+      {
+        "class": "Action",
+        "name": "actSave",
+        "caption": "&Save",
+        "hint": "Save the client",
+        "imageIndex": 0,
+        "left": 20,
+        "onExecute": "actSave_Execute",
+        "onUpdate": "actSave_Update",
+        "shortcut": "Mod+S",
+        "top": 300
+      },
+      {
+        "class": "Action",
+        "name": "actRevert",
+        "caption": "&Revert",
+        "left": 60,
+        "onExecute": "actRevert_Execute",
+        "onUpdate": "actRevert_Update",
+        "top": 300
+      },
+      {
+        "class": "Action",
+        "name": "actNew",
+        "caption": "&New client",
+        "left": 100,
+        "onExecute": "actNew_Execute",
+        "shortcut": "Mod+N",
+        "top": 300
+      },
+      {
+        "class": "Action",
+        "name": "actDelete",
+        "caption": "&Delete",
+        "left": 140,
+        "onExecute": "actDelete_Execute",
+        "onUpdate": "actDelete_Update",
+        "shortcut": "Mod+Delete",
+        "top": 300
+      },
+      {
+        "class": "PopupMenu",
+        "name": "pmClients",
+        "left": 180,
+        "top": 300,
+        "items": [
+          {
+            "name": "pmiNew",
+            "action": "actNew"
+          },
+          {
+            "name": "pmiDelete",
+            "action": "actDelete"
+          }
+        ]
+      }
+    ]
+  }
+}

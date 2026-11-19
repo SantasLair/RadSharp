@@ -58,7 +58,7 @@ public static class FormWriter
     static readonly string[] BoundsKeys = ["left", "top", "width", "height"];
 
     /// <summary>Which bounds a control saves: aligned controls save only the size their align doesn't compute.</summary>
-    static bool IsSavedBound(Control c, string key, bool isRoot)
+    internal static bool IsSavedBound(Control c, string key, bool isRoot)
     {
         if (isRoot) return key is "width" or "height";
         return c.Align switch
@@ -72,6 +72,11 @@ public static class FormWriter
 
     static void WriteNode(FormJsonWriter w, Control control, bool isRoot)
     {
+        if (control is UnknownControl unknown)
+        {
+            unknown.Write(w);   // its own members, verbatim (spec, "Unknown classes")
+            return;
+        }
         var cls = isRoot && control is Form { DesignedClass: { } designed } && ComponentRegistry.Find(designed) is { } designedClass
             ? designedClass
             : ComponentRegistry.Of(control);
@@ -85,7 +90,7 @@ public static class FormWriter
         {
             bool isBound = Array.IndexOf(BoundsKeys, p.Name) >= 0;
             if (isBound && (isRoot || !IsSavedBound(control, p.Name, isRoot))) continue;  // root size is written below
-            if (p.HasDefaultValue(control, prototype)) continue;
+            if (p.HasDefaultValue(control, prototype) || control.IsActionLinked(p.Name)) continue;  // linked values come from the action
             var prop = p;
             Action write = () => { w.Key(prop.Name); prop.Write(w, control); };
             if (p.Name == "caption") caption = write;

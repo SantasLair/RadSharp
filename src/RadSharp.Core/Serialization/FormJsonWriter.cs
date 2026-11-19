@@ -67,6 +67,28 @@ public sealed class FormJsonWriter
     public void WriteBool(bool value) => _sb.Append(value ? "true" : "false");
     public void WriteNull() => _sb.Append("null");
 
+    /// <summary>
+    /// Writes a JSON value as given (text a reader kept verbatim), re-indented to where it is written: a value
+    /// spanning lines keeps its own layout relative to its last line (the closing bracket), which goes at the current
+    /// member's indentation, as the canonical layout puts it. Blank lines are dropped.
+    /// </summary>
+    internal void WriteRaw(string json)
+    {
+        var lines = json.Split('\n');
+        if (lines.Length == 1) { _sb.Append(json); return; }
+        var last = lines[^1];
+        var baseIndent = last[..(last.Length - last.TrimStart().Length)];
+        _sb.Append(lines[0].TrimEnd());
+        for (int i = 1; i < lines.Length; i++)
+        {
+            var line = lines[i].TrimEnd();
+            if (line.Length == 0) continue;
+            _sb.Append('\n');
+            Indent();
+            _sb.Append(line.StartsWith(baseIndent, StringComparison.Ordinal) ? line[baseIndent.Length..] : line.TrimStart());
+        }
+    }
+
     /// <summary><c>["left", "top"]</c> on one line.</summary>
     public void WriteInlineArray(IEnumerable<string> values)
     {

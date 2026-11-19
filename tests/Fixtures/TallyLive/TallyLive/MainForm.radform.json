@@ -1,0 +1,36 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmMain",
+    "caption": "Tally",
+    "height": 320,
+    "width": 480,
+    "children": [
+      {
+        "class": "Button",
+        "name": "btnTally",
+        "caption": "Tally",
+        "left": 24,
+        "onClick": "btnTally_Click",
+        "top": 24
+      },
+      {
+        "class": "Label",
+        "name": "lblResult",
+        "left": 24,
+        "top": 64,
+        "width": 400
+      },
+      {
+        "class": "TallyCounter",
+        "name": "cntTotal",
+        "count": 1,
+        "left": 24,
+        "top": 100
+      }
+    ]
+  }
+}

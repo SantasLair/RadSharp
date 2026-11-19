@@ -12,6 +12,36 @@ public sealed record FormLoadOptions
 {
     /// <summary>UI scale factor; stored lengths are multiplied by it and rounded before the first layout.</summary>
     public double Scale { get; init; } = 1;
+
+    /// <summary>
+    /// Keeps a node whose class isn't registered as an <see cref="UnknownControl"/> placeholder (still with a warning)
+    /// instead of skipping it, so saving the form writes it back unchanged; so is a node (other than the root) with a
+    /// property its class doesn't publish or a value it can't take, whose class throws while it is created, or whose
+    /// class the reader can't create. The designer sets this; an application leaves it off, so a control it can't
+    /// create is skipped and a property it doesn't know is ignored, as before.
+    /// </summary>
+    public bool KeepUnknownClasses { get; init; }
+
+    /// <summary>
+    /// Which registered classes the reader may create (null: all); a node of any other class is read as if its class
+    /// were unknown. The designer accepts only classes that stay registered: a live run's (F9) classes are unregistered
+    /// when it ends, and a control of one left in a designed form would then be saved as its base class.
+    /// </summary>
+    public Func<ComponentClass, bool>? AcceptClass { get; init; }
+
+    /// <summary>
+    /// Finds the class a node's <c>"class"</c> names (null: <see cref="ComponentRegistry.Find(string)"/>, the class
+    /// registered last under that name); a null result reads the node as an unknown class. The designer prefers its
+    /// project's design-time classes, then RadSharp's own, over a live run's of the same name.
+    /// </summary>
+    public Func<string, ComponentClass?>? FindClass { get; init; }
+
+    /// <summary>
+    /// Loading into a form from a collectible load context (a live run's): a class of that context wins a name that
+    /// another context registered too (the designer's own copy of the project's controls), and no other collectible
+    /// context's class is taken.
+    /// </summary>
+    internal System.Runtime.Loader.AssemblyLoadContext? PreferredContext { get; init; }
 }
 
 /// <summary>Reads form files (spec, Appendix A), driven by the generated component metadata.</summary>
@@ -45,16 +75,20 @@ public static class FormReader
         LoadInto(form, reader.ReadToEnd());
     }
 
-    /// <summary>Reads controls written by <see cref="FormWriter.SaveFragment"/> (a JSON array of nodes).</summary>
-    public static (List<Control> Controls, List<string> Warnings) LoadFragment(string json)
+    /// <summary>
+    /// Reads controls written by <see cref="FormWriter.SaveFragment"/> (a JSON array of nodes). Of the options only
+    /// <see cref="FormLoadOptions.KeepUnknownClasses"/> applies (a fragment isn't scaled).
+    /// </summary>
+    public static (List<Control> Controls, List<string> Warnings) LoadFragment(string json, FormLoadOptions? options = null)
     {
+        options ??= new();
         var warnings = new List<string>();
         var controls = new List<Control>();
         using var doc = ParseDocument(json);
         if (doc.RootElement.ValueKind != JsonValueKind.Array) throw new FormFileException("A fragment must be a JSON array of controls.");
         int i = 0;
         foreach (var node in doc.RootElement.EnumerateArray())
-            if (ReadNode(node, warnings, $"[{i++}]") is { } c) controls.Add(c);
+            if (ReadNode(node, warnings, $"[{i++}]", options) is { } c) controls.Add(c);
         return (controls, warnings);
     }
 
@@ -81,12 +115,14 @@ public static class FormReader
         Form form;
         if (target != null)
         {
+            if (options.FindClass == null && target.GetType().Assembly.IsCollectible)
+                options = options with { PreferredContext = System.Runtime.Loader.AssemblyLoadContext.GetLoadContext(target.GetType().Assembly) };
             if (ClassOf(rootJson) is { } cls && !cls.Type.IsInstanceOfType(target))
                 throw new FormFileException($"The form file's root is a {cls.Name}, but it is being loaded into a {target.GetType().Name}.");
-            ReadInto(target, rootJson, warnings, "root");
+            ReadInto(target, rootJson, warnings, "root", options);
             form = target;
         }
-        else if (ReadNode(rootJson, warnings, "root") is Form created) form = created;
+        else if (ReadNode(rootJson, warnings, "root", options, root: true) is Form created) form = created;
         else throw new FormFileException("The root node must be a Form.");
 
         form.ApplyScaleCore(options.Scale);
@@ -113,7 +149,7 @@ public static class FormReader
     static ComponentClass? ClassOf(JsonElement node) =>
         node.TryGetProperty("class", out var c) && c.ValueKind == JsonValueKind.String ? ComponentRegistry.Find(c.GetString()!) : null;
 
-    static Control? ReadNode(JsonElement node, List<string> warnings, string path)
+    static Control? ReadNode(JsonElement node, List<string> warnings, string path, FormLoadOptions options, bool root = false)
     {
         var className = node.TryGetProperty("class", out var c) && c.ValueKind == JsonValueKind.String ? c.GetString()! : null;
         if (className == null)
@@ -121,29 +157,79 @@ public static class FormReader
             warnings.Add($"{path}: node has no \"class\"; skipped.");
             return null;
         }
-        if (ComponentRegistry.Find(className) is not { CanCreate: true } cls)
+        if (FindClass(className, options) is not { CanCreate: true } cls || options.AcceptClass?.Invoke(cls) == false)
         {
+            if (options.KeepUnknownClasses)
+            {
+                warnings.Add($"{path}: unknown class \"{className}\"; kept as a placeholder (written back unchanged).");
+                return UnknownControl.Read(node, className);
+            }
             warnings.Add($"{path}: unknown class \"{className}\"; node and its children skipped.");
             return null;
         }
-        var control = cls.Create();
-        ReadInto(control, node, warnings, path);
-        return control;
+        if (!options.KeepUnknownClasses)
+        {
+            var created = cls.Create();
+            ReadInto(created, node, warnings, path, options);
+            return created;
+        }
+        try
+        {
+            var control = cls.Create();
+            // Not the root: a placeholder can't stand in for the form itself.
+            ReadInto(control, node, warnings, path, options, keepWhole: !root);
+            return control;
+        }
+        catch (UnreadNodeException e)
+        {
+            // The class doesn't publish what the file holds (a project's control whose property was renamed or removed,
+            // or another class of its name): ignoring the value would lose it when the form is saved.
+            warnings.Add($"{e.Here}: {e.Message}; kept as a placeholder (written back unchanged).");
+            return UnknownControl.Read(node, className);
+        }
+        catch (Exception e) when (e is not (OutOfMemoryException or FormFileException))
+        {
+            // The designer: a class whose constructor or a property setter throws at design time (an application's own
+            // control, say) must not stop the form from opening, nor lose the node: it stays as written.
+            var name = node.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String ? n.GetString() : null;
+            // The form itself can't be a placeholder: say what went wrong, not just that the root isn't a form.
+            if (root)
+                throw new FormFileException($"The root {className}{(name is { Length: > 0 } ? $" \"{name}\"" : "")} threw while it was created ({e.GetType().Name}: {e.Message}).");
+            warnings.Add($"{(name is { Length: > 0 } ? name : path)}: {className} threw while it was created " +
+                $"({e.GetType().Name}: {e.Message}); kept as a placeholder (written back unchanged).");
+            return UnknownControl.Read(node, className);
+        }
+    }
+
+    static ComponentClass? FindClass(string className, FormLoadOptions options)
+    {
+        if (options.FindClass != null) return options.FindClass(className);
+        if (options.PreferredContext is { } context)
+            // Never another collectible context's class (the designer's copy of a control): it isn't the live run's type.
+            return ComponentRegistry.Find(className, c => c.CanCreate && System.Runtime.Loader.AssemblyLoadContext.GetLoadContext(c.Type.Assembly) == context)
+                ?? ComponentRegistry.Find(className, c => !c.Type.Assembly.IsCollectible);
+        return ComponentRegistry.Find(className);
+    }
+
+    /// <summary>A node <see cref="ReadInto"/> can't read whole (with <c>keepWhole</c>): read it as a placeholder.</summary>
+    sealed class UnreadNodeException(string here, string message) : Exception(message)
+    {
+        public string Here { get; } = here;
     }
 
     /// <summary>
     /// Applies a node's name, properties, event handler names and children to a control, with
     /// <see cref="Control.Loading"/> set, then calls <see cref="Control.Loaded"/>.
     /// </summary>
-    static void ReadInto(Control control, JsonElement node, List<string> warnings, string path)
+    static void ReadInto(Control control, JsonElement node, List<string> warnings, string path, FormLoadOptions options, bool keepWhole = false)
     {
         control.Loading = true;
-        try { ReadMembersAndChildren(control, node, warnings, path); }
+        try { ReadMembersAndChildren(control, node, warnings, path, options, keepWhole); }
         finally { control.Loading = false; }
         control.Loaded();
     }
 
-    static void ReadMembersAndChildren(Control control, JsonElement node, List<string> warnings, string path)
+    static void ReadMembersAndChildren(Control control, JsonElement node, List<string> warnings, string path, FormLoadOptions options, bool keepWhole)
     {
         var cls = ComponentRegistry.Of(control);
         if (node.TryGetProperty("name", out var n) && n.ValueKind == JsonValueKind.String)
@@ -170,15 +256,17 @@ public static class FormReader
                 foreach (var item in prop.Value.EnumerateArray()) owner.Items.Add(MenuItem.Read(item, warnings, $"{here}.items[{i++}]"));
                 continue;
             }
-            try
-            {
-                if (!SetProperty(control, cls, prop.Name, prop.Value))
-                    warnings.Add($"{here}: {cls.Name} has no published property \"{prop.Name}\"; ignored.");
-            }
+            bool set;
+            try { set = SetProperty(control, cls, prop.Name, prop.Value); }
             catch (FormatException e)
             {
+                if (keepWhole) throw new UnreadNodeException(here, $"{cls.Name}.{prop.Name}: {e.Message}");
                 warnings.Add($"{here}.{prop.Name}: {e.Message}; ignored.");
+                continue;
             }
+            if (set) continue;
+            if (keepWhole) throw new UnreadNodeException(here, $"{cls.Name} has no published property \"{prop.Name}\"");
+            warnings.Add($"{here}: {cls.Name} has no published property \"{prop.Name}\"; ignored.");
         }
 
         if (collections != null && deferred != null)
@@ -190,7 +278,7 @@ public static class FormReader
             int i = 0;
             foreach (var childJson in children.EnumerateArray())
             {
-                if (ReadNode(childJson, warnings, $"{here}.children[{i++}]") is { } child)
+                if (ReadNode(childJson, warnings, $"{here}.children[{i++}]", options) is { } child)
                     control.Add(child);
             }
         }

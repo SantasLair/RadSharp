@@ -15,15 +15,20 @@ public static class ComponentPalette
     /// <summary>
     /// Refills <paramref name="tree"/> with <paramref name="classes"/> whose name contains <paramref name="filter"/>,
     /// one expanded node per category; each leaf's <see cref="TreeNode.Tag"/> is its <see cref="ComponentClass"/>.
+    /// <paramref name="categoryOf"/> gives a class's category (null: <see cref="PaletteCategories.Of"/>); RadSharp's
+    /// own categories come first, in name order, then the others (a project's: <see cref="PaletteCategories.Project"/>
+    /// first, then its libraries by name), as Delphi adds an installed package's tabs after the standard ones.
     /// </summary>
-    public static void Fill(TreeView tree, IEnumerable<ComponentClass> classes, string filter)
+    public static void Fill(TreeView tree, IEnumerable<ComponentClass> classes, string filter, Func<ComponentClass, string>? categoryOf = null)
     {
         tree.Nodes.Clear();
         filter = filter.Trim();
+        categoryOf ??= c => PaletteCategories.Of(c.Name);
         var groups = classes
             .Where(c => filter.Length == 0 || c.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
-            .GroupBy(c => PaletteCategories.Of(c.Name))
-            .OrderBy(g => g.Key, StringComparer.Ordinal);
+            .GroupBy(categoryOf)
+            .OrderBy(g => PaletteCategories.IsBuiltIn(g.Key) ? 0 : g.Key == PaletteCategories.Project ? 1 : 2)
+            .ThenBy(g => g.Key, StringComparer.Ordinal);
         foreach (var g in groups)
         {
             var category = new TreeNode(g.Key) { Expanded = true };
@@ -35,6 +40,9 @@ public static class ComponentPalette
             }
             tree.Nodes.Add(category);
         }
+        // The tree rebuilds its row list lazily (at the next paint): do it now, so the old nodes, and through their tags
+        // a replaced design session's classes, aren't kept until then.
+        _ = tree.VisibleCount;
         tree.Invalidate();
     }
 }

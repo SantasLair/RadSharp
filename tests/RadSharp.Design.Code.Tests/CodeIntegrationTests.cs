@@ -71,6 +71,12 @@ public class CodeIntegrationTests
 
     static string TempDir() => Directory.CreateTempSubdirectory("radsharp-").FullName;
 
+    /// <summary>
+    /// A new project references RadSharp.Platform.Sdl 0.1.0-dev*, which only a local pack provides: resolving it would
+    /// query the package sources (nuget.org) and, failing, fall back anyway. These tests are about the forms and the code.
+    /// </summary>
+    static readonly LiveRunOptions DesignerOnly = new() { UseProjectDependencies = false };
+
     /// <summary>M11 item 7: designer-created projects opt into the AOT/trim analyzers, not just the template.</summary>
     [Fact]
     public void New_project_enables_aot_and_trim_analyzers()
@@ -109,7 +115,7 @@ public class CodeIntegrationTests
         File.WriteAllText(codeFile, string.Join('\n', lines));
 
         // F9: compile with the designer's unsaved form text and run the form live.
-        using var session = LiveSession.Compile(project, new Dictionary<string, string> { [Path.GetFullPath(formFile)] = doc.Save() });
+        using var session = LiveSession.Compile(project, new Dictionary<string, string> { [Path.GetFullPath(formFile)] = doc.Save() }, DesignerOnly);
         Assert.True(session.Success, string.Join("\n", session.Messages));
         var live = session.CreateForm("MainForm");
         var liveButton = (Button)live.FindControl("Button1")!;
@@ -129,7 +135,7 @@ public class CodeIntegrationTests
         button.EventHandlers["onClick"] = "Button1_Click";   // no method written yet
         File.AppendAllText(RadProject.CodeFileFor(formFile), "\nclass Oops { int x = ; }\n");
 
-        using var session = LiveSession.Compile(project, new Dictionary<string, string> { [Path.GetFullPath(formFile)] = doc.Save() });
+        using var session = LiveSession.Compile(project, new Dictionary<string, string> { [Path.GetFullPath(formFile)] = doc.Save() }, DesignerOnly);
         Assert.False(session.Success);
         Assert.Contains(session.Messages, m => m.Id == "RAD1001" && m.File.EndsWith("MainForm.radform.json"));
         Assert.Contains(session.Messages, m => m.Id.StartsWith("CS") && m.File.EndsWith("MainForm.cs") && m.Line > 1);

@@ -28,6 +28,8 @@ internal sealed class HeadlessPlatform(DesignHostServer server) : IPlatformServi
 
     public void CloseForm(Form form) => server.CloseForm(form);
 
+    public bool IsFormBlocked(Form form) => server.IsFormBlocked(form);
+
     public void ProcessEventsUntil(Func<bool> done) => server.Pump(done);
 
     public void ShowFileDialog(FileDialogKind kind, Form? owner, FileDialogOptions options, Action<FileResult[]?> done) =>

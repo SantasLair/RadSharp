@@ -5,6 +5,7 @@ using RadSharp.Designer;
 namespace RadSharp.Tests;
 
 /// <summary>The Format menu's align/make-same-size/space/center commands, driven through the real menu items.</summary>
+[Collection("PlatformHost")]   // each test installs its own PlatformHost.Current (process-wide)
 public class AlignmentCommandTests
 {
     static string TempDir() => Directory.CreateTempSubdirectory("radsharp-align-").FullName;
@@ -13,7 +14,7 @@ public class AlignmentCommandTests
     {
         Shortcut.CommandModifier = KeyModifiers.Ctrl;
         var project = RadProject.Create(TempDir(), "Align");
-        var designer = new DesignerForm(project.ProjectFile, Path.Combine(TempDir(), "designer.json"))
+        var designer = new DesignerForm(project.ProjectFile, Path.Combine(TempDir(), "designer.json"), new DesignerOptions { ProjectControls = false })
         {
             Settings = { Editor = EditorKind.Custom, CustomEditorCommand = "dotnet --version" },
         };
@@ -198,7 +199,7 @@ public class AlignmentCommandTests
     public void Context_menu_align_and_make_same_size_submenus_are_disabled_below_two_selected()
     {
         var project = RadProject.Create(TempDir(), "CtxAlign");
-        var d = new DesignerForm(project.ProjectFile, Path.Combine(TempDir(), "designer.json"));
+        var d = new DesignerForm(project.ProjectFile, Path.Combine(TempDir(), "designer.json"), new DesignerOptions { ProjectControls = false });
         d.Settings.Editor = EditorKind.Custom;
         d.Settings.CustomEditorCommand = "dotnet --version";
         d.SetBounds(0, 0, 1220, 780);

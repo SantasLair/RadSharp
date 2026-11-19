@@ -7,7 +7,7 @@ public delegate void MenuItemEvent(MenuItem sender);
 
 /// <summary>
 /// One menu command, separator or submenu. Saved in form files as nested objects under the menu's
-/// <c>"items"</c> (spec, Appendix A: caption, shortcut, altShortcut, onClick, enabled, checked, visible,
+/// <c>"items"</c> (spec, Appendix A: caption, action, shortcut, altShortcut, onClick, enabled, checked, visible,
 /// separator, radioItem, items).
 /// </summary>
 public sealed class MenuItem
@@ -28,6 +28,53 @@ public sealed class MenuItem
     public string ClickHandler { get; set; } = "";
 
     public List<MenuItem> Items { get; } = [];
+
+    ActionSlot? _actionSlot;
+
+    ActionSlot Slot => _actionSlot ??= new ActionSlot(a => new MenuItemActionLink(a, this));
+
+    /// <summary>
+    /// The name of the <see cref="ActionItem"/> on the form this item runs and takes its caption, shortcut, enabled,
+    /// checked and visible state from (saved as <c>"action"</c>). Resolved when the form next lays out or handles a key.
+    /// </summary>
+    public string ActionName
+    {
+        get => _actionSlot?.Name ?? "";
+        set => Slot.SetName(value, null);   // from code: adopts the action's values when the form resolves it
+    }
+
+    /// <summary>The form-file path: like <see cref="ActionName"/>, but values the file sets explicitly are kept.</summary>
+    internal void LoadActionName(string name) => Slot.SetName(name, null, loading: true);
+
+    /// <summary>The linked action: set from code (linking at once, from any form), or found by <see cref="ActionName"/>.</summary>
+    public ActionItem? Action
+    {
+        get => _actionSlot?.Action;
+        set => Slot.SetAction(value);
+    }
+
+    Form? _host;   // the form that last walked this item's links: repainted when the action changes the item
+
+    /// <summary>Repaints the menu bar and any open popup after a linked action changed this item (items don't know their menu).</summary>
+    internal void InvalidateHost()
+    {
+        _host?.InvalidateAll();
+        if (_actionSlot?.Action?.OwningForm is { } form && form != _host) form.InvalidateAll();
+    }
+
+    internal ActionSlot? PeekActionSlot => _actionSlot;
+
+    internal void ResolveAction(Form form, int stamp)
+    {
+        _host = form;
+        _actionSlot?.Resolve(form, stamp);
+        foreach (var item in Items) item.ResolveAction(form, stamp);
+    }
+
+    // A value is left out of the file only when loading it gives it back: a link by name to an action still on a form (an
+    // item doesn't know its form; a link made from code may point to another form's action, so its values are written).
+    bool Linked(ActionMember m) =>
+        _actionSlot?.Link is { Explicit: false } link && link.Action.OwningForm != null && link.IsLinked(m);
 
     public bool IsSeparator => Separator || Caption == "-";
     public bool HasSubmenu => Items.Count > 0;
@@ -110,11 +157,15 @@ public sealed class MenuItem
 
     public void AddSeparator() => Items.Add(new MenuItem { Caption = "-", Separator = true });
 
-    /// <summary>Runs the command if the item is enabled, visible and not a separator or submenu.</summary>
+    /// <summary>
+    /// Runs the command if the item is enabled, visible and not a separator or submenu: its linked action (unless code
+    /// subscribed to <see cref="Click"/>, which then runs instead, as in Delphi), else <see cref="Click"/>.
+    /// </summary>
     public bool PerformClick()
     {
         if (!Enabled || !Visible || IsSeparator || HasSubmenu) return false;
-        Click?.Invoke(this);
+        if (_actionSlot?.Link is { } link && Click == null) link.Action.Execute(this);
+        else Click?.Invoke(this);
         return true;
     }
 
@@ -148,6 +199,7 @@ public sealed class MenuItem
                 {
                     case "name": item.Name = Converters.String.Read(p.Value); break;
                     case "caption": item.Caption = Converters.String.Read(p.Value); break;
+                    case "action": item.LoadActionName(Converters.String.Read(p.Value)); break;
                     case "shortcut": item.Shortcut = Converters.String.Read(p.Value); break;
                     case "altShortcut": item.AltShortcut = Converters.String.Read(p.Value); break;
                     case "enabled": item.Enabled = Converters.Bool.Read(p.Value); break;
@@ -172,15 +224,17 @@ public sealed class MenuItem
     {
         w.BeginObject();
         if (Name.Length > 0) { w.Key("name"); w.WriteString(Name); }
-        if (Caption.Length > 0) { w.Key("caption"); w.WriteString(Caption); }
+        // Values that come from the linked action aren't written (they are copied back from it on load).
+        if (Caption.Length > 0 && !Linked(ActionMember.Caption)) { w.Key("caption"); w.WriteString(Caption); }
+        if (ActionName.Length > 0) { w.Key("action"); w.WriteString(ActionName); }
         if (AltShortcut.Length > 0) { w.Key("altShortcut"); w.WriteString(AltShortcut); }
-        if (Checked) { w.Key("checked"); w.WriteBool(true); }
-        if (!Enabled) { w.Key("enabled"); w.WriteBool(false); }
+        if (Checked && !Linked(ActionMember.Checked)) { w.Key("checked"); w.WriteBool(true); }
+        if (!Enabled && !Linked(ActionMember.Enabled)) { w.Key("enabled"); w.WriteBool(false); }
         if (ClickHandler.Length > 0) { w.Key("onClick"); w.WriteString(ClickHandler); }
         if (RadioItem) { w.Key("radioItem"); w.WriteBool(true); }
         if (Separator) { w.Key("separator"); w.WriteBool(true); }
-        if (Shortcut.Length > 0) { w.Key("shortcut"); w.WriteString(Shortcut); }
-        if (!Visible) { w.Key("visible"); w.WriteBool(false); }
+        if (Shortcut.Length > 0 && !Linked(ActionMember.Shortcut)) { w.Key("shortcut"); w.WriteString(Shortcut); }
+        if (!Visible && !Linked(ActionMember.Visible)) { w.Key("visible"); w.WriteBool(false); }
         WriteItems(w, Items);
         w.EndObject();
     }

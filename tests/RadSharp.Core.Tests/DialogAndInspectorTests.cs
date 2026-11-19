@@ -97,6 +97,50 @@ public class DialogAndInspectorTests
         Assert.Empty(host.Open);
     }
 
+    public sealed class Prefs { public string User { get; set; } = "ann"; }
+
+    [Fact]
+    public void A_refused_OK_resets_ModalResult_so_closing_the_window_later_cancels()
+    {
+        // samples/SettingsDialog: OK commits a binder from CloseQuery and refuses to close while a field is invalid.
+        var host = Install();
+        var form = new Form();
+        form.SetBounds(0, 0, 300, 120);
+        var user = new Edit();
+        user.SetBounds(10, 10, 100, 24);
+        var ok = new Button { Caption = "OK", ModalResult = ModalResult.Ok };
+        ok.SetBounds(10, 50, 80, 26);
+        form.Add(user);
+        form.Add(ok);
+        var prefs = new Prefs();
+        var binder = new Binder<Prefs> { Current = prefs };
+        binder.Bind(user, p => p.User, (p, v) => p.User = v).Validate(v => v.Length > 0 ? null : "Enter a name.");
+        int refusals = 0;
+        form.CloseQuery += (_, e) =>
+        {
+            if (form.ModalResult != ModalResult.Ok || binder.Commit()) return;
+            e.CanClose = false;
+            refusals++;
+        };
+        host.OnModal = f =>
+        {
+            f.Simulate.Click(user);
+            user.SelectAll();
+            f.Simulate.Key(Key.Delete);                 // empty: invalid
+            f.Simulate.Click(ok);
+            Assert.Equal(1, refusals);
+            Assert.Contains(f, host.Open);
+            f.Simulate.Click(user);
+            user.SelectAll();
+            f.Simulate.Type("bob");                     // now valid, but the user closes the window instead of pressing OK
+            f.Close();                                  // the title bar's close box
+        };
+        Assert.Equal(ModalResult.Cancel, form.ShowModal());
+        Assert.Equal(1, refusals);
+        Assert.Equal("ann", prefs.User);                // closing the window is Cancel: nothing written
+        Assert.Empty(host.Open);
+    }
+
     [Fact]
     public void File_dialogs_return_the_chosen_paths()
     {

@@ -17,7 +17,7 @@ public abstract class ToggleControl : Control
     [Published(Category = "Appearance")] public string Caption { get => _caption; set { _caption = value; Invalidate(); } }
 
     /// <summary>The name of an ImageList whose pictures this control shows by <see cref="ImageIndex"/>, between the indicator and the caption.</summary>
-    [Published("images", Category = "Appearance")] public string ImagesName { get; set; } = "";
+    [Published("images", Category = "Appearance", References = typeof(ImageList))] public string ImagesName { get; set; } = "";
     [Published(Category = "Appearance")] public int ImageIndex { get; set; } = -1;
 
     [Published(Category = "Behavior")]

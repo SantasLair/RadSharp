@@ -18,7 +18,7 @@ public static class PaletteCategories
     {
         ["Button"] = Standard, ["CheckBox"] = Standard, ["Edit"] = Standard, ["GroupBox"] = Standard,
         ["Label"] = Standard, ["Memo"] = Standard, ["RadioButton"] = Standard, ["Panel"] = Standard,
-        ["MainMenu"] = Standard, ["PopupMenu"] = Standard,
+        ["MainMenu"] = Standard, ["PopupMenu"] = Standard, ["Action"] = Standard,
 
         ["OpenDialog"] = Dialogs, ["SaveDialog"] = Dialogs, ["FolderDialog"] = Dialogs,
 
@@ -27,6 +27,12 @@ public static class PaletteCategories
 
     /// <summary>The palette category for a component class named <paramref name="componentClassName"/>.</summary>
     public static string Of(string componentClassName) => ByName.GetValueOrDefault(componentClassName, Additional);
+
+    /// <summary>The category of the controls the open project defines itself (its libraries' go under their own names).</summary>
+    public const string Project = "Project";
+
+    /// <summary>Whether <paramref name="category"/> is one of RadSharp's own (Standard, Additional, Dialogs, System).</summary>
+    public static bool IsBuiltIn(string category) => category is Standard or Additional or Dialogs or SystemCategory;
 
     /// <summary>A fixed accent per category (Delphi-style tool-palette colour coding), used for the palette's
     /// toolbox icons (<see cref="PaletteIcons"/>). Not theme-derived on purpose: four fixed, distinguishable

@@ -22,7 +22,9 @@ jobs:
       - name: Build (the whole solution, samples included)
         run: dotnet build RadSharp.slnx --configuration Release
       - name: Test (layout vectors, golden images, input, editors, generators, designer)
-        run: dotnet test RadSharp.slnx --configuration Release --no-build
+        # A hung test fails after 5 minutes and names itself (blame-hang) instead of holding the job for hours.
+        run: dotnet test RadSharp.slnx --configuration Release --no-build --blame-hang --blame-hang-timeout 5m --blame-hang-dump-type none
+        timeout-minutes: 30
       # The reference app builds against freshly packed packages (pack.ps1, then a restore from nuget.org): slow and
       # platform-independent, so one OS is enough. The default suite above doesn't need the packages.
       - name: Reference app builds from the packed packages (Windows only)
