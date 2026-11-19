@@ -179,8 +179,8 @@ same form. Menu items gain `"action"` in their item objects (`MenuItem.ActionNam
 
 Semantics (Delphi's):
 
-- **Linking copies** the action's values to the control. Linking from code or in the Object Inspector copies all of
-  them. A link made while a form **loads** (the name is resolved after the file is read) copies only over values that are
+- **Linking copies** the action's values to the control. Linking from code (`Action = a`, or `ActionName = "actSave"` on a
+  button or menu item) or in the Object Inspector copies all of them. A link made while a form **loads** (the name is resolved after the file is read) copies only over values that are
   still the class default (or a caption equal to the control's name), so a value the form file sets explicitly wins.
 - **Later changes propagate** to a control *while its value still equals the action's old value* — that equality is
   what "linked" means per member. A control whose caption was set to something else keeps it.
@@ -188,6 +188,15 @@ Semantics (Delphi's):
   from the action on load). So a button linked to `actSave` saves just `"action": "actSave"` unless it overrides
   something. Save → load → save stays byte-identical. Only links that loading can restore count: a
   control linked from code to another form's action saves its own values (loading can't get them back from there).
+- **Code links follow their client.** A link made from code (`btn.Action = other.actSave`) lists the client in
+  `Action.Clients` only while the client is on an open form: the action drops it when the client's form closes or the client
+  (or the menu bar holding a menu item) is removed from its form, and links it again, taking the action's current values,
+  when the form is shown again or the client is added back. The `Action` reference itself stays, so a dialog created once
+  and shown many times needs no re-linking, and a closed or removed client is never kept alive by the action or written to.
+  (A menu item taken out of a menu's `Items` list is only noticed when its menu leaves the form.)
+- **Shortcuts** run the first enabled action with a handler; a key no action ran is not marked handled.
+- **Idle updates** (`onUpdate`) run on the thread that made the form, for shown, visible forms; the idle list holds forms
+  weakly, so a form the host dropped without closing can be collected.
 - **Clicking** a linked button or tool button, choosing a linked menu item, or its mnemonic runs `action.Execute()`.
   If code subscribed to the control's own `Click` (e.g. an `onClick` in the form file), that runs *instead* (Delphi's
   rule). A button's `modalResult` still applies.
