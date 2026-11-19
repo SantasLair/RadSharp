@@ -114,6 +114,13 @@ public class LiveRunReviewTests
             """);
         var started = DateTime.Now;
         var deps = ProjectDependencies.Resolve(project, TimeSpan.FromSeconds(20), out var error, out _);
+        if (!File.Exists(pidFile))
+        {
+            // A slow machine (a cold CI runner) can spend the whole 20 s starting MSBuild and restoring before the
+            // sleeper runs. Try once more with room to reach it; the sleeper (120 s) still outlives the timeout.
+            started = DateTime.Now;
+            deps = ProjectDependencies.Resolve(project, TimeSpan.FromSeconds(60), out error, out _);
+        }
         Assert.Null(deps);
         Assert.Contains("longer than", error);
 
