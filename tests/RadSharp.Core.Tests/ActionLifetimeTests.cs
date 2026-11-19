@@ -231,4 +231,40 @@ public class ActionLifetimeTests
         Assert.Single(f.Descendants().OfType<ActionItem>());
         f.Close();
     }
+
+    // ---- resuming a code link keeps what the user set on the client ----
+
+    [Fact]
+    public void Showing_a_dialog_again_keeps_a_caption_set_on_its_linked_button_and_still_follows_linked_members()
+    {
+        var (_, act, dlg, btn) = TwoForms();
+        dlg.PerformLayout();
+        dlg.NotifyShown();
+        btn.Caption = "Save and close";                     // an override: no longer linked for the caption
+        dlg.Close();
+        act.Enabled = false;                                // changed while the dialog was closed
+        dlg.NotifyShown();
+        Assert.Equal("Save and close", btn.Caption);
+        Assert.False(btn.Enabled);                          // Enabled was linked: it catches up
+        act.Enabled = true;
+        Assert.True(btn.Enabled);
+    }
+
+    [Fact]
+    public void Moving_a_linked_button_between_panels_on_an_open_form_keeps_its_own_values()
+    {
+        var (_, act, dlg, btn) = TwoForms();
+        var p1 = new Panel();
+        var p2 = new Panel();
+        dlg.Add(p1);
+        dlg.Add(p2);
+        dlg.Remove(btn);
+        p1.Add(btn);
+        btn.Caption = "Mine";
+        p2.Add(btn);
+        Assert.Equal("Mine", btn.Caption);
+        Assert.Contains(btn, act.Clients);
+        act.Caption = "&Other";
+        Assert.Equal("Mine", btn.Caption);
+    }
 }

@@ -178,6 +178,23 @@ internal abstract class ActionLink(ActionItem action)
     /// <summary>True if the client's value for <paramref name="m"/> comes from the action: it equals the action's.</summary>
     public bool IsLinked(ActionMember m) => Supports(m) && Equals(Get(m), Action.Get(m));
 
+    /// <summary>The members that were linked when the link was suspended; null while the link is live.</summary>
+    ActionMember[]? _suspendedLinked;
+
+    public bool IsSuspended => _suspendedLinked != null;
+
+    /// <summary>Remembers which members follow the action, for <see cref="Restore"/>.</summary>
+    public void Snapshot() => _suspendedLinked = [.. Members.Where(IsLinked)];
+
+    /// <summary>Copies the action's current value to the members that were linked at <see cref="Snapshot"/>; the client's overrides stay.</summary>
+    public void Restore()
+    {
+        var linked = _suspendedLinked;
+        _suspendedLinked = null;
+        if (linked == null) return;
+        foreach (var m in linked) Set(m, Action.Get(m));
+    }
+
     /// <summary>
     /// Copies the action's values to the client. With <paramref name="onlyDefaults"/> (a link made while a form loads) a value
     /// the form file set explicitly is kept, as Delphi does when loading.
@@ -244,19 +261,25 @@ internal sealed class ActionSlot(Func<ActionItem, ActionLink> createLink)
     /// <summary>
     /// The client left its form's tree or the form closed: an explicit (code) link is taken off the action's client list, so the
     /// action doesn't keep a dead or hidden client alive and doesn't write to it (Delphi's <c>FreeNotification</c>). The
-    /// reference stays, so <see cref="Resume"/> links again when the client is back on an open form.
+    /// reference and the link object stay (with a note of which members followed the action), so <see cref="Resume"/> links
+    /// again when the client is back on an open form.
     /// </summary>
     public void Suspend()
     {
-        if (Link is not { Explicit: true } link) return;
+        if (Link is not { Explicit: true, IsSuspended: false } link) return;
+        link.Snapshot();
         link.Action.RemoveLink(link);
-        Link = null;
     }
 
-    /// <summary>The client is on an open form again: links an explicit action again, taking its current values.</summary>
+    /// <summary>
+    /// The client is on an open form again: the link rejoins the action, and only the members that followed it take its current
+    /// value, so a caption or other value the client was given meanwhile is kept.
+    /// </summary>
     public void Resume()
     {
-        if (_explicit != null && Link == null) Attach(_explicit, explicitLink: true, onlyDefaults: false);
+        if (Link is not { IsSuspended: true } link) return;
+        link.Restore();
+        link.Action.AddLink(link);
     }
 
     void Attach(ActionItem action, bool explicitLink, bool onlyDefaults)
@@ -282,8 +305,8 @@ internal sealed class ActionSlot(Func<ActionItem, ActionLink> createLink)
     {
         if (_explicit != null)   // a code link: not name-resolved; it follows its client on and off open forms
         {
-            if (Link == null && !form.HostClosed) Resume();
-            if (Link != null) { Link.Stamp = stamp; Link.Action.AddLink(Link); }
+            if (!form.HostClosed) Resume();
+            if (Link is { IsSuspended: false }) { Link.Stamp = stamp; Link.Action.AddLink(Link); }
             return;
         }
         if (Link != null)
