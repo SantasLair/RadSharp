@@ -509,6 +509,7 @@ public sealed class DesignHostServer
         catch (Exception e) when (e is not OutOfMemoryException)
         {
             SendError(docId, $"Could not open {Path.GetFileName(path)}: {e.Message}");
+            ForgetProject(docId);   // the document never opened: it must not keep its project loaded
             return;
         }
 
@@ -533,7 +534,7 @@ public sealed class DesignHostServer
 
     void CloseDoc(int docId)
     {
-        if (!_docs.Remove(docId, out var doc)) return;
+        if (!_docs.Remove(docId, out var doc)) { ForgetProject(docId); return; }
         foreach (var id in _pendingCode.Where(p => p.Value.DocId == docId).Select(p => p.Key).ToList()) _pendingCode.Remove(id);
         var panes = doc.Windows.ToList();
         // Dialogs opened over this document's panes go too.
@@ -541,6 +542,12 @@ public sealed class DesignHostServer
         foreach (var w in panes) CloseWindowCore(w);
         if (doc.Surface != null) doc.Surface.Document = null;
         if (_activeDoc == docId) _activeDoc = _docs.Keys.FirstOrDefault();
+        ForgetProject(docId);
+    }
+
+    /// <summary>The document is gone (closed, or never opened): its project is unloaded once no other document uses it.</summary>
+    void ForgetProject(int docId)
+    {
         if (_docProject.Remove(docId, out var project)) UnloadIfUnused(project);
     }
 

@@ -304,4 +304,29 @@ public class ProjectHostTests
         Assert.IsType<UnknownControl>(client.Ui(() => client.Server!.Document(2)!.Doc.Form.FindControl("gauge1")));
         Assert.Empty(client.Ui(() => client.Server!.Projects.Keys.ToList()));
     }
+
+    [Fact]
+    public void A_document_that_fails_to_open_does_not_keep_its_project_loaded()
+    {
+        var (dll, _) = Project();
+        using var client = Connect();
+        client.Send(new P.SetProjectAssembly { DocId = Doc, Path = dll });
+        client.Send(new P.OpenDocument { DocId = Doc, Path = Path.Combine(Path.GetDirectoryName(dll)!, "missing.radform.json") });
+        client.Expect<P.Error>(e => e.Text.Contains("Could not open"));
+        client.Settle();
+        Assert.Empty(client.Ui(() => client.Server!.Projects.Keys.ToList()));
+    }
+
+    [Fact]
+    public void A_project_set_for_a_document_that_is_never_opened_is_unloaded_when_it_is_closed()
+    {
+        var (dll, _) = Project();
+        using var client = Connect();
+        client.Send(new P.SetProjectAssembly { DocId = Doc, Path = dll });
+        client.Settle();
+        Assert.Single(client.Ui(() => client.Server!.Projects.Keys.ToList()));
+        client.Send(new P.CloseDocument { DocId = Doc });
+        client.Settle();
+        Assert.Empty(client.Ui(() => client.Server!.Projects.Keys.ToList()));
+    }
 }
