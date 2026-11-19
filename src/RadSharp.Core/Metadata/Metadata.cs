@@ -17,6 +17,24 @@ public sealed class PublishedAttribute(string? name = null) : Attribute
     public string? Category { get; set; }
 }
 
+/// <summary>
+/// Names a public static method a designer calls once after it loads this assembly's controls and before it creates
+/// any of them: register fonts, build a colour table, whatever the controls expect the application's <c>Main</c> to have
+/// done. The method takes no arguments (optional parameters get their defaults). Controls it creates are in
+/// <see cref="Control.DesignMode"/>; a change it makes to <c>Theme.Current</c> is undone afterwards, so the designer
+/// keeps its own look. If it throws, the designer reports it and goes on.
+/// </summary>
+/// <example><c>[assembly: RadSharp.DesignTimeSetup(typeof(Palette), nameof(Palette.Init))]</c></example>
+[AttributeUsage(AttributeTargets.Assembly)]
+public sealed class DesignTimeSetupAttribute(
+    [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods)] Type type,
+    string method) : Attribute
+{
+    [System.Diagnostics.CodeAnalysis.DynamicallyAccessedMembers(System.Diagnostics.CodeAnalysis.DynamicallyAccessedMemberTypes.PublicMethods)]
+    public Type Type { get; } = type;
+    public string Method { get; } = method;
+}
+
 /// <summary>The kinds of published property (spec, Appendix A: metadata types).</summary>
 public enum PropertyType { String, Int, Real, Bool, Enum, Color, Anchors, Struct, Strings, Ints, Font, Date }
 
@@ -97,7 +115,17 @@ public sealed class ComponentClass(
 
     public ComponentClass? Base => BaseType == null ? null : ComponentRegistry.Find(BaseType);
 
-    public Control Create() => factory?.Invoke() ?? throw new InvalidOperationException($"{Name} can't be created from a form file.");
+    /// <summary>
+    /// A new instance. The children its constructor added (a search box inside a custom title bar, say) belong to it,
+    /// as Delphi's subcomponents do: they are marked <see cref="Control.IsTransient"/>, so form files don't save them
+    /// (the constructor creates them again) and a designer selects the control when one of them is clicked.
+    /// </summary>
+    public Control Create()
+    {
+        var control = factory?.Invoke() ?? throw new InvalidOperationException($"{Name} can't be created from a form file.");
+        foreach (var child in control.Descendants()) child.IsTransient = true;
+        return control;
+    }
 
     /// <summary>All published properties, inherited first, sorted by name; a redeclared name replaces the inherited one.</summary>
     public IReadOnlyList<PropertyMeta> Properties => _properties ??= Merge(Base?.Properties, OwnProperties, p => p.Name);

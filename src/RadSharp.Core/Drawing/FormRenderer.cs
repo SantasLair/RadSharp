@@ -77,10 +77,26 @@ public static class FormRenderer
             c.FillRect(local, new Color(255, 236, 236));
             c.DrawBorder(local, new Color(200, 0, 0));
             var inner = e is System.Reflection.TargetInvocationException { InnerException: { } i } ? i : e;
-            c.DrawText($"{inner.GetType().Name}: {inner.Message}", c.DefaultFont, new Color(160, 0, 0), Canvas.Inflate(local, -c.Px(4)),
+            var message = $"{inner.GetType().Name}: {inner.Message}";
+            c.DrawText(message, c.DefaultFont, new Color(160, 0, 0), Canvas.Inflate(local, -c.Px(4)),
                 TextAlign.Left, VerticalAlign.Top, ellipsis: true);
+            // Painting repeats on every frame: tell the designer once per control and message, not 60 times a second.
+            if (!Reported.TryGetValue(control, out var last) || last != message)
+            {
+                Reported.AddOrUpdate(control, message);
+                PaintError?.Invoke(control, inner);
+            }
         }
     }
+
+    static readonly System.Runtime.CompilerServices.ConditionalWeakTable<Control, string> Reported = new();
+
+    /// <summary>
+    /// A control the designer created threw while it painted (it is drawn as an error box instead): raised the first
+    /// time a control fails with a given message, on the painting thread, so a designer can log it (the Visual Studio
+    /// design host sends it to the IDE's Output pane).
+    /// </summary>
+    public static event Action<Control, Exception>? PaintError;
 
     static void PaintShadow(Canvas c, Rect r)
     {

@@ -459,7 +459,7 @@ public partial class DesignerForm : Form
 
     void mnuSelectAll_Click(object sender)
     {
-        if (Document is { } doc) doc.SelectMany(doc.PasteTarget().Children.Where(c => c.IsShown || c is Component));
+        if (Document is { } doc) doc.SelectMany(doc.PasteTarget().Children.Where(c => (c.IsShown || c is Component) && !c.IsTransient));
     }
 
     void mnuMenuEditor_Click(object sender)

@@ -333,7 +333,7 @@ public sealed class DesignDocument
         bool Clashes(string name) => name.Length == 0 || taken.Contains(name) || IsNameUsed(name);
         foreach (var c in controls)
         {
-            foreach (var d in c.Descendants().Prepend(c))
+            foreach (var d in c.Descendants().Prepend(c).Where(d => !d.IsTransient))   // a control's own children keep theirs
             {
                 if (Clashes(d.Name)) d.Name = UniqueName(d is UnknownControl u ? u.ClassName : ComponentRegistry.Of(d).Name, taken);
                 taken.Add(d.Name);

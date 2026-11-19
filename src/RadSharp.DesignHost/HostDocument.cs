@@ -257,7 +257,7 @@ internal sealed class HostDocument
             case "Copy": Surface?.CopySelection(); break;
             case "Paste": Surface?.PasteClipboard(); break;
             case "Delete": Doc.DeleteSelection(); break;
-            case "SelectAll": Doc.SelectMany(Doc.PasteTarget().Children.Where(c => c.IsShown || c is Component)); break;
+            case "SelectAll": Doc.SelectMany(Doc.PasteTarget().Children.Where(c => (c.IsShown || c is Component) && !c.IsTransient)); break;
             case "BringToFront": Reorder(toFront: true); break;
             case "SendToBack": Reorder(toFront: false); break;
             // The editors are modal RadSharp forms; HeadlessPlatform shows them as Dialog windows owned by the surface.
