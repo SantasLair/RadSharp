@@ -48,8 +48,6 @@ public sealed class Binder<T> : IDisposable where T : class
 
     public Binder() => _changed = OnControlChanged;
 
-    public Binder(T? current) : this() => Current = current;
-
     /// <summary>
     /// A binder tied to <paramref name="owner"/>'s lifetime without being used up by it: when the form closes
     /// (<see cref="Form.Closed"/>) the binder stops listening to the model, so a closed dialog can't keep a record alive or hear

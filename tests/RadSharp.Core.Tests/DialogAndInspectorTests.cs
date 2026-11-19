@@ -113,7 +113,7 @@ public class DialogAndInspectorTests
         form.Add(user);
         form.Add(ok);
         var prefs = new Prefs();
-        var binder = new Binder<Prefs>(prefs);
+        var binder = new Binder<Prefs> { Current = prefs };
         binder.Bind(user, p => p.User, (p, v) => p.User = v).Validate(v => v.Length > 0 ? null : "Enter a name.");
         int refusals = 0;
         form.CloseQuery += (_, e) =>

@@ -41,7 +41,7 @@ public class BinderEdgeCaseTests
         right.Add(company);
         f.PerformLayout();
         var m = new Model { Kind = Kind.Person };
-        var b = new Binder<Model>(m);
+        var b = new Binder<Model> { Current = m };
         b.BindRadios(x => x.Kind, (x, v) => x.Kind = v, (person, Kind.Person), (company, Kind.Company));
         Assert.True(person.Checked && !company.Checked);
 
@@ -59,7 +59,7 @@ public class BinderEdgeCaseTests
         var (f, country, city) = TwoEdits();
         var m = new Model { Country = "UK" };
         m.City = "London";
-        var b = new Binder<Model>(m);
+        var b = new Binder<Model> { Current = m };
         b.Bind(country, x => x.Country, (x, v) => x.Country = v);
         b.Bind(city, x => x.City, (x, v) => x.City = v);
         f.Simulate.Click(country);
@@ -77,7 +77,7 @@ public class BinderEdgeCaseTests
         var (f, name, city) = TwoEdits();
         var a = new Model { Name = "A" };
         var other = new Model { Name = "B" };
-        var b = new Binder<Model>(a);
+        var b = new Binder<Model> { Current = a };
         b.Bind(name, x => x.Name, (x, v) => x.Name = v);
         b.Bind(city, x => x.City, (x, v) => x.City = v);
         // e.g. a list that re-sorts when a name changes and so selects another row, whose Change sets Current
@@ -101,7 +101,7 @@ public class BinderEdgeCaseTests
         var (f, name, city) = TwoEdits();
         var a = new Model { Name = "Alexander" };
         var other = new Model { Name = "B" };
-        var b = new Binder<Model>(a);
+        var b = new Binder<Model> { Current = a };
         b.Bind(name, x => x.Name, (x, v) => x.Name = v);
         b.DirtyChanged += (_, _) => { if (b.IsDirty) b.Current = other; };
         f.Simulate.Click(name);

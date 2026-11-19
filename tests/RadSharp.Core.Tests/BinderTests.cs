@@ -201,7 +201,7 @@ public class BinderTests
         f.Add(last);
         f.PerformLayout();
         var c = Sample();
-        var binder = new Binder<Contact>(c);
+        var binder = new Binder<Contact> { Current = c };
         binder.Bind(cities, x => x.City, (x, v) => x.City = v);
         binder.Bind(since, x => x.Since, (x, v) => x.Since = v);
         binder.Bind(last, x => x.LastOrder, (x, v) => x.LastOrder = v);
@@ -296,7 +296,7 @@ public class BinderTests
         shown.SetBounds(300, 50, 100, 26);
         f.Add(shown);
         f.PerformLayout();
-        var b = new Binder<Contact>(Sample());
+        var b = new Binder<Contact> { Current = Sample() };
         var field = b.Bind(shown, c => c.Name);
         Assert.True(field.IsReadOnly);
         f.Simulate.Click(shown);
@@ -349,7 +349,7 @@ public class BinderTests
         f.Add(b);
         f.PerformLayout();
         var seen = new List<string>();
-        var binder = new Binder<Contact>(new Contact { City = "x" });
+        var binder = new Binder<Contact> { Current = new Contact { City = "x" } };
         binder.Bind(a, c => c.City, (c, v) => c.City = v).Validate(v => { seen.Add("city:" + v); return null; });
         binder.Bind(b, c => c.Name).Validate(v => { seen.Add("name:" + v); return "never"; });   // no setter: skipped
         Assert.True(binder.Commit());
@@ -418,6 +418,6 @@ public class BinderTests
         Assert.Equal(0, model.Subscribers);
         f.Close();                                          // the closed form no longer reaches the binder
         Assert.Equal(0, model.Subscribers);
-        Assert.Throws<ArgumentNullException>(() => new Binder<Counted>((Form)null!));
+        Assert.Throws<ArgumentNullException>(() => new Binder<Counted>(null!));
     }
 }

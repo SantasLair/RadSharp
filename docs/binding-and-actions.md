@@ -114,11 +114,18 @@ re-reads every getter, which is cheap and works for computed properties):
 `Refresh()` applies the same rule on demand, for models that don't raise the event. Raise `PropertyChanged` on the UI
 thread (marshal with `Application.Queue` otherwise).
 
-`Dispose()` unsubscribes from the controls, the model and the owner form; the controls keep what they show. Create the binder
-with its form (`new Binder<Client>(this)`, or `new Binder<Client>(this, client)`) and it disposes itself when that form closes
-(`Closed`), so a form needs no `Dispose` call and the binder can't outlive it as a `PropertyChanged` subscriber on a
-long-lived model. The parameterless and `Binder<T>(T? current)` constructors remain for binders with another owner; dispose
-those yourself. Disposing twice is safe.
+`Dispose()` ends the binder for good: it unsubscribes from the controls, the model and the owner form (the controls keep what
+they show), and afterwards setting `Current`, `Commit`, `Validate`, `Revert` and `Refresh` throw `ObjectDisposedException`.
+Disposing twice is safe. Create the binder with its form (`new Binder<Client>(this)`, or `new Binder<Client>(this, client)`)
+and the form's lifetime is handled without ending the binder: when the form closes (`Closed`) the binder stops listening to
+the model, so a closed dialog can't keep a long-lived model's `PropertyChanged` alive, and when the form is shown again
+(`Shown`) it listens again and reloads the controls from `Current`. A dialog can therefore be created once and shown many
+times (the Delphi pattern): set `Current` before each `ShowModal`, `Commit` on OK. Setting `Current` always listens to the new
+model. The constructors are `Binder<T>()` and `Binder<T>(Form owner)` (plus `(owner, current)`); to start with a model
+without an owner write `new Binder<T> { Current = model }`. Dispose a binder with no owner yourself.
+
+Every getter is read before any control changes: if one throws, the exception propagates and the controls, `Current` and the
+model subscription stay as they were.
 
 ## 2. `Action`
 
