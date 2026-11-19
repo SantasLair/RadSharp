@@ -8,7 +8,11 @@ name: Build
 #   Linux    <app>-<version>-linux-x64.tar.gz       exe, libs, .desktop file, PNG icon
 #            <app>-<version>-linux-x64.AppImage     best effort; the tarball is the guaranteed Linux artifact
 #
-# Signing runs only when these repository secrets exist (Settings > Secrets and variables > Actions):
+# Every push builds (all three OS jobs); to build less often, narrow the `on:` triggers below (for example to tags).
+#
+# Signing runs only when these repository secrets exist (Settings > Secrets and variables > Actions). Secrets are
+# exposed only to the steps that need them, never to `dotnet publish` (which runs the project's MSBuild targets and
+# analyzers); a first step per job turns "is the secret set?" into a flag that later steps test.
 #   Windows: WINDOWS_CERT_PFX (base64 .pfx), WINDOWS_CERT_PASSWORD, optional WINDOWS_TIMESTAMP_URL
 #   macOS:   MACOS_CERT (base64 .p12 of a Developer ID Application certificate), MACOS_CERT_PASSWORD,
 #            MACOS_SIGN_IDENTITY ("Developer ID Application: Name (TEAMID)")
@@ -37,7 +41,13 @@ jobs:
       - id: read
         shell: bash
         run: |
-          proj=$(ls ./*.csproj | head -n 1)
+          shopt -s nullglob
+          projs=(./*.csproj)
+          if [ "${#projs[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one .csproj in the repository root, found ${#projs[@]}: ${projs[*]:-none}"
+            exit 1
+          fi
+          proj="${projs[0]}"
           get() { dotnet msbuild "$proj" -getProperty:"$1" -nologo | tr -d '\r'; }
           echo "project=$(basename "$proj")" >> "$GITHUB_OUTPUT"
           echo "name=$(get AssemblyName)" >> "$GITHUB_OUTPUT"
@@ -52,9 +62,6 @@ jobs:
       NAME: ${{ needs.meta.outputs.name }}
       PROJECT: ${{ needs.meta.outputs.project }}
       VERSION: ${{ needs.meta.outputs.version }}
-      WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
-      WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
-      WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -63,9 +70,20 @@ jobs:
       - name: Publish (NativeAOT)
         shell: bash
         run: dotnet publish "$PROJECT" -c Release -r win-x64 -o out
+      - name: Is a Windows certificate configured?
+        id: wincert
+        shell: bash
+        env:
+          WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+        run: |
+          if [ -n "$WINDOWS_CERT_PFX" ]; then echo "has_cert=true" >> "$GITHUB_OUTPUT"; else echo "has_cert=false" >> "$GITHUB_OUTPUT"; fi
       - name: Sign the exe (only when WINDOWS_CERT_PFX is set)
-        if: env.WINDOWS_CERT_PFX != ''
+        if: steps.wincert.outputs.has_cert == 'true'
         shell: pwsh
+        env:
+          WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}
+          WINDOWS_CERT_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
+          WINDOWS_TIMESTAMP_URL: ${{ secrets.WINDOWS_TIMESTAMP_URL }}
         run: |
           $pfx = Join-Path $env:RUNNER_TEMP 'codesign.pfx'
           [IO.File]::WriteAllBytes($pfx, [Convert]::FromBase64String($env:WINDOWS_CERT_PFX))
@@ -109,12 +127,6 @@ jobs:
       PRODUCT: ${{ needs.meta.outputs.product }}
       BUNDLE_ID: ${{ needs.meta.outputs.bundle_id }}
       RID: ${{ matrix.rid }}
-      MACOS_CERT: ${{ secrets.MACOS_CERT }}
-      MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
-      MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
-      APPLE_ID: ${{ secrets.APPLE_ID }}
-      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-      APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
@@ -132,6 +144,9 @@ jobs:
           cp -R out/. "$app/Contents/MacOS/"
           rm -rf "$app"/Contents/MacOS/*.dSYM
           short_version="${VERSION%%[-+]*}"
+          # Values from the .csproj go into XML: escape & < > " '.
+          xml() { printf '%s' "$1" | sed -e 's/&/\&amp;/g' -e 's/</\&lt;/g' -e 's/>/\&gt;/g' -e 's/"/\&quot;/g' -e "s/'/\&apos;/g"; }
+          x_name="$(xml "$NAME")"; x_bundle_id="$(xml "$BUNDLE_ID")"; x_product="$(xml "$PRODUCT")"; x_version="$(xml "$short_version")"
           icon_key=""
           if [ -f app.png ]; then
             iconset="$RUNNER_TEMP/$NAME.iconset"
@@ -141,7 +156,7 @@ jobs:
               sips -z "$((size * 2))" "$((size * 2))" app.png --out "$iconset/icon_${size}x${size}@2x.png" > /dev/null
             done
             iconutil -c icns "$iconset" -o "$app/Contents/Resources/$NAME.icns"
-            icon_key="  <key>CFBundleIconFile</key><string>$NAME</string>"
+            icon_key="  <key>CFBundleIconFile</key><string>$x_name</string>"
           else
             echo "::warning::app.png not found; the bundle has no icon"
           fi
@@ -152,12 +167,12 @@ jobs:
           <dict>
             <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
             <key>CFBundlePackageType</key><string>APPL</string>
-            <key>CFBundleExecutable</key><string>$NAME</string>
-            <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
-            <key>CFBundleName</key><string>$PRODUCT</string>
-            <key>CFBundleDisplayName</key><string>$PRODUCT</string>
-            <key>CFBundleShortVersionString</key><string>$short_version</string>
-            <key>CFBundleVersion</key><string>$short_version</string>
+            <key>CFBundleExecutable</key><string>$x_name</string>
+            <key>CFBundleIdentifier</key><string>$x_bundle_id</string>
+            <key>CFBundleName</key><string>$x_product</string>
+            <key>CFBundleDisplayName</key><string>$x_product</string>
+            <key>CFBundleShortVersionString</key><string>$x_version</string>
+            <key>CFBundleVersion</key><string>$x_version</string>
             <key>LSMinimumSystemVersion</key><string>12.0</string>
             <key>NSHighResolutionCapable</key><true/>
             <key>NSPrincipalClass</key><string>NSApplication</string>
@@ -166,9 +181,21 @@ jobs:
           </plist>
           PLIST
           plutil -lint "$app/Contents/Info.plist"
-      - name: Import the signing certificate (only when MACOS_CERT is set)
-        if: env.MACOS_CERT != ''
+      - name: Which macOS secrets are configured?
+        id: maccert
         shell: bash
+        env:
+          MACOS_CERT: ${{ secrets.MACOS_CERT }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+        run: |
+          if [ -n "$MACOS_CERT" ]; then echo "has_cert=true" >> "$GITHUB_OUTPUT"; else echo "has_cert=false" >> "$GITHUB_OUTPUT"; fi
+          if [ -n "$MACOS_CERT" ] && [ -n "$APPLE_ID" ]; then echo "has_notary=true" >> "$GITHUB_OUTPUT"; else echo "has_notary=false" >> "$GITHUB_OUTPUT"; fi
+      - name: Import the signing certificate (only when MACOS_CERT is set)
+        if: steps.maccert.outputs.has_cert == 'true'
+        shell: bash
+        env:
+          MACOS_CERT: ${{ secrets.MACOS_CERT }}
+          MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
         run: |
           set -euo pipefail
           keychain="$RUNNER_TEMP/signing.keychain-db"
@@ -183,10 +210,13 @@ jobs:
           rm "$RUNNER_TEMP/cert.p12"
       - name: Sign the bundle (Developer ID when MACOS_CERT is set, else ad-hoc)
         shell: bash
+        env:
+          HAS_CERT: ${{ steps.maccert.outputs.has_cert }}
+          MACOS_SIGN_IDENTITY: ${{ secrets.MACOS_SIGN_IDENTITY }}
         run: |
           set -euo pipefail
           app="dist/$PRODUCT.app"
-          if [ -n "$MACOS_CERT" ]; then
+          if [ "$HAS_CERT" = "true" ]; then
             find "$app" -name '*.dylib' -exec codesign --force --options runtime --timestamp --sign "$MACOS_SIGN_IDENTITY" {} \;
             codesign --force --deep --options runtime --timestamp --sign "$MACOS_SIGN_IDENTITY" "$app"
           else
@@ -194,8 +224,12 @@ jobs:
           fi
           codesign --verify --deep --strict --verbose=2 "$app"
       - name: Notarize and staple (only when the Apple ID secrets are set)
-        if: env.MACOS_CERT != '' && env.APPLE_ID != ''
+        if: steps.maccert.outputs.has_notary == 'true'
         shell: bash
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_APP_PASSWORD: ${{ secrets.APPLE_APP_PASSWORD }}
         run: |
           set -euo pipefail
           app="dist/$PRODUCT.app"

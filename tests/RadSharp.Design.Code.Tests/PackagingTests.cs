@@ -23,7 +23,7 @@ public class PackagingTests
 
     static string Property(string csproj, string name)
     {
-        var m = Regex.Match(csproj, $"<{name}>(.*?)</{name}>");
+        var m = Regex.Match(csproj, $@"<{name}(?:\s[^>]*)?>(.*?)</{name}>");
         Assert.True(m.Success, $"{name} is missing from the .csproj");
         return m.Groups[1].Value;
     }
@@ -109,18 +109,55 @@ public class PackagingTests
     public void Signing_steps_run_only_when_their_secrets_exist()
     {
         var workflow = Normalize(RadProject.CrossPlatformWorkflow);
-        // Secrets reach steps through env, and every signing step is guarded on that env value.
-        Assert.Contains("WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}", workflow);
-        Assert.Contains("if: env.WINDOWS_CERT_PFX != ''", Job(workflow, "windows"));
-        Assert.Contains("signtool", Job(workflow, "windows"));
+        // No secret at workflow or job level: the publish steps (third-party MSBuild targets) never see them.
+        // (Job-level env values sit at 6 spaces of indentation, step-level ones at 10.)
+        Assert.Empty(Regex.Matches(workflow, @"^ {0,6}\w+: \$\{\{ secrets\.", RegexOptions.Multiline));
+
+        // Every step that sees a secret is a gate step (sets a flag) or is itself gated on a flag, never on `secrets`/env.
+        Assert.DoesNotContain("if: env.", workflow);
+        Assert.DoesNotContain("secrets.", Regex.Match(workflow, @"- name: Publish \(NativeAOT\)(.*?)(?=
+      - )", RegexOptions.Singleline).Value);
+
+        var windows = Job(workflow, "windows");
+        Assert.Contains("id: wincert", windows);
+        Assert.Contains("if: steps.wincert.outputs.has_cert == 'true'", windows);
+        Assert.Contains("signtool", windows);
+        Assert.Contains("WINDOWS_CERT_PFX: ${{ secrets.WINDOWS_CERT_PFX }}", windows);
+
         var macos = Job(workflow, "macos");
-        Assert.Contains("MACOS_CERT: ${{ secrets.MACOS_CERT }}", macos);
-        Assert.Contains("if: env.MACOS_CERT != ''", macos);                                  // keychain import
-        Assert.Contains("if: env.MACOS_CERT != '' && env.APPLE_ID != ''", macos);            // notarization
+        Assert.Contains("id: maccert", macos);
+        Assert.Contains("if: steps.maccert.outputs.has_cert == 'true'", macos);          // keychain import
+        Assert.Contains("if: steps.maccert.outputs.has_notary == 'true'", macos);        // notarization
         Assert.Contains("security create-keychain", macos);
-        Assert.Contains("if [ -n \"$MACOS_CERT\" ]", macos);                                 // Developer ID vs ad-hoc
+        Assert.Contains("if [ \"$HAS_CERT\" = \"true\" ]", macos);                         // Developer ID vs ad-hoc
+        Assert.Contains("codesign --force --deep --sign -", macos);
         // No secret is ever referenced in a run script directly.
         foreach (Match m in Regex.Matches(workflow, @"^\s+run: .*\$\{\{ secrets\.", RegexOptions.Multiline)) Assert.Fail(m.Value);
+    }
+
+    [Fact]
+    public void Plist_values_are_xml_escaped_and_one_csproj_is_required()
+    {
+        var workflow = Normalize(RadProject.CrossPlatformWorkflow);
+        foreach (var v in new[] { "$x_name", "$x_bundle_id", "$x_product", "$x_version" }) Assert.Contains(v, workflow);
+        foreach (var raw in new[] { "<string>$NAME</string>", "<string>$PRODUCT</string>", "<string>$BUNDLE_ID</string>", "<string>$short_version</string>" })
+            Assert.DoesNotContain(raw, workflow);
+        Assert.Contains("Expected exactly one .csproj", workflow);
+    }
+
+    [Fact]
+    public void Create_xml_escapes_the_name_in_the_csproj_and_guards_the_icon()
+    {
+        var project = RadProject.Create(TempDir(), "Tom & Jerry's");
+        var csproj = File.ReadAllText(project.ProjectFile);
+        var doc = System.Xml.Linq.XDocument.Parse(csproj);   // throws when the escaping is wrong
+        Assert.Equal("Tom & Jerry's", doc.Descendants("Product").Single().Value);
+        Assert.Equal("Copyright (c) Tom & Jerry's", doc.Descendants("Copyright").Single().Value);
+        Assert.Equal("com.example.TomJerrys", doc.Descendants("BundleId").Single().Value);
+        // A deleted app.ico must not fail the publish.
+        Assert.Equal("Exists('app.ico')", doc.Descendants("ApplicationIcon").Single().Attribute("Condition")?.Value);
+        var templated = File.ReadAllText(Path.Combine(TemplateDir(), "RadSharpApp.csproj"));
+        Assert.Equal("Exists('app.ico')", System.Xml.Linq.XDocument.Parse(templated).Descendants("ApplicationIcon").Single().Attribute("Condition")?.Value);
     }
 
     [Fact]

@@ -72,6 +72,7 @@ public sealed class RadProject
     {
         System.IO.Directory.CreateDirectory(directory);
         var ns = Sanitize(name);
+        var xmlName = System.Security.SecurityElement.Escape(name);   // & < > " ' must not break the .csproj XML
         File.WriteAllText(Path.Combine(directory, name + ".csproj"), $"""
             <Project Sdk="Microsoft.NET.Sdk">
 
@@ -85,11 +86,11 @@ public sealed class RadProject
                 <EnableAotAnalyzer>true</EnableAotAnalyzer>
                 <EnableTrimAnalyzer>true</EnableTrimAnalyzer>
                 <!-- Packaging (read by .github/workflows/build.yml): exe icon and Windows version resource, .app bundle id. -->
-                <ApplicationIcon>app.ico</ApplicationIcon>
+                <ApplicationIcon Condition="Exists('app.ico')">app.ico</ApplicationIcon>
                 <Version>1.0.0</Version>
-                <Product>{name}</Product>
-                <Company>{name}</Company>
-                <Copyright>Copyright (c) {name}</Copyright>
+                <Product>{xmlName}</Product>
+                <Company>{xmlName}</Company>
+                <Copyright>Copyright (c) {xmlName}</Copyright>
                 <BundleId>com.example.{BundleSegment(name)}</BundleId>
               </PropertyGroup>
 

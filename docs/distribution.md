@@ -16,8 +16,12 @@ GitHub Actions from one push and uploads one package per OS as an artifact:
 | Linux | `<app>-<version>-linux-x64.tar.gz` | the exe, the libraries, `<app>.desktop` and `<app>.png` |
 | Linux | `<app>-<version>-linux-x64.AppImage` | built with a pinned, checksum-verified `appimagetool`; best effort (a failure does not fail the build, the tarball is the guaranteed Linux artifact) |
 
+The workflow triggers on every push (and on **Run workflow**), so every push builds all three OS jobs; to build less
+often, narrow the `on:` block at the top of `build.yml` (for example to tags). The repository root must hold exactly one
+`.csproj`; the `meta` job fails with a clear message otherwise.
+
 Nothing is hard-coded in the YAML: the app name (`AssemblyName`), `<Version>`, `<Product>` and `<BundleId>` come from
-the `.csproj`. The same `.csproj` properties give the Windows exe its icon (`<ApplicationIcon>app.ico</ApplicationIcon>`)
+the `.csproj`. The same `.csproj` properties give the Windows exe its icon (`<ApplicationIcon Condition="Exists('app.ico')">`; if you delete `app.ico` the exe simply has no icon)
 and version resource (`Version`, `Product`, `Company`, `Copyright`). Edit those, and replace `app.ico` (Windows) and
 `app.png`, a 1024 x 1024 PNG (macOS `.icns` and Linux), to brand the app. New projects ship a neutral default icon.
 
@@ -25,7 +29,9 @@ and version resource (`Version`, `Product`, `Company`, `Copyright`). Edit those,
 
 Each signing step runs only when its repository secret exists (Settings > Secrets and variables > Actions); without
 them the build still succeeds and produces unsigned packages (macOS bundles are ad-hoc signed, which Apple silicon
-needs to run at all).
+needs to run at all). The secrets are exposed only to the import, sign and notarize steps, never to `dotnet publish`
+(which runs the project's MSBuild targets and analyzers): a small step before them records whether the secret is set,
+and the signing steps test that flag.
 
 | Secret | Format | Used for |
 | --- | --- | --- |
@@ -54,6 +60,9 @@ on Windows, the exe's Properties > Details tab shows the version and the icon; o
   does when `WINDOWS_CERT_PFX` is set).
 - **macOS:** Gatekeeper blocks unsigned downloads; the workflow signs and notarizes when the secrets above are set.
 - **Linux:** distribute the tarball or AppImage (or a Flatpak); the app needs no runtime, only the three libraries.
+  The tarball's `<app>.desktop` is not installed by unpacking it: its `Exec=<app>` and `Icon=<app>` are bare names, so
+  to get a launcher entry copy it to `~/.local/share/applications/`, make `Exec` the absolute path of the exe and `Icon`
+  the absolute path of `<app>.png` (or install the icon into the icon theme), or ship an installer/package that does so.
 
 ## Code protection
 
