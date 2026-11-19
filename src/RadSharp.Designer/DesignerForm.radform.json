@@ -193,6 +193,10 @@
                 "caption": "Open in IDE",
                 "onClick": "mnuOpenInIde_Click",
                 "shortcut": "Mod+Shift+E"
+              },
+              {
+                "caption": "Refresh Project Controls",
+                "onClick": "mnuRefreshProject_Click"
               }
             ]
           },

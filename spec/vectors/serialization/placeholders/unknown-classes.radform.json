@@ -1,0 +1,59 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmUnknown",
+    "caption": "Placeholders",
+    "height": 300,
+    "width": 400,
+    "children": [
+      {
+        "class": "Panel",
+        "name": "pnlTop",
+        "align": "top",
+        "height": 60,
+        "children": [
+          {
+            "class": "TallyCounter",
+            "name": "cntTotal",
+            "caption": "0",
+            "count": 3,
+            "font": { "family": "Inter", "size": 16, "bold": true, "italic": false, "underline": false },
+            "left": 8,
+            "onCountChanged": "cntTotal_CountChanged",
+            "top": 8
+          }
+        ]
+      },
+      {
+        "class": "ChartView",
+        "name": "chtSales",
+        "align": "client",
+        "series": [
+          {
+            "title": "2026",
+            "values": [1, 2, 3]
+          }
+        ],
+        "children": [
+          {
+            "class": "Button",
+            "name": "btnZoom",
+            "caption": "Zoom",
+            "left": 4,
+            "top": 4
+          }
+        ]
+      },
+      {
+        "class": "Button",
+        "name": "btnOk",
+        "caption": "OK",
+        "left": 300,
+        "top": 260
+      }
+    ]
+  }
+}

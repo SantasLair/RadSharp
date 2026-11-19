@@ -35,6 +35,39 @@ public partial class Control
     internal Control? PopupTextTarget { get; set; }
     public Control Root => Parent?.Root ?? this;
 
+    [ThreadStatic] static int t_designModeDepth;
+
+    /// <summary>
+    /// True for a control the designer created: a form being designed and everything on it, from the control's
+    /// constructor on (Delphi's <c>csDesigning in ComponentState</c>). A control the application defines can check
+    /// it to skip, at design time, what needs the running application: opening a database or a file, starting a
+    /// thread, reading settings. At design time a control's constructor, published property setters, layout and
+    /// painting run; its event handlers never do (the designer only stores their names) and its timers don't tick.
+    /// </summary>
+    public bool DesignMode { get; } = t_designModeDepth > 0;
+
+    /// <summary>
+    /// For designers: every control created on this thread until the returned scope is disposed is in
+    /// <see cref="DesignMode"/>. Scopes nest.
+    /// </summary>
+    public static IDisposable EnterDesignMode()
+    {
+        t_designModeDepth++;
+        return new DesignModeScope();
+    }
+
+    sealed class DesignModeScope : IDisposable
+    {
+        bool _disposed;
+
+        public void Dispose()
+        {
+            if (_disposed) return;
+            _disposed = true;
+            t_designModeDepth--;
+        }
+    }
+
     /// <summary>Event handler names by event property (<c>"onClick" → "btnSave_Click"</c>).</summary>
     public Dictionary<string, string> EventHandlers { get; } = [];
 

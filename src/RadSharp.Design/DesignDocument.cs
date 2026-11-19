@@ -38,6 +38,7 @@ public sealed class DesignDocument
 
     public void New(int width = 480, int height = 320)
     {
+        using var designing = Control.EnterDesignMode();
         var form = new Form { Name = "frmMain", Caption = "Form1" };
         form.SetBounds(0, 0, width, height);
         form.DesignWidth = width;
@@ -49,14 +50,91 @@ public sealed class DesignDocument
         _savedText = Save();
     }
 
+    /// <summary>
+    /// How the designer reads form text: a node whose class it doesn't know (one the project defines, say) is kept as
+    /// an <see cref="UnknownControl"/> placeholder, so saving writes it back instead of deleting it. So is one whose
+    /// class only a live run (F9) registered: that class goes away with the run, while the designed form stays.
+    /// </summary>
+    public static readonly FormLoadOptions LoadOptions = new()
+    {
+        KeepUnknownClasses = true,
+        // RadSharp's own class of a name before a live run's that shadows it.
+        FindClass = name => ComponentRegistry.Find(name, IsDesignerClass),
+        AcceptClass = IsDesignerClass,
+    };
+
+    static bool IsDesignerClass(ComponentClass c) => c.CanCreate && !c.Type.Assembly.IsCollectible;
+
+    /// <summary>
+    /// The project's controls this document may create besides RadSharp's own, by form-file class name (the designer's
+    /// design session: see <c>DesignSession</c>); null: none. Every other class from a collectible assembly is read as
+    /// a placeholder. Takes effect on the next load: after changing it, call <see cref="Reload"/>.
+    /// </summary>
+    public Func<string, ComponentClass?>? ProjectClasses { get; set; }
+
+    /// <summary>How this document reads form text: <see cref="LoadOptions"/>, plus <see cref="ProjectClasses"/>.</summary>
+    public FormLoadOptions Options => ProjectClasses is not { } project ? LoadOptions : LoadOptions with
+    {
+        // A project's class wins its name, as in the running application (registered after RadSharp's).
+        FindClass = name => project(name) ?? ComponentRegistry.Find(name, IsDesignerClass),
+        AcceptClass = c => IsDesignerClass(c) || project(c.Name) == c,
+    };
+
     public IReadOnlyList<string> Load(string json)
     {
-        var (form, warnings) = FormReader.Load(json);
-        Replace(form);
+        var result = Read(json);
+        Replace(result.Form);
         _undo.Clear();
         _redo.Clear();
         _savedText = Save();
-        return warnings;
+        return result.Warnings;
+    }
+
+    /// <summary>
+    /// Reads the form again from <paramref name="json"/> (null: its current text) with the current
+    /// <see cref="ProjectClasses"/>: placeholders of classes that became available turn into real controls, and real
+    /// controls of classes that went away into placeholders, which keep their text. Undo and redo, the selection (by
+    /// name) and whether the document is modified stay as they were. Pass the text saved before the classes changed
+    /// (while the old ones were still registered).
+    /// </summary>
+    public IReadOnlyList<string> Reload(string? json = null)
+    {
+        json ??= Save();
+        bool modified = json != _savedText;
+        var names = _selection.Select(c => c.Name).ToList();
+        var result = Read(json);
+        Replace(result.Form);
+        foreach (var n in names)
+            if (result.Form.FindControl(n) is { } c && c != result.Form) _selection.Add(c);
+        // A real control may save more than its placeholder did (a setter that sets another published property):
+        // that isn't a change the user made.
+        if (!modified) _savedText = Save();
+        SelectionChanged?.Invoke();
+        Changed?.Invoke();
+        return result.Warnings;
+    }
+
+    /// <summary>
+    /// Reads form text in design mode with <see cref="Options"/>. A project's control that throws while it is created
+    /// or read is a placeholder on its own (the reader sees to that); one that throws once the form is laid out (it
+    /// looks for the running application around it, say) can't be singled out, so the form is read again without the
+    /// project's classes: all of them placeholders on it, which keep their text, with a warning that says why.
+    /// </summary>
+    FormLoadResult Read(string json)
+    {
+        using var designing = Control.EnterDesignMode();
+        if (ProjectClasses == null) return FormReader.Load(json, Options);
+        try { return FormReader.Load(json, Options); }
+        catch (Exception e) when (e is not (OutOfMemoryException or FormFileException))
+        {
+            var fallback = FormReader.Load(json, LoadOptions);
+            var inner = e is System.Reflection.TargetInvocationException { InnerException: { } i } ? i : e;
+            return fallback with
+            {
+                Warnings = [$"The project's controls threw while the form was laid out ({inner.GetType().Name}: {inner.Message}); " +
+                    "they are placeholders on this form until that is fixed and the project rebuilt.", .. fallback.Warnings],
+            };
+        }
     }
 
     /// <summary>The form file text (deterministic, spec Appendix A).</summary>
@@ -104,7 +182,7 @@ public sealed class DesignDocument
         if (from.Count == 0) return false;
         to.Push(Current());
         var (json, names) = from.Pop();
-        var (form, _) = FormReader.Load(json);
+        var form = Read(json).Form;
         Replace(form);
         foreach (var n in names)
             if (form.FindControl(n) is { } c && c != form) _selection.Add(c);
@@ -138,9 +216,13 @@ public sealed class DesignDocument
     // ---- Creating, deleting, clipboard ----
 
     /// <summary>A name like "Button1" not used anywhere on the form.</summary>
-    public string UniqueName(string className)
+    public string UniqueName(string className) => UniqueName(className, []);
+
+    string UniqueName(string className, IEnumerable<string> alsoTaken)
     {
-        var used = new HashSet<string>(Form.Descendants().Select(c => c.Name).Append(Form.Name), StringComparer.OrdinalIgnoreCase);
+        // Names inside a placeholder's (unloaded) children are still in the file, so they count as used.
+        var used = new HashSet<string>(Form.Descendants().Select(c => c.Name).Append(Form.Name)
+            .Concat(Form.Descendants().OfType<UnknownControl>().SelectMany(u => u.ContainedNames)).Concat(alsoTaken), StringComparer.OrdinalIgnoreCase);
         for (int n = 1; ; n++)
             if (!used.Contains(className + n) && HiddenMember(className + n) == null) return className + n;
     }
@@ -186,12 +268,20 @@ public sealed class DesignDocument
     /// </summary>
     public string? NameProblem(Control control, string name)
     {
-        if (name.Length == 0 || !IsIdentifier(name) || (Form.FindControl(name) is { } other && other != control))
+        if (name.Length == 0 || !IsIdentifier(name) || (Form.FindControl(name) is { } other && other != control) || IsNameInPlaceholder(name))
             return $"\"{name}\" is not a valid, unused name";
         if (control != Form && HiddenMember(name) is { } hidden)
             return $"\"{name}\" would hide the inherited member {hidden}; choose another name";
         return null;
     }
+
+    /// <summary>Whether a placeholder's raw (unloaded) children hold a control named <paramref name="name"/>.</summary>
+    bool IsNameInPlaceholder(string name) =>
+        Form.Descendants().OfType<UnknownControl>().Any(u => u.ContainedNames.Contains(name, StringComparer.Ordinal));
+
+    /// <summary>Whether a control on the form, or one inside a placeholder's raw children, is named <paramref name="name"/>.</summary>
+    bool IsNameUsed(string name) =>
+        Form.FindControl(name) != null || Form.Descendants().OfType<UnknownControl>().Any(u => u.ContainedNames.Contains(name, StringComparer.Ordinal));
 
     /// <summary>Whether <paramref name="container"/> can hold a new control of <paramref name="cls"/>.</summary>
     public static bool AcceptsChild(Control container, ComponentClass cls)
@@ -204,8 +294,9 @@ public sealed class DesignDocument
     /// <summary>Creates a control of <paramref name="cls"/> in <paramref name="parent"/> at a parent-relative rectangle (null size = class default).</summary>
     public Control Create(ComponentClass cls, Control parent, int left, int top, int? width = null, int? height = null)
     {
+        Control control;
+        using (Control.EnterDesignMode()) control = cls.Create();   // first: a constructor that throws changes nothing
         Snapshot();
-        var control = cls.Create();
         control.Name = UniqueName(cls.Name);
         if (control is TabSheet sheet) sheet.Caption = control.Name;
         control.SetBounds(left, top, width ?? control.Width, height ?? control.Height);
@@ -233,13 +324,32 @@ public sealed class DesignDocument
     /// <summary>Pastes a fragment into <paramref name="parent"/>, renaming clashes and offsetting copies.</summary>
     public List<Control> Paste(string fragment, Control parent, int offset = 8)
     {
-        var (controls, _) = FormReader.LoadFragment(fragment);
+        List<Control> controls;
+        using (Control.EnterDesignMode()) controls = FormReader.LoadFragment(fragment, Options).Controls;
         if (controls.Count == 0) return controls;
         Snapshot();
+        // Names this paste has given out (its controls join the form one top-level control at a time).
+        var taken = new HashSet<string>(StringComparer.Ordinal);
+        bool Clashes(string name) => name.Length == 0 || taken.Contains(name) || IsNameUsed(name);
         foreach (var c in controls)
         {
             foreach (var d in c.Descendants().Prepend(c))
-                if (d.Name.Length == 0 || Form.FindControl(d.Name) != null) d.Name = UniqueName(ComponentRegistry.Of(d).Name);
+            {
+                if (Clashes(d.Name)) d.Name = UniqueName(d is UnknownControl u ? u.ClassName : ComponentRegistry.Of(d).Name, taken);
+                taken.Add(d.Name);
+                // The controls inside a placeholder's raw children are in the file too: a copy's need new names as well.
+                if (d is not UnknownControl placeholder) continue;
+                foreach (var (name, cls) in placeholder.ContainedNames.Zip(placeholder.ContainedClassNames).ToList())
+                {
+                    if (Clashes(name))
+                    {
+                        var renamed = UniqueName(cls.Length > 0 ? cls : "Control", taken);
+                        placeholder.RenameContained(name, renamed);
+                        taken.Add(renamed);
+                    }
+                    else taken.Add(name);
+                }
+            }
             if (c.Align == Align.None) c.SetBounds(c.Left + offset, c.Top + offset, c.Width, c.Height);
             parent.Add(c);
         }
@@ -251,7 +361,7 @@ public sealed class DesignDocument
     /// <summary>Renames a control (the form generator turns the name into a field).</summary>
     public bool Rename(Control control, string name)
     {
-        if (NameProblem(control, name) != null) return false;
+        if (NameProblem(control, name) != null || IsNameInPlaceholder(name)) return false;   // (the placeholder check is also in NameProblem; kept as the guard)
         Snapshot();
         control.Name = name;
         NotifyChanged();

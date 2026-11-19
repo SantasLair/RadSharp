@@ -5,6 +5,7 @@ using RadSharp.Designer;
 namespace RadSharp.Tests;
 
 /// <summary>Transient children (an editable combo box's edit, a tree's rename editor) stay out of the designer's structure tree and hit testing.</summary>
+[Collection("PlatformHost")]   // each test installs its own PlatformHost.Current (process-wide)
 public class TransientChildTests
 {
     static DesignerForm Start()
@@ -12,7 +13,7 @@ public class TransientChildTests
         Shortcut.CommandModifier = KeyModifiers.Ctrl;
         var dir = Directory.CreateTempSubdirectory("radsharp-transient-").FullName;
         var project = RadProject.Create(dir, "Transient");
-        var designer = new DesignerForm(project.ProjectFile, Path.Combine(dir, "designer.json"))
+        var designer = new DesignerForm(project.ProjectFile, Path.Combine(dir, "designer.json"), new DesignerOptions { ProjectControls = false })
         {
             Settings = { Editor = EditorKind.Custom, CustomEditorCommand = "dotnet --version" },
         };

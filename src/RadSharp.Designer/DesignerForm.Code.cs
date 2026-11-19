@@ -266,26 +266,85 @@ public partial class DesignerForm
 
     // ---- Run (F9) ----
 
+    int _runGeneration;
+
+    /// <summary>The F9 run started last (null: none yet): completes, on the UI thread, with its running form or null.</summary>
+    public Task<Form?>? LastRun { get; private set; }
+
     /// <summary>
-    /// Run (F9), as in Delphi: compiles the application — with every open form's unsaved state — and
-    /// starts it from its main form. Returns the running form, or null.
+    /// Run (F9), as in Delphi: compiles the application — with every open form's unsaved state — and starts it from
+    /// its main form. Resolving the project's dependencies (MSBuild, minutes on a cold restore) and compiling happen
+    /// off the UI thread, with progress in the status bar and the Output list; the designer stays usable meanwhile.
+    /// Starting another run (or closing the project) before this one finishes drops this one: its task completes with
+    /// null. Completes with the running form, or null.
+    /// </summary>
+    public Task<Form?> RunAsync()
+    {
+        if (_project is not { } project) return Task.FromResult<Form?>(null);
+        CloseLiveForm();
+        ClearOutput();
+        int run = ++_runGeneration;
+        Output($"Compiling {project.Name}…");
+        sbMain.SimpleText = $"Compiling {project.Name}…";
+        var overrides = _forms.ToDictionary(f => Path.GetFullPath(f.Path), f => f.Document.Save());
+        var main = project.MainFormClass ?? _active?.ClassName;
+        var options = _options.LiveRun with
+        {
+            Progress = line => Post(() =>
+            {
+                if (run != _runGeneration) return;
+                Output(line);
+                sbMain.SimpleText = line;
+            }),
+        };
+        var result = new TaskCompletionSource<Form?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        LastRun = result.Task;
+        Task.Run(() => LiveSession.Compile(project, overrides, options)).ContinueWith(t => Post(() =>
+        {
+            Form? form = null;
+            try { form = FinishRun(run, project, main, t); }
+            finally { result.TrySetResult(form); }
+        }), TaskScheduler.Default);
+        return result.Task;
+    }
+
+    /// <summary>
+    /// F9 for scripts and tests: <see cref="RunAsync"/>, processing the host's events until it completes. Returns the
+    /// running form, or null.
     /// </summary>
     public Form? Run()
     {
-        if (_project == null) return null;
-        CloseLiveForm();
-        ClearOutput();
-        Output($"Compiling {_project.Name}…");
-        var overrides = _forms.ToDictionary(f => Path.GetFullPath(f.Path), f => f.Document.Save());
-        var session = LiveSession.Compile(_project, overrides);
+        var task = RunAsync();
+        while (!task.IsCompleted)
+        {
+            PlatformHost.Current?.ProcessEventsUntil(() => task.IsCompleted);
+            if (!task.IsCompleted) task.Wait(20);
+        }
+        return task.Result;
+    }
+
+    /// <summary>On the UI thread: the compile of run <paramref name="run"/> is done; start its main form.</summary>
+    Form? FinishRun(int run, RadProject project, string? main, Task<LiveSession> compiled)
+    {
+        if (!compiled.IsCompletedSuccessfully)
+        {
+            if (run == _runGeneration) Output("The live run failed: " + (compiled.Exception?.InnerException ?? compiled.Exception)?.Message);
+            return null;
+        }
+        var session = compiled.Result;
+        if (run != _runGeneration || _project != project)
+        {
+            session.Dispose();   // superseded by a newer run, or the project was closed
+            return null;
+        }
         foreach (var m in session.Messages) Output(m.ToString(), m);
         if (!session.Success)
         {
-            Output($"{session.Messages.Count} error(s).");
+            Output($"{session.Messages.Count(m => m.IsError)} error(s).");
+            sbMain.SimpleText = "Compile failed";
             session.Dispose();
             return null;
         }
-        var main = _project.MainFormClass ?? _active?.ClassName;
         if (main == null) { Output("The project has no main form."); session.Dispose(); return null; }
         try
         {
@@ -295,6 +354,7 @@ public partial class DesignerForm
             form.Closed += _ => CloseLiveForm();
             form.Show();
             Output($"Running {main} (close its window to return to the designer).");
+            sbMain.SimpleText = $"Running {main}";
             return form;
         }
         catch (Exception e)
@@ -305,7 +365,7 @@ public partial class DesignerForm
         }
     }
 
-    void mnuRun_Click(object sender) => Run();
+    void mnuRun_Click(object sender) => _ = RunAsync();
 
     void CloseLiveForm()
     {

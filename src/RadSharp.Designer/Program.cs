@@ -13,7 +13,7 @@ if (Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_SELECT") is { Length: 
 // Test hook: press F9 once the designer is up.
 switch (Environment.GetEnvironmentVariable("RADSHARP_DESIGNER_RUN"))
 {
-    case "1": designer.Shown += _ => SdlHost.PostToUiThread(() => designer.Run()); break;
+    case "1": designer.Shown += _ => SdlHost.PostToUiThread(() => { designer.RunAsync(); }); break;
     // Clicks the Run tool button through the same input path as the mouse.
     case "click": designer.Shown += _ => SdlHost.PostToUiThread(() => designer.Simulate.Click(designer.FindControl("btnRun")!)); break;
 }

@@ -172,6 +172,24 @@ public static class ComponentRegistry
         lock (Lock) return ByName.GetValueOrDefault(name);
     }
 
+    /// <summary>
+    /// The class named <paramref name="name"/> that <paramref name="where"/> accepts: the one <see cref="Find(string)"/>
+    /// returns if accepted, else another registered under that name (a creatable one first), or null. Several
+    /// assemblies can register a name: RadSharp and an application's control of the same name, or the designer's
+    /// copy of a project's control and a live run's.
+    /// </summary>
+    public static ComponentClass? Find(string name, Func<ComponentClass, bool> where)
+    {
+        lock (Lock)
+        {
+            if (ByName.TryGetValue(name, out var visible) && where(visible)) return visible;
+            ComponentClass? best = null;
+            foreach (var c in ByType.Values)
+                if (c.Name == name && (best == null || (c.CanCreate && !best.CanCreate)) && where(c)) best = c;
+            return best;
+        }
+    }
+
     public static ComponentClass? Find(Type type)
     {
         lock (Lock) return ByType.GetValueOrDefault(type);

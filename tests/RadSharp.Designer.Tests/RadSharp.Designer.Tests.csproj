@@ -18,4 +18,10 @@
     <Using Include="Xunit" />
   </ItemGroup>
 
+  <!-- The live-run fixture project (ProjectControlsTests copies it to a temp folder before opening it). -->
+  <ItemGroup>
+    <None Include="..\Fixtures\TallyLive\**\*" Exclude="..\Fixtures\TallyLive\**\bin\**;..\Fixtures\TallyLive\**\obj\**"
+          LinkBase="Fixtures\TallyLive" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
