@@ -166,6 +166,14 @@ public class LiveRunReviewTests
         Assert.True(again.Success, string.Join("\n", again.Messages));
     }
 
+    /// <summary>On macOS the temp folder is /var/folders/..., a symlink to /private/var/folders/..., and MSBuild reports
+    /// the resolved form, so compare paths with that prefix taken off.</summary>
+    static bool SamePath(string a, string b)
+    {
+        static string Canonical(string p) => OperatingSystem.IsMacOS() && p.StartsWith("/private/var/", StringComparison.Ordinal) ? p["/private".Length..] : p;
+        return string.Equals(Canonical(a), Canonical(b), OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+    }
+
     [Fact]
     public void A_reference_deleted_after_it_was_resolved_falls_back_instead_of_throwing()
     {
@@ -184,7 +192,7 @@ public class LiveRunReviewTests
         using (var first = LiveSession.Compile(project))
         {
             Assert.True(first.Success, string.Join("\n", first.Messages));
-            Assert.True(first.Dependencies!.References.Any(r => r.Equals(dll, StringComparison.OrdinalIgnoreCase)),
+            Assert.True(first.Dependencies!.References.Any(r => SamePath(r, dll)),
                 dll + " not in:\n" + string.Join("\n", first.Dependencies.References.Where(r => !r.Contains(@"\packs\"))));
         }
 
