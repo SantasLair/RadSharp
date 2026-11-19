@@ -287,7 +287,7 @@ project class taking over a RadSharp class's name, as in the running application
   project's own components at the top. The standalone designer keeps Delphi's order, with RadSharp's categories first
   (`ComponentPalette.Fill(..., projectFirst)`).
 - **Rebuilds.** Every second the host checks the write times of the files it loaded. Once a change has settled
-  (750 ms), it loads the new build and saves every form of that project while the old classes are still loaded. It
+  (750 ms with no file of the build, the dll, its pdb and deps, changing again), it loads the new build and saves every form of that project while the old classes are still loaded. It
   then reads each form again with the new classes (`ReloadWith`: undo, the selection and the modified state are kept,
   and a form that can't take the new classes gets placeholders), refills the palette, and unloads the old code. It waits
   while a drag on the surface, an Object Inspector edit or a dialog holds the form's controls, and says so in the
@@ -297,7 +297,15 @@ project class taking over a RadSharp class's name, as in the running application
   it is created or read stays an `UnknownControl` placeholder that writes its node back unchanged, so a setter that
   throws costs nothing. A paint exception draws a red box with the message, and `FormRenderer.PaintError` reports it
   once per control and message, which the host sends as a `Log` warning. A project's `Theme.Current` side effects are
-  undone.
+  undone. `FormRenderer.PaintError` is further rate-limited in the host (one report per control per 10 s, at most 5 per
+  pass), so a message that changes on every frame does not flood the Output pane. A locked or unreadable `.pdb` loads
+  without symbols. A load that fails right after a rebuild is tried once more after the settle time. If a form can't
+  be saved while it is swapped (a property getter throws), it goes back to its last text that could be saved (a
+  warning says so: changes since are lost) instead of staying on the old controls, which are about to be unloaded.
+- **Version skew.** If the project's reference to RadSharp.Core (major.minor) differs from the host's, the Output pane
+  gets one warning ("was built against RadSharp.Core X; the designer has Y; ..."), and a missing method, field or
+  type error carries the same hint. `FormReader.LoadInto` of a framework form never takes a class of a loaded
+  (collectible) project.
 - **A control's own children.** Children a control's constructor adds (a search box inside a custom title bar) are
   marked `IsTransient` by `ComponentClass.Create`. They are not written to form files, so reading the file again
   doesn't double them. Clicking one selects its owner, nothing can be dropped into one, and Select All skips them. No
@@ -310,8 +318,11 @@ project class taking over a RadSharp class's name, as in the running application
   The fixtures are `tests/Fixtures/SampleControls` and `SampleData`.
 - **Not yet.** A constructor that hangs freezes the host. VS stays responsive, and you restart the host. A project
   compiled against a newer RadSharp.Core than the host's runs against the host's copy, so a member the host lacks
-  fails as that control's placeholder or paint error. The `ProjectOutput` VS calls are covered by the manual
-  checklist only (step 18).
+  fails as that control's placeholder or paint error (with the version warning above). The `ProjectOutput` VS calls
+  are covered by the manual checklist only (step 18).
+- **Known limits.** The native DLL folder of an unloaded context is not deleted until the host exits, and a native
+  library that needs neighbouring DLLs is not found from the temp copy. A library's module initializer that fails
+  fails the whole project load. A constructor that never returns hangs the host (above).
 
 ## Manual test checklist
 
