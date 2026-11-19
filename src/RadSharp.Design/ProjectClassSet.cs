@@ -61,13 +61,13 @@ public sealed class ProjectClassSet
     /// apart), isn't offered; what went wrong goes to <paramref name="problems"/>, one message per problem.
     /// <see cref="Theme.Current"/> is kept: the project's code may set its own.
     /// </summary>
-    public static ProjectClassSet Activate(Assembly own, IEnumerable<ComponentClass> found, List<string> problems)
+    public static ProjectClassSet Activate(Assembly own, IEnumerable<ComponentClass> found, List<string> problems, string? skewHint = null)
     {
         var set = new ProjectClassSet();
         var theme = Theme.Current;
         try
         {
-            RunSetup(own, problems);
+            RunSetup(own, problems, skewHint);
             foreach (var cls in found.OrderBy(c => c.Type.Assembly == own ? 0 : 1).ThenBy(c => c.Name, StringComparer.Ordinal))
             {
                 if (set._byName.ContainsKey(cls.Name))
@@ -82,7 +82,7 @@ public sealed class ProjectClassSet
                 }
                 catch (Exception e) when (e is not OutOfMemoryException)
                 {
-                    problems.Add($"{cls.Name} can't be created at design time ({Describe(e)}); it stays a placeholder.");
+                    problems.Add($"{cls.Name} can't be created at design time ({Describe(e, skewHint)}); it stays a placeholder.");
                     continue;
                 }
                 set._byName[cls.Name] = cls;
@@ -98,13 +98,13 @@ public sealed class ProjectClassSet
     }
 
     [System.Diagnostics.CodeAnalysis.UnconditionalSuppressMessage("Trimming", "IL2026", Justification = "Design time only: designers aren't trimmed.")]
-    static void RunSetup(Assembly own, List<string> problems)
+    static void RunSetup(Assembly own, List<string> problems, string? skewHint)
     {
         DesignTimeSetupAttribute? setup;
         try { setup = own.GetCustomAttribute<DesignTimeSetupAttribute>(); }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
-            problems.Add($"DesignTimeSetup couldn't be read ({Describe(e)}).");
+            problems.Add($"DesignTimeSetup couldn't be read ({Describe(e, skewHint)}).");
             return;
         }
         if (setup == null) return;
@@ -123,13 +123,17 @@ public sealed class ProjectClassSet
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
-            problems.Add($"DesignTimeSetup: {setup.Type.Name}.{setup.Method} threw {Describe(e)}; the controls may not look right.");
+            problems.Add($"DesignTimeSetup: {setup.Type.Name}.{setup.Method} threw {Describe(e, skewHint)}; the controls may not look right.");
         }
     }
 
-    internal static string Describe(Exception e)
+    internal static string Describe(Exception e, string? skewHint = null)
     {
         var inner = e is TargetInvocationException or TypeInitializationException && e.InnerException != null ? e.InnerException : e;
-        return $"{inner.GetType().Name}: {inner.Message}";
+        var text = $"{inner.GetType().Name}: {inner.Message}";
+        return skewHint != null && IsMissingMember(inner) ? text + ". " + skewHint : text;
     }
+
+    /// <summary>A member or type that isn't there: what a project built against another RadSharp.Core version runs into.</summary>
+    internal static bool IsMissingMember(Exception e) => e is MissingMemberException or TypeLoadException;
 }

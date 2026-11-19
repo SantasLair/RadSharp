@@ -78,6 +78,8 @@ public sealed class ProjectAssembly : IDisposable
             return new ProjectAssembly(path, $"Can't read {name}'s dependencies: {e.Message}", stampBefore);
         }
         var result = new ProjectAssembly(path) { _context = context };
+        var skew = CoreSkew(path);
+        if (skew != null) result._warnings.Add(skew);
         try
         {
             var own = context.LoadFile(path);
@@ -92,13 +94,14 @@ public sealed class ProjectAssembly : IDisposable
                 }
             }
             var found = ProjectClassSet.Registered(assemblies);
-            result.ClassSet = ProjectClassSet.Activate(own, found, result._warnings);
+            result.ClassSet = ProjectClassSet.Activate(own, found, result._warnings, skew);
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
             result.Dispose();
             var inner = e is TargetInvocationException or TypeInitializationException && e.InnerException != null ? e.InnerException! : e;
-            return new ProjectAssembly(path, $"Can't load {name}: {inner.GetType().Name}: {inner.Message}", stampBefore);
+            var hint = skew != null && (ProjectClassSet.IsMissingMember(inner) || inner is FileLoadException) ? " " + skew : "";
+            return new ProjectAssembly(path, $"Can't load {name}: {inner.GetType().Name}: {inner.Message}{hint}", stampBefore);
         }
         return result;
     }
@@ -113,6 +116,44 @@ public sealed class ProjectAssembly : IDisposable
         foreach (var (file, stamp) in _context.Files)
             if (Stamp(file) != stamp) return true;
         return false;
+    }
+
+    /// <summary>
+    /// The RadSharp.Core version the project's own assembly was built against (from its assembly references), or null
+    /// if it can't be read or has no such reference.
+    /// </summary>
+    public static Version? BuiltAgainstCore(string path)
+    {
+        try
+        {
+            using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+            using var pe = new PEReader(stream);
+            if (!pe.HasMetadata) return null;
+            var md = pe.GetMetadataReader();
+            foreach (var h in md.AssemblyReferences)
+            {
+                var reference = md.GetAssemblyReference(h);
+                if (md.GetString(reference.Name) == "RadSharp.Core") return reference.Version;
+            }
+        }
+        catch (Exception e) when (e is IOException or BadImageFormatException or UnauthorizedAccessException) { }
+        return null;
+    }
+
+    /// <summary>The RadSharp.Core version the designer itself has.</summary>
+    public static Version DesignerCoreVersion => typeof(Control).Assembly.GetName().Version ?? new Version(0, 0);
+
+    /// <summary>
+    /// The warning for a project built against another RadSharp.Core (major or minor version) than the designer's, or
+    /// null if they match (or the reference can't be read).
+    /// </summary>
+    static string? CoreSkew(string path)
+    {
+        var built = BuiltAgainstCore(path);
+        var have = DesignerCoreVersion;
+        if (built == null || (built.Major == have.Major && built.Minor == have.Minor)) return null;
+        return $"{System.IO.Path.GetFileName(path)} was built against RadSharp.Core {built}; the designer has {have}; " +
+            $"members that don't exist in {have} show as placeholders or errors.";
     }
 
     /// <summary>

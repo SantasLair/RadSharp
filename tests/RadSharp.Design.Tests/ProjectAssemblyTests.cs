@@ -1,5 +1,8 @@
 using System.Reflection;
 using RadSharp.Design;
+using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
+using System.Reflection.PortableExecutable;
 using RadSharp.Drawing;
 using SkiaSharp;
 
@@ -63,6 +66,58 @@ public sealed class ProjectAssemblyTests : IDisposable
         var doc = new DesignDocument { ProjectClasses = project.ClassSet.Find };
         doc.Load(json);
         return doc;
+    }
+
+    /// <summary>Rewrites the RadSharp.Core reference of an assembly to another major version.</summary>
+    static void PointAtCore(string path, byte major)
+    {
+        var bytes = File.ReadAllBytes(path);
+        using (var pe = new PEReader(new MemoryStream(bytes)))
+        {
+            var md = pe.GetMetadataReader();
+            int rowSize = md.GetTableRowSize(TableIndex.AssemblyRef);
+            int start = pe.PEHeaders.MetadataStartOffset + md.GetTableMetadataOffset(TableIndex.AssemblyRef);
+            int row = 0;
+            foreach (var h in md.AssemblyReferences)
+            {
+                row++;
+                if (md.GetString(md.GetAssemblyReference(h).Name) == "RadSharp.Core")
+                    bytes[start + (row - 1) * rowSize] = major;   // the version's major number, as a little-endian ushort
+            }
+        }
+        File.WriteAllBytes(path, bytes);
+    }
+
+    [Fact]
+    public void A_project_built_against_another_RadSharp_Core_says_so()
+    {
+        var path = CopyOfSampleControls();
+        Assert.Equal(ProjectAssembly.DesignerCoreVersion.Major, ProjectAssembly.BuiltAgainstCore(path)!.Major);
+        PointAtCore(path, 99);
+        Assert.Equal(99, ProjectAssembly.BuiltAgainstCore(path)!.Major);
+        var project = Load(path);
+        var lines = project.Error != null ? [project.Error] : project.Warnings;
+        var note = Assert.Single(lines, l => l.Contains("was built against RadSharp.Core 99."));
+        Assert.Contains($"the designer has {ProjectAssembly.DesignerCoreVersion}", note);
+        Assert.Contains("show as placeholders or errors", note);
+    }
+
+    [Fact]
+    public void A_project_built_against_the_same_RadSharp_Core_gets_no_version_note()
+    {
+        var project = Load();
+        Assert.DoesNotContain(project.Warnings, w => w.Contains("built against"));
+    }
+
+    [Fact]
+    public void A_missing_member_error_gets_the_version_hint_and_other_errors_do_not()
+    {
+        const string hint = "built against RadSharp.Core 2.0";
+        Assert.EndsWith(". " + hint, ProjectClassSet.Describe(new MissingMethodException("no such method"), hint));
+        Assert.EndsWith(". " + hint, ProjectClassSet.Describe(new TypeLoadException("no such type"), hint));
+        Assert.EndsWith(". " + hint, ProjectClassSet.Describe(new TargetInvocationException(new MissingFieldException("f")), hint));
+        Assert.DoesNotContain(hint, ProjectClassSet.Describe(new InvalidOperationException("other"), hint));
+        Assert.DoesNotContain(hint, ProjectClassSet.Describe(new MissingMethodException("no such method")));
     }
 
     [Fact]
