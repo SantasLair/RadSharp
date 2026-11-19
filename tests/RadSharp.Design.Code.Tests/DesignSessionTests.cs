@@ -231,4 +231,61 @@ public class DesignSessionTests
         session.Dispose();
         Assert.Null(ComponentRegistry.Find("SqliteVersionLabel"));
     }
+
+    [Fact]
+    public void The_projects_design_time_setup_runs_before_its_controls_are_created_and_the_designers_theme_is_kept()
+    {
+        var root = TempDir();
+        File.WriteAllText(Path.Combine(root, "Directory.Build.props"), $"""
+            <Project>
+              <PropertyGroup>
+                <RadSharpBin>{AppContext.BaseDirectory}</RadSharpBin>
+              </PropertyGroup>
+            </Project>
+            """);
+        var project = WriteProject(Path.Combine(root, "SetupControls"), "SetupControls", """
+              <PropertyGroup>
+                <Nullable>enable</Nullable>
+                <ImplicitUsings>enable</ImplicitUsings>
+              </PropertyGroup>
+              <ItemGroup>
+                <Reference Include="$(RadSharpBin)RadSharp.Core.dll" />
+                <Reference Include="$(RadSharpBin)SkiaSharp.dll" />
+                <Reference Include="$(RadSharpBin)HarfBuzzSharp.dll" />
+                <Analyzer Include="$(RadSharpBin)RadSharp.Generators.dll" />
+              </ItemGroup>
+            """, """
+            using RadSharp;
+            using RadSharp.Drawing;
+
+            [assembly: DesignTimeSetup(typeof(SetupControls.Palette), nameof(SetupControls.Palette.Init))]
+
+            namespace SetupControls;
+
+            /// <summary>What the application's Main sets up before any form opens.</summary>
+            public static class Palette
+            {
+                public static string? Accent;
+
+                public static void Init(bool dark = true)
+                {
+                    Accent = "teal";
+                    Theme.Current = dark ? Theme.Dark : Theme.Default;   // a side effect the designer undoes
+                }
+            }
+
+            public class AccentLabel : Label
+            {
+                public AccentLabel() => Caption = Palette.Accent ?? throw new InvalidOperationException("Palette.Init didn't run");
+            }
+            """);
+
+        using var session = DesignSession.Compile(project, new LiveRunOptions { UseProjectDependencies = false });
+        Assert.True(session.Success, string.Join("\n", session.Messages));
+        var theme = RadSharp.Drawing.Theme.Current;
+        Assert.Empty(session.Activate());
+        var cls = Assert.Single(session.Classes);
+        Assert.Equal("teal", ((Label)cls.Prototype).Caption);
+        Assert.Same(theme, RadSharp.Drawing.Theme.Current);
+    }
 }

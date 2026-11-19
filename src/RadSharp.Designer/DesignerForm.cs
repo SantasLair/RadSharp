@@ -413,9 +413,8 @@ public partial class DesignerForm : Form
         var design = _design;
         tvPalette.Selected = null;   // its node (and class) is about to go
         // A project control takes its name over from RadSharp's, as in the running application.
-        var classes = design == null ? _palette : [.. _palette.Where(c => design.Find(c.Name) == null), .. design.Classes];
-        ComponentPalette.Fill(tvPalette, classes, edtPaletteFilter.Text,
-            c => design != null && design.Find(c.Name) == c ? design.CategoryOf(c) : PaletteCategories.Of(c.Name));
+        var set = design?.ClassSet ?? ProjectClassSet.Empty;
+        ComponentPalette.Fill(tvPalette, set.PaletteClasses(_palette), edtPaletteFilter.Text, set.PaletteCategory);
         // The armed class may be gone (filtered out, or from a design session that was replaced).
         foreach (var f in _forms) f.Surface.PendingClass = null;
     }

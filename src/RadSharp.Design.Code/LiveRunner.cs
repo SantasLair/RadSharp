@@ -321,10 +321,7 @@ public sealed class LiveSession : IDisposable
                 catch (Exception e) when (e is FileNotFoundException or FileLoadException or BadImageFormatException) { }
             }
         // The generated registration is a module initializer: run it now, before any of the types is touched.
-        foreach (var a in assemblies) System.Runtime.CompilerServices.RuntimeHelpers.RunModuleConstructor(a.ManifestModule.ModuleHandle);
-        return [.. ComponentRegistry.All
-            .Where(c => assemblies.Contains(c.Type.Assembly) && c.CanCreate && !typeof(Form).IsAssignableFrom(c.Type))
-            .OrderBy(c => c.Name, StringComparer.Ordinal)];
+        return ProjectClassSet.Registered(assemblies);
     }
 
     /// <summary>Forgets the live assemblies' component registrations (libraries' too) and unloads them.</summary>
