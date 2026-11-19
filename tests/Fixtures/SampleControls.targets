@@ -1,0 +1,22 @@
+<Project>
+
+  <!--
+    Builds the SampleControls fixture before the tests without referencing it (the test process must not load it the
+    normal way), and records where its output is: [assembly: AssemblyMetadata("SampleControls", "<path to the dll>")].
+    The tests load it the way the Visual Studio design host loads a project's build output.
+  -->
+  <ItemGroup>
+    <ProjectReference Include="$(MSBuildThisFileDirectory)SampleControls\SampleControls.csproj"
+                      ReferenceOutputAssembly="false" OutputItemType="SampleControlsOutput" Private="false" />
+  </ItemGroup>
+
+  <Target Name="RecordSampleControlsPath" BeforeTargets="GetAssemblyAttributes" DependsOnTargets="ResolveProjectReferences">
+    <ItemGroup>
+      <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+        <_Parameter1>SampleControls</_Parameter1>
+        <_Parameter2>@(SampleControlsOutput->'%(FullPath)')</_Parameter2>
+      </AssemblyAttribute>
+    </ItemGroup>
+  </Target>
+
+</Project>

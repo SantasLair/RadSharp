@@ -44,7 +44,7 @@ public partial class DesignerForm : Form
         this.Theme = Theme.Current;
 
         // RadSharp's own classes: a live run's (or a design session's) are registered only while it lasts.
-        _palette = [.. ComponentPalette.Classes().Where(c => !c.Type.Assembly.IsCollectible)];
+        _palette = ComponentPalette.Classes();
         RebuildPalette();
         tvPalette.DragMode = DragMode.Automatic;   // drag a palette entry onto a form to place it, not just click
 

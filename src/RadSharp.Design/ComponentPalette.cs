@@ -6,10 +6,14 @@ namespace RadSharp.Design;
 /// </summary>
 public static class ComponentPalette
 {
-    /// <summary>Every registered class that can be placed on a form, by name.</summary>
+    /// <summary>
+    /// Every registered class that can be placed on a form, by name; not those of a collectible assembly (a project's
+    /// controls loaded into a designer, a live run's): those come from the project's <see cref="ProjectClassSet"/>.
+    /// </summary>
     public static List<ComponentClass> Classes() =>
         [.. ComponentRegistry.All
-            .Where(c => c.CanCreate && c.Type != typeof(Control) && !typeof(Form).IsAssignableFrom(c.Type) && c.Type != typeof(DesignSurface))
+            .Where(c => c.CanCreate && c.Type != typeof(Control) && !typeof(Form).IsAssignableFrom(c.Type) && c.Type != typeof(DesignSurface)
+                && !c.Type.Assembly.IsCollectible)
             .OrderBy(c => c.Name, StringComparer.Ordinal)];
 
     /// <summary>
@@ -17,9 +21,12 @@ public static class ComponentPalette
     /// one expanded node per category; each leaf's <see cref="TreeNode.Tag"/> is its <see cref="ComponentClass"/>.
     /// <paramref name="categoryOf"/> gives a class's category (null: <see cref="PaletteCategories.Of"/>); RadSharp's
     /// own categories come first, in name order, then the others (a project's: <see cref="PaletteCategories.Project"/>
-    /// first, then its libraries by name), as Delphi adds an installed package's tabs after the standard ones.
+    /// first, then its libraries by name), as Delphi adds an installed package's tabs after the standard ones. With
+    /// <paramref name="projectFirst"/> the project's categories come first instead, as Visual Studio's Toolbox puts a
+    /// project's own components at the top (the Visual Studio design host).
     /// </summary>
-    public static void Fill(TreeView tree, IEnumerable<ComponentClass> classes, string filter, Func<ComponentClass, string>? categoryOf = null)
+    public static void Fill(TreeView tree, IEnumerable<ComponentClass> classes, string filter, Func<ComponentClass, string>? categoryOf = null,
+        bool projectFirst = false)
     {
         tree.Nodes.Clear();
         filter = filter.Trim();
@@ -27,7 +34,7 @@ public static class ComponentPalette
         var groups = classes
             .Where(c => filter.Length == 0 || c.Name.Contains(filter, StringComparison.OrdinalIgnoreCase))
             .GroupBy(categoryOf)
-            .OrderBy(g => PaletteCategories.IsBuiltIn(g.Key) ? 0 : g.Key == PaletteCategories.Project ? 1 : 2)
+            .OrderBy(g => (PaletteCategories.IsBuiltIn(g.Key) ? 0 : g.Key == PaletteCategories.Project ? 1 : 2) is var rank && projectFirst ? (rank + 2) % 3 : rank)
             .ThenBy(g => g.Key, StringComparer.Ordinal);
         foreach (var g in groups)
         {
