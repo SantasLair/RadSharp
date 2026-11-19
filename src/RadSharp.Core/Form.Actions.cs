@@ -12,14 +12,15 @@ public partial class Form
     // Shown forms that have actions: updated while the application is idle. Weak, so a form whose window the host took away
     // without telling it (a torn-down live-run session) isn't kept alive, and with it the collectible load context of its type.
     static readonly List<WeakReference<Form>> ShownForms = [];
-    readonly int _uiThread = Environment.CurrentManagedThreadId;   // forms and their actions belong to the thread that made them
+    int _uiThread = Environment.CurrentManagedThreadId;   // the thread that shows the form owns it (set again on Shown)
+    internal int ActionListBuilds;   // how often the action list was rebuilt (a test counts it)
     static bool _idleHooked;
     bool _windowShown, _idleTracked;
 
     /// <summary>Called from the constructor: a shown form with actions takes part in the idle update.</summary>
     void InitActions()
     {
-        Shown += _ => { _windowShown = true; HostClosed = false; ForEachActionSlot(this, s => s.Resume()); SyncIdleTracking(); };
+        Shown += _ => { _uiThread = Environment.CurrentManagedThreadId; _windowShown = true; HostClosed = false; ForEachActionSlot(this, s => s.Resume()); SyncIdleTracking(); };
         Closed += _ => NotifyHostClosed();
     }
 
@@ -114,7 +115,13 @@ public partial class Form
     }
 
     /// <summary>The form's actions, in tree order.</summary>
-    List<ActionItem> ActionList => _actions ??= [.. Descendants().OfType<ActionItem>()];
+    List<ActionItem> ActionList => _actions ??= BuildActionList();
+
+    List<ActionItem> BuildActionList()
+    {
+        ActionListBuilds++;
+        return [.. Descendants().OfType<ActionItem>()];
+    }
 
     /// <summary>
     /// Runs <see cref="ActionItem.Update"/> (onUpdate) for every action on this form, as the application does while idle

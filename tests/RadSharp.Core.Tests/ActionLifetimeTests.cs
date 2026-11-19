@@ -220,6 +220,9 @@ public class ActionLifetimeTests
         Assert.Equal(1, runs);                              // the handler-less action didn't swallow the key
     }
 
+    // Form.ActionListBuilds is internal: read it without widening the API.
+    static int Builds(Form f) => (int)typeof(Form).GetField("ActionListBuilds", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance)!.GetValue(f)!;
+
     [Fact]
     public void Adding_many_controls_does_not_rebuild_the_action_list_each_time()
     {
@@ -227,9 +230,37 @@ public class ActionLifetimeTests
         f.SetBounds(0, 0, 300, 200);
         f.Add(new ActionItem { Name = "actA", Shortcut = "F5" });
         f.NotifyShown();
-        for (int i = 0; i < 20000; i++) f.Add(new Panel());   // quadratic if every add rescans the tree
+        int before = Builds(f);
+        for (int i = 0; i < 2000; i++) f.Add(new Panel());
+        Assert.True(Builds(f) - before <= 1);      // counted, not timed: lazily rebuilt at most once
+        Application.RaiseIdle();
+        Assert.True(Builds(f) - before <= 2);
         Assert.Single(f.Descendants().OfType<ActionItem>());
         f.Close();
+    }
+
+    [Fact]
+    public void A_form_built_on_a_worker_thread_and_shown_on_the_ui_thread_gets_idle_updates()
+    {
+        Form? f = null;
+        int n = 0;
+        var t = new Thread(() =>
+        {
+            f = new Form();
+            f.SetBounds(0, 0, 200, 100);
+            var act = new ActionItem { Name = "actX" };
+            act.Update += _ => n++;
+            f.Add(act);
+        });
+        t.Start();
+        t.Join();
+        f!.NotifyShown();                                   // shown here: this thread owns it now
+        try
+        {
+            Application.RaiseIdle();
+            Assert.Equal(1, n);
+        }
+        finally { f.Close(); }
     }
 
     // ---- resuming a code link keeps what the user set on the client ----
