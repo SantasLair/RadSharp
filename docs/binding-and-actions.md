@@ -190,10 +190,13 @@ Semantics (Delphi's):
   from the action on load). So a button linked to `actSave` saves just `"action": "actSave"` unless it overrides
   something. Save → load → save stays byte-identical. Only links that loading can restore count: a
   control linked from code to another form's action saves its own values (loading can't get them back from there).
+- **Stored only when it differs, and default overrides are lost.** An explicit value on a linked control that equals the
+  class default (e.g. `Enabled = true` on a button whose action is disabled) is not written to the file, so on load it is
+  re-taken from the action (Delphi's stored/default behaviour; a known limit of the format).
 - **Code links follow their client.** A link made from code (`btn.Action = other.actSave`) lists the client in
   `Action.Clients` only while the client is on an open form: the action drops it when the client's form closes or the client
-  (or the menu bar holding a menu item) is removed from its form, and links it again, taking the action's current values,
-  when the form is shown again or the client is added back. The `Action` reference itself stays, so a dialog created once
+  (or the menu bar holding a menu item) is removed from its form, and links it again when the form is shown again or the client is added back; only the members that still followed the action
+  take its current value, so a caption or other value given to the client meanwhile is kept. The `Action` reference itself stays, so a dialog created once
   and shown many times needs no re-linking, and a closed or removed client is never kept alive by the action or written to.
   (A menu item taken out of a menu's `Items` list is only noticed when its menu leaves the form.)
 - **Shortcuts** run the first enabled action with a handler; a key no action ran is not marked handled.
