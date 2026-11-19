@@ -20,7 +20,7 @@ public class ActionTests
           ] } }
         """;
 
-    static Form Load(string json = Json)
+    internal static Form Load(string json = Json)
     {
         Shortcut.CommandModifier = KeyModifiers.Ctrl;
         var (form, warnings) = FormReader.Load(json);
@@ -28,7 +28,7 @@ public class ActionTests
         return form;
     }
 
-    static T Find<T>(Form f, string name) where T : Control => Assert.IsAssignableFrom<T>(f.FindControl(name));
+    internal static T Find<T>(Form f, string name) where T : Control => Assert.IsAssignableFrom<T>(f.FindControl(name));
 
     static MenuItem Item(Form f, int top, int sub) => Find<MainMenu>(f, "mnuMain").Items[top].Items[sub];
 
@@ -150,17 +150,6 @@ public class ActionTests
         f.Simulate.Key("Mod+N");
         Assert.Equal(1, runs);
         Assert.False(act.Enabled);
-    }
-
-    [Fact]
-    public void A_mnemonic_in_the_action_caption_works_through_the_linked_button()
-    {
-        var f = Load();
-        int runs = 0;
-        Find<ActionItem>(f, "actSave").Executed += _ => runs++;
-        f.Simulate.Key(Key.S, KeyModifiers.Alt);
-        Assert.Equal(1, runs);
-        Assert.True(Find<Button>(f, "btnSave").Focused);
     }
 
     [Fact]
@@ -303,5 +292,28 @@ public class ActionTests
         host.Simulate.Click(list.Left + 10, list.Top + list.ItemRect(0).Y + 5);
         Assert.Equal("", target.ActionName);
         Assert.Null(target.Action);
+    }
+}
+
+/// <summary>Action captions with mnemonics. Separate from <see cref="ActionTests"/> because <see cref="Mnemonics.Enabled"/> is
+/// process-wide and off by default on macOS, so it is turned on only inside the "Mnemonics" collection (see MnemonicTests).</summary>
+[Collection("Mnemonics")]
+public class ActionMnemonicTests : IDisposable
+{
+    readonly bool _wasEnabled = Mnemonics.Enabled;
+
+    public ActionMnemonicTests() => Mnemonics.Enabled = true;
+
+    public void Dispose() => Mnemonics.Enabled = _wasEnabled;
+
+    [Fact]
+    public void A_mnemonic_in_the_action_caption_works_through_the_linked_button()
+    {
+        var f = ActionTests.Load();
+        int runs = 0;
+        ActionTests.Find<ActionItem>(f, "actSave").Executed += _ => runs++;
+        f.Simulate.Key(Key.S, KeyModifiers.Alt);
+        Assert.Equal(1, runs);
+        Assert.True(ActionTests.Find<Button>(f, "btnSave").Focused);
     }
 }

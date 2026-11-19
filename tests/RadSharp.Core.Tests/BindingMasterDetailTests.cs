@@ -96,7 +96,7 @@ public class BindingMasterDetailTests
             Assert.Equal("Enter a number.", f.Binder.Errors.Single().Message);
             Assert.Equal(95m, f.Clients[0].Rate);
 
-            f.Simulate.Key(Key.R, KeyModifiers.Alt);         // &Revert on the linked button
+            f.Simulate.Click(f.btnRevert);                   // the button linked to actRevert (Alt+R is off on macOS)
             Assert.Equal("95.00", f.edtRate.Text);
             Assert.False(f.Binder.IsDirty);
         }
