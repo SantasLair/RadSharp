@@ -40,7 +40,8 @@ public sealed class Binder<T> : IDisposable where T : class
     readonly System.Action _changed;
     List<BindingError> _errors = [];
     T? _current;
-    bool _loading, _committing, _lastDirty, _disposed;
+    int _loadDepth;   // nested loads (a handler may touch the model while one runs)
+    bool _committing, _lastDirty, _disposed;
     readonly Form? _owner;
     readonly NotifyEvent? _ownerClosed, _ownerShown;
     INotifyPropertyChanged? _listening;   // the model whose PropertyChanged this binder is subscribed to
@@ -88,10 +89,10 @@ public sealed class Binder<T> : IDisposable where T : class
     }
 
     /// <summary>True if any bound (writable) control differs from the value loaded into it (false while the binder is loading).</summary>
-    public bool IsDirty => !_loading && _current != null && _fields.Any(f => f.IsDirty);
+    public bool IsDirty => _loadDepth == 0 && _current != null && _fields.Any(f => f.IsDirty);
 
     /// <summary>True while the binder itself sets controls (loading, reverting, refreshing after a commit).</summary>
-    public bool IsLoading => _loading;
+    public bool IsLoading => _loadDepth > 0;
 
     /// <summary>Raised when <see cref="IsDirty"/> flips (the user edits a field, or a load or commit makes the controls clean).</summary>
     public event EventHandler? DirtyChanged;
@@ -198,14 +199,14 @@ public sealed class Binder<T> : IDisposable where T : class
         var field = new Field<T, TValue, TRaw>(adapter, get, set, toRaw, parse);
         _fields.Add(field);
         field.Attach(_changed);
-        _loading = true;
+        _loadDepth++;
         try
         {
             if (_current != null) field.Load(_current);
             else field.Clear();
             field.SetAvailable(_current != null);
         }
-        finally { _loading = false; }
+        finally { _loadDepth--; }
         CheckDirty();
         return field;
     }
@@ -227,9 +228,9 @@ public sealed class Binder<T> : IDisposable where T : class
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_current == null) return;
-        _loading = true;
+        _loadDepth++;
         try { foreach (var f in _fields) f.Refresh(_current); }
-        finally { _loading = false; }
+        finally { _loadDepth--; }
         CheckDirty();
     }
 
@@ -264,7 +265,7 @@ public sealed class Binder<T> : IDisposable where T : class
         try { foreach (var f in dirty) f.WritePending(target); }
         finally { _committing = false; }
         if (!ReferenceEquals(_current, target)) return true;   // that handler loaded the other object already
-        _loading = true;
+        _loadDepth++;
         try
         {
             // The edited fields show the stored values; the others are re-read, since a setter may have changed them too.
@@ -272,7 +273,7 @@ public sealed class Binder<T> : IDisposable where T : class
                 if (dirty.Contains(f)) f.AfterCommit(target);
                 else f.Refresh(target);
         }
-        finally { _loading = false; }
+        finally { _loadDepth--; }
         CheckDirty();
         return true;
     }
@@ -311,7 +312,7 @@ public sealed class Binder<T> : IDisposable where T : class
     void LoadAll()
     {
         if (_disposed) return;
-        _loading = true;
+        _loadDepth++;
         try
         {
             foreach (var f in _fields)
@@ -321,7 +322,7 @@ public sealed class Binder<T> : IDisposable where T : class
                 f.SetAvailable(_current != null);
             }
         }
-        finally { _loading = false; }
+        finally { _loadDepth--; }
         _errors = [];
         CheckDirty();
     }
@@ -345,7 +346,7 @@ public sealed class Binder<T> : IDisposable where T : class
 
     void OnControlChanged()
     {
-        if (_loading || _disposed) return;
+        if (_loadDepth > 0 || _disposed) return;
         CheckDirty();
     }
 

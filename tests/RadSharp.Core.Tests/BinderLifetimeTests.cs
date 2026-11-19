@@ -128,4 +128,33 @@ public class BinderLifetimeTests
         d.Form.Close();
         Assert.Equal(0, a.Subscribers);
     }
+
+    [Fact]
+    public void IsLoading_stays_true_for_the_whole_load_even_when_a_handler_makes_the_model_raise_PropertyChanged()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 300, 100);
+        Edit e1 = new(), e2 = new();
+        e1.SetBounds(10, 10, 200, 26);
+        e2.SetBounds(10, 40, 200, 26);
+        f.Add(e1);
+        f.Add(e2);
+        f.PerformLayout();
+        var b = new Binder<Rec>();
+        b.Bind(e1, r => r.Name, (r, v) => r.Name = v);
+        b.Bind(e2, r => r.Other, (r, v) => r.Other = v);
+        var m1 = new Rec("one") { Other = "o1" };
+        var m2 = new Rec("two") { Other = "o2" };
+        b.Current = m1;
+        f.Simulate.Click(e2);
+        e2.SelectAll();
+        f.Simulate.Type("typed");                         // e2 is dirty, so a refresh keeps it until the real load replaces it
+        bool? e2SawLoading = null;
+        e1.Change += _ => m2.Raise("Poke");               // touches the model during the load: a nested Refresh
+        e2.Change += _ => e2SawLoading = b.IsLoading;
+        b.Current = m2;
+        Assert.Equal("o2", e2.Text);
+        Assert.True(e2SawLoading);
+        Assert.False(b.IsLoading);
+    }
 }
