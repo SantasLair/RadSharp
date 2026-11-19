@@ -15,16 +15,25 @@ public sealed class PublishedAttribute(string? name = null) : Attribute
 
     /// <summary>The Object Inspector category (e.g. "Layout", "Appearance", "Behavior").</summary>
     public string? Category { get; set; }
+
+    /// <summary>
+    /// For a string property that names another component on the form: the kind of component it names (e.g.
+    /// <c>typeof(ActionItem)</c>). The Object Inspector then offers those components' names as a drop-down list, and still
+    /// lets the user type a name.
+    /// </summary>
+    public Type? References { get; set; }
 }
 
 /// <summary>The kinds of published property (spec, Appendix A: metadata types).</summary>
 public enum PropertyType { String, Int, Real, Bool, Enum, Color, Anchors, Struct, Strings, Ints, Font, Date }
 
 /// <summary>A published property: its form-file name, type and accessors.</summary>
-public abstract class PropertyMeta(string name, string? category)
+public abstract class PropertyMeta(string name, string? category, Type? referenceType = null)
 {
     public string Name { get; } = name;
     public string? Category { get; } = category;
+    /// <summary>For a string property naming another component (<see cref="PublishedAttribute.References"/>): the kind of component; else null.</summary>
+    public Type? ReferenceType { get; } = referenceType;
     public abstract PropertyType Type { get; }
     /// <summary>Allowed values for enum properties, as written in form files.</summary>
     public abstract IReadOnlyList<string>? Values { get; }
@@ -44,8 +53,8 @@ public abstract class PropertyMeta(string name, string? category)
 }
 
 public sealed class PropertyMeta<TOwner, TValue>(
-    string name, ValueConverter<TValue> converter, Func<TOwner, TValue> get, Action<TOwner, TValue> set, string? category)
-    : PropertyMeta(name, category) where TOwner : Control
+    string name, ValueConverter<TValue> converter, Func<TOwner, TValue> get, Action<TOwner, TValue> set, string? category, Type? referenceType = null)
+    : PropertyMeta(name, category, referenceType) where TOwner : Control
 {
     public override PropertyType Type => converter.Type;
     public override IReadOnlyList<string>? Values => converter.Values;
@@ -221,4 +230,16 @@ public interface ICollectionOwner
 
     /// <summary>The Object Inspector's value text for a collection, e.g. <c>(3 columns)</c>.</summary>
     string DescribeCollection(string name);
+}
+
+/// <summary>
+/// Publishes a control class under a form-file class name other than its C# name (Delphi's <c>TAction</c> is <c>Action</c>
+/// in form files; <c>ActionItem</c> is the C# type because <c>RadSharp.Action</c> would clash with <see cref="Action"/>).
+/// Read by the metadata generator, so the registry, form files, palette and designer use the name, and by the form
+/// generator, which resolves <c>"class"</c> nodes by it. Without the attribute the class name is used.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+public sealed class ComponentAttribute(string name) : Attribute
+{
+    public string Name { get; } = name;
 }

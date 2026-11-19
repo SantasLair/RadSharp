@@ -4,6 +4,7 @@ Generated from the component metadata by `tools/RadSharp.DocGen`; do not edit by
 Every control also has the [common properties and events](#common-to-every-control) listed at the end.
 Defaults are the class defaults at 100 % scale; only values that differ are written to form files.
 
+- [Action](#action) (non-visual)
 - [Button](#button)
 - [Calendar](#calendar)
 - [CheckBox](#checkbox)
@@ -47,11 +48,32 @@ Defaults are the class defaults at 100 % scale; only values that differ are writ
 - [TrackBar](#trackbar)
 - [TreeView](#treeview)
 
+## Action
+
+Inherits from `Component` (abstract; its members are listed here).
+
+| Property | Type | Default | Category |
+|---|---|---|---|
+| `autoCheck` | bool | `false` | Action |
+| `caption` | string | "" | Action |
+| `checked` | bool | `false` | Action |
+| `enabled` | bool | `true` | Action |
+| `hint` | string | "" | Action |
+| `imageIndex` | int | `-1` | Action |
+| `shortcut` | string | "" | Action |
+| `visible` | bool | `true` | Action |
+
+| Event | Handler parameters |
+|---|---|
+| `onExecute` | `(Control sender)` |
+| `onUpdate` | `(Control sender)` |
+
 ## Button
 
 
 | Property | Type | Default | Category |
 |---|---|---|---|
+| `action` | string | "" | Behavior |
 | `cancel` | bool | `false` | Behavior |
 | `caption` | string | "" | Appearance |
 | `color` | color | "" | Appearance |
@@ -630,6 +652,7 @@ Inherits from [Button](#button).
 
 | Property | Type | Default | Category |
 |---|---|---|---|
+| `action` | string | "" | Behavior |
 | `allowToggle` | bool | `false` | Behavior |
 | `cancel` | bool | `false` | Behavior |
 | `caption` | string | "" | Appearance |

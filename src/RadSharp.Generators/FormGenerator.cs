@@ -244,7 +244,11 @@ public sealed class FormGenerator : IIncrementalGenerator
         var classNode = node["class"];
         if (classNode?.Kind != JsonKind.String) return null;
         var name = classNode.String!;
-        var type = compilation.GetTypeByMetadataName("RadSharp." + name)
+        var byCsName = compilation.GetTypeByMetadataName("RadSharp." + name);
+        if (byCsName != null && PublishedName(byCsName) != name) byCsName = null;   // published under another form-file name
+        var type = byCsName
+            ?? FindPublishedAs(compilation.GlobalNamespace.GetNamespaceMembers().FirstOrDefault(n => n.Name == "RadSharp"), name)
+            ?? FindPublishedAs(compilation.Assembly.GlobalNamespace, name, nested: true, own: true)
             ?? compilation.GetSymbolsWithName(name, SymbolFilter.Type).OfType<INamedTypeSymbol>()
                 .FirstOrDefault(MetadataGenerator.IsControl)
             ?? FindInReferences(compilation, name);
@@ -254,6 +258,31 @@ public sealed class FormGenerator : IIncrementalGenerator
             return null;
         }
         return type;
+    }
+
+    /// <summary>The form-file class name of a control class: its <c>[Component("Name")]</c>, else its C# name.</summary>
+    static string PublishedName(INamedTypeSymbol t)
+    {
+        var attr = t.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == MetadataGenerator.ComponentAttribute);
+        return attr != null && attr.ConstructorArguments.Length > 0 && attr.ConstructorArguments[0].Value is string { Length: > 0 } s ? s : t.Name;
+    }
+
+    /// <summary>
+    /// A control class in <paramref name="ns"/> (searched through its nested namespaces when <paramref name="nested"/>) published
+    /// under <paramref name="name"/> by <c>[Component]</c> (e.g. "Action" for ActionItem). <paramref name="own"/>: the namespace is
+    /// the project's own, where internal classes count.
+    /// </summary>
+    static INamedTypeSymbol? FindPublishedAs(INamespaceSymbol? ns, string name, bool nested = false, bool own = false)
+    {
+        if (ns == null) return null;
+        foreach (var t in ns.GetTypeMembers())
+            if ((t.DeclaredAccessibility == Accessibility.Public || (own && t.DeclaredAccessibility == Accessibility.Internal))
+                && MetadataGenerator.IsControl(t)
+                && t.GetAttributes().Any(a => a.AttributeClass?.ToDisplayString() == MetadataGenerator.ComponentAttribute) && PublishedName(t) == name) return t;
+        if (nested)
+            foreach (var child in ns.GetNamespaceMembers())
+                if (FindPublishedAs(child, name, nested, own) is { } found) return found;
+        return null;
     }
 
     /// <summary>A control class with this simple name in a referenced assembly (component libraries).</summary>
@@ -270,8 +299,8 @@ public sealed class FormGenerator : IIncrementalGenerator
 
         INamedTypeSymbol? Search(INamespaceSymbol ns)
         {
-            foreach (var t in ns.GetTypeMembers(name))
-                if (t.DeclaredAccessibility == Accessibility.Public && MetadataGenerator.IsControl(t)) return t;
+            foreach (var t in ns.GetTypeMembers())
+                if (t.DeclaredAccessibility == Accessibility.Public && MetadataGenerator.IsControl(t) && PublishedName(t) == name) return t;
             foreach (var child in ns.GetNamespaceMembers())
                 if (Search(child) is { } t) return t;
             return null;

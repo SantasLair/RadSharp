@@ -317,6 +317,26 @@ public class PropertyGrid : Control
             OpenEditor(memo, x, y, commitOnClose: () => Apply(i, memo.Text));
             return;
         }
+        if (prop is { Type: PropertyType.String, ReferenceType: { } kind } && _targets[0].OwningForm is { } designed)
+        {
+            // A component reference (Delphi's Object Inspector does the same): pick one of the form's components by name from
+            // the list, or type a name (one that isn't on the form yet). The list is a popup under the text box.
+            var names = designed.Descendants().Where(c => c.Name.Length > 0 && kind.IsInstanceOfType(c)).Select(c => c.Name).Order(StringComparer.Ordinal);
+            var list = new ListBox { Items = [NoReference, .. names], HotTrack = true };
+            var current = RowValue(i);
+            list.ItemIndex = current.Length == 0 ? 0 : Array.IndexOf(list.Items, current);
+            list.SetBounds(0, 0, cell.Width, Math.Min(list.Items.Length, 8) * Px(24) + 2 * Px(1));
+            var typed = new InlineEdit { Text = current, BorderStyle = BorderStyle.Single };
+            typed.SetBounds(0, 0, cell.Width, cell.Height);
+            typed.Commit += () => EndEdit(commit: true);
+            typed.CancelEdit += () => EndEdit(commit: false);
+            list.ItemChosen += n => { Apply(i, n == 0 ? "" : list.Items[n]); EndEdit(commit: false); };
+            form.OpenPopup(list, x, y + cell.Height, this);
+            _referenceList = list;
+            OpenEditor(typed, x, y, commitOnClose: () => Apply(i, typed.Text.Trim()));
+            typed.SelectAll();
+            return;
+        }
         var edit = new InlineEdit { Text = RowValue(i), BorderStyle = BorderStyle.Single };
         edit.SetBounds(0, 0, cell.Width, cell.Height);
         edit.Commit += () => EndEdit(commit: true);
@@ -326,6 +346,11 @@ public class PropertyGrid : Control
     }
 
     Action? _commitOnClose;
+
+    /// <summary>The first entry of a component-reference list: clears the reference.</summary>
+    public const string NoReference = "(none)";
+
+    ListBox? _referenceList;   // the names under the text box of a component-reference editor (see PropertyMeta.ReferenceType)
 
     void OpenEditor(Control editor, int x, int y, Action? commitOnClose)
     {
@@ -345,6 +370,7 @@ public class PropertyGrid : Control
         var commit = _commitOnClose;
         _commitOnClose = null;
         _editor = null;
+        _referenceList = null;
         if (!_cancelEdit) commit?.Invoke();
         Invalidate();
         Focus();
@@ -353,9 +379,9 @@ public class PropertyGrid : Control
     /// <summary>Closes the inline editor, keeping (or dropping) what was typed.</summary>
     public void EndEdit(bool commit)
     {
-        if (_editor == null || OwningForm is not { } form) { _editor = null; return; }
+        if (_editor == null || OwningForm is not { } form) { _editor = null; _referenceList = null; return; }
         _cancelEdit = !commit;
-        form.ClosePopup(_editor);
+        form.ClosePopup(_referenceList ?? _editor);   // a reference editor has its list below the text box: closing it closes both
     }
 
     /// <summary>

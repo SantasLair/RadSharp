@@ -157,7 +157,11 @@ public partial class Control
         child._captured = false;
         InvalidateLayout();
         InvalidateForm();
-        OwningForm?.TreeChanged();
+        if (OwningForm is { } form)
+        {
+            form.TreeChanged();
+            form.ControlAdded(child);
+        }
     }
 
     public bool Remove(Control child)
@@ -169,6 +173,7 @@ public partial class Control
         InvalidateForm();
         form?.ControlBecameUnavailable(child);
         form?.TreeChanged();
+        form?.ControlRemoved(child);
         return true;
     }
 

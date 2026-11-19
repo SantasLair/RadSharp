@@ -175,7 +175,7 @@ public class ToolBar : Control
     }
 
     /// <summary>The name of an ImageList whose pictures ToolButtons show by <see cref="ToolButton.ImageIndex"/>.</summary>
-    [Published("images", Category = "Appearance")] public string ImagesName { get; set; } = "";
+    [Published("images", Category = "Appearance", References = typeof(ImageList))] public string ImagesName { get; set; } = "";
 
     public ImageList? Images => ImagesName.Length > 0 ? OwningForm?.FindControl(ImagesName) as ImageList : null;
 
@@ -221,9 +221,10 @@ public class ToolButton : Button
     /// <summary>Falls back to the parent <see cref="ToolBar"/>'s image list when <see cref="Button.ImagesName"/> isn't set.</summary>
     protected override Picture? ResolveIcon() => base.ResolveIcon() ?? (Parent as ToolBar)?.Images?.Get(ImageIndex);
 
+    /// <summary>Clicking toggles <see cref="Down"/>, except when linked to an action: then Down follows the action's Checked (use its AutoCheck).</summary>
     protected internal override void OnClick()
     {
-        if (AllowToggle) Down = !Down;
+        if (AllowToggle && ActionLink == null) Down = !Down;
         base.OnClick();
     }
 
@@ -243,7 +244,9 @@ public class ToolButton : Button
             canvas.DrawPicture(pic, new Rect(x, (Height - s) / 2, s, s));
             if (Caption.Length > 0) textRect = new Rect(x + s + canvas.Px(4), 0, Width - x - s - canvas.Px(10), Height);
         }
-        canvas.DrawText(Caption, EffectiveFont, enabled ? t.Text : t.TextDisabled, textRect,
+        // An action's caption usually carries a menu mnemonic (&Save); a tool button shows it without the marker.
+        var caption = ActionLink != null ? Mnemonics.Display(Caption) : Caption;
+        canvas.DrawText(caption, EffectiveFont, enabled ? t.Text : t.TextDisabled, textRect,
             textRect == r ? TextAlign.Center : TextAlign.Left, VerticalAlign.Center);
     }
 }
