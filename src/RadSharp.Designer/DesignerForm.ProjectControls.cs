@@ -19,6 +19,16 @@ public sealed record DesignerOptions
     /// <summary>How long a burst of file changes must settle before the design session is rebuilt.</summary>
     public TimeSpan RefreshDelay { get; init; } = TimeSpan.FromMilliseconds(400);
 
+    /// <summary>
+    /// How often a rebuild is tried again when it fails with an exception (not compile errors: those are the project's
+    /// state, shown as placeholders): a source file the editor still holds, say, right after the watcher saw it change.
+    /// The last good session stays installed meanwhile, and after the last try.
+    /// </summary>
+    public int TransientRetries { get; init; } = 3;
+
+    /// <summary>How long to wait before each of those tries.</summary>
+    public TimeSpan TransientRetryDelay { get; init; } = TimeSpan.FromMilliseconds(500);
+
     /// <summary>How F9 and the design session compile (the dependency resolver, its timeout).</summary>
     public LiveRunOptions LiveRun { get; init; } = new();
 }
@@ -44,8 +54,16 @@ public partial class DesignerForm
     /// <summary>The last design-session rebuild: completes on the UI thread once it is installed, or superseded.</summary>
     public Task ProjectControlsTask { get; private set; } = Task.CompletedTask;
 
-    /// <summary>Queues work for the UI thread through the host the designer was created on.</summary>
-    void Post(Action action) => (_host ?? PlatformHost.Current)?.PostToUiThread(action);
+    /// <summary>
+    /// Queues work for the UI thread through the host the designer was created on. With no host (a designer built
+    /// before one exists, headless) there is no queue: the work runs where it is, rather than being dropped (a dropped
+    /// rebuild would never complete <see cref="ProjectControlsTask"/> and would leak its session).
+    /// </summary>
+    void Post(Action action)
+    {
+        if ((_host ?? PlatformHost.Current) is { } host) host.PostToUiThread(action);
+        else action();
+    }
 
     /// <summary>
     /// Rebuilds the design session (in the background) and installs it: the palette, and every open document. With
@@ -69,6 +87,7 @@ public partial class DesignerForm
             }),
         };
         bool told = false;
+        int faults = 0;
         void Finish(Task<DesignSession> t)
         {
             bool waiting = false;
@@ -91,17 +110,35 @@ public partial class DesignerForm
                 if (t.IsCompletedSuccessfully) Install(t.Result);
                 else
                 {
-                    Output($"{project.Name}'s controls couldn't be loaded: {(t.Exception?.InnerException ?? t.Exception)?.Message}");
-                    Install(null);
+                    // An exception, not compile errors (those come back as a session that didn't succeed): most likely
+                    // transient (a file still being written). Dropping the session would turn every project control
+                    // into a placeholder, so keep the last good one, and try again a few times.
+                    var why = (t.Exception?.InnerException ?? t.Exception)?.Message;
+                    if (++faults <= _options.TransientRetries)
+                    {
+                        waiting = true;
+                        Output($"{project.Name}'s controls couldn't be loaded ({why}); trying again ({faults}/{_options.TransientRetries}).");
+                        Task.Delay(_options.TransientRetryDelay).ContinueWith(_ => Post(() =>
+                        {
+                            if (generation == _designGeneration && _project == project) Start();
+                            else done.TrySetResult();
+                        }), TaskScheduler.Default);
+                        return;
+                    }
+                    Output($"{project.Name}'s controls couldn't be loaded: {why}");
+                    sbMain.SimpleText = _design == null
+                        ? $"{project.Name}'s controls aren't loaded"
+                        : $"{project.Name}'s controls couldn't be refreshed; showing the last loaded ones";
                 }
             }
             finally { if (!waiting) done.TrySetResult(); }
         }
-        Task.Run(() =>
+        void Start() => Task.Run(() =>
         {
-            if (refresh) ProjectDependencies.Invalidate(project);
+            if (refresh && faults == 0) ProjectDependencies.Invalidate(project);
             return DesignSession.Compile(project, options);
         }).ContinueWith(t => Post(() => Finish(t)), TaskScheduler.Default);
+        Start();
         return done.Task;
     }
 
@@ -151,17 +188,17 @@ public partial class DesignerForm
         {
             // While the old classes are still registered: their instances save as themselves.
             var texts = _forms.Select(f => (Form: f, Text: f.Document.Save())).ToList();
-            _design = next;
-            foreach (var (f, text) in texts)
+            try
             {
-                f.Document.ProjectClasses = next == null ? null : next.Find;
-                // Not the "unknown class" ones: a broken project says so once, above.
-                foreach (var w in f.Document.Reload(text).Where(w => w.Contains(" threw while ", StringComparison.Ordinal)
-                             || w.Contains(" has no published property ", StringComparison.Ordinal)))
-                    Output($"{Path.GetFileName(f.Path)}: {w}");
+                _design = next;
+                foreach (var (f, text) in texts) ReloadWith(f, text, next);
             }
-            RebuildPalette();
-            old?.Dispose();
+            finally
+            {
+                // Whatever happened above: no stale palette, and the old session never leaks.
+                RebuildPalette();
+                old?.Dispose();
+            }
         }
 
         var names = next?.Classes.Select(c => $"{c.Name} ({next.CategoryOf(c)})").ToList() ?? [];
@@ -170,6 +207,35 @@ public partial class DesignerForm
         _lastProjectControls = names;
         sbMain.SimpleText = next == null ? $"{project.Name}'s controls aren't loaded" : $"{project.Name}'s controls are up to date";
         if (next?.Dependencies is { } deps) WatchProject(project, deps.ProjectReferences);
+    }
+
+    /// <summary>
+    /// Reloads one document with <paramref name="next"/>'s classes. If that throws (an exception the form reader doesn't
+    /// absorb), the document is read again with no project classes, so every one is a placeholder that keeps its text.
+    /// </summary>
+    void ReloadWith(OpenForm f, string text, DesignSession? next)
+    {
+        try
+        {
+            f.Document.ProjectClasses = next == null ? null : next.Find;
+            // Not the "unknown class" ones: a broken project says so once, above.
+            foreach (var w in f.Document.Reload(text).Where(w => w.Contains(" threw while ", StringComparison.Ordinal)
+                         || w.Contains(" has no published property ", StringComparison.Ordinal)))
+                Output($"{Path.GetFileName(f.Path)}: {w}");
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            Output($"{Path.GetFileName(f.Path)}: the project's controls couldn't be loaded onto it ({e.GetType().Name}: {e.Message}); they are placeholders on it.");
+            try
+            {
+                f.Document.ProjectClasses = null;
+                f.Document.Reload(text);
+            }
+            catch (Exception e2) when (e2 is not OutOfMemoryException)
+            {
+                Output($"{Path.GetFileName(f.Path)}: it couldn't be reloaded either ({e2.GetType().Name}: {e2.Message}); it keeps what it had.");
+            }
+        }
     }
 
     /// <summary>Drops the design session (closing the project): its documents are gone, so nothing to reload.</summary>
@@ -222,6 +288,8 @@ public partial class DesignerForm
                 watcher.Created += changed;
                 watcher.Deleted += changed;
                 watcher.Renamed += (_, e) => FileChanged(project, e.FullPath);
+                // The event buffer overflowed (a branch switch, a big restore): changes were missed, so refresh everything.
+                watcher.Error += (_, _) => Post(() => ScheduleRefresh(project));
                 watcher.EnableRaisingEvents = true;
                 _watchers.Add(watcher);
             }
@@ -235,20 +303,37 @@ public partial class DesignerForm
         _watchers.Clear();
     }
 
+    /// <summary>
+    /// Whether <paramref name="path"/> is the build's own output or tooling state: some folder between the project's
+    /// folder and the file is named bin, obj, .vs or .git. Only the part below <paramref name="root"/> counts (a
+    /// project that lives under a folder called "bin" or "obj" is still watched).
+    /// </summary>
+    internal static bool IsBuildOutput(string root, string path)
+    {
+        var relative = Path.GetRelativePath(root, path);
+        if (relative.StartsWith("..", StringComparison.Ordinal) || Path.IsPathRooted(relative)) relative = path;   // not under it (a project reference's folder is a root of its own)
+        var parts = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return parts.Take(parts.Length - 1).Any(p => p is "bin" or "obj" or ".vs" or ".git");
+    }
+
     /// <summary>On a watcher thread: a source of the project changed (not the build's own output).</summary>
     void FileChanged(RadProject project, string path)
     {
         if (!WatchedExtensions.Any(e => path.EndsWith(e, StringComparison.OrdinalIgnoreCase))) return;
-        var parts = path.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
-        if (parts.Any(p => p is "bin" or "obj" or ".vs" or ".git")) return;
-        Post(() =>
+        if (_watchers.Where(w => path.StartsWith(w.Path, StringComparison.OrdinalIgnoreCase)).Select(w => w.Path)
+                .OrderByDescending(p => p.Length).FirstOrDefault() is not { } root) root = project.Directory;
+        if (IsBuildOutput(root, path)) return;
+        Post(() => ScheduleRefresh(project));
+    }
+
+    /// <summary>On the UI thread: rebuild the design session once a burst of changes has settled.</summary>
+    void ScheduleRefresh(RadProject project)
+    {
+        if (_project != project) return;
+        int generation = ++_watchGeneration;
+        Task.Delay(_options.RefreshDelay).ContinueWith(_ => Post(() =>
         {
-            if (_project != project) return;
-            int generation = ++_watchGeneration;
-            Task.Delay(_options.RefreshDelay).ContinueWith(_ => Post(() =>
-            {
-                if (generation == _watchGeneration && _project == project) RefreshProjectControls();
-            }), TaskScheduler.Default);
-        });
+            if (generation == _watchGeneration && _project == project) RefreshProjectControls();
+        }), TaskScheduler.Default);
     }
 }

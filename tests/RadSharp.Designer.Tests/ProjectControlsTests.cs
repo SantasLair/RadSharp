@@ -705,4 +705,111 @@ public class ProjectControlsTests : IDisposable
         Assert.True(d.Close());
         Assert.Null(ComponentRegistry.Find("Knob"));
     }
+
+    [Fact]
+    public async Task A_designer_without_a_platform_host_still_finishes_loading_the_project_controls()
+    {
+        var (project, _) = ProjectWith("Hostless", "namespace Hostless; public class Nothing { }");
+        Shortcut.CommandModifier = KeyModifiers.Ctrl;
+        PlatformHost.Current = null;
+        var d = new DesignerForm(project.ProjectFile, Path.Combine(TempDir(), "designer.json"), new DesignerOptions { WatchProject = false, LiveRun = NoPackages });
+        _started.Add(d);
+        // No host to post to: the callback runs where it is (it used to be dropped: the task never completed).
+        var finished = await Task.WhenAny(d.ProjectControlsTask, Task.Delay(TimeSpan.FromSeconds(20)));
+        Assert.Same(d.ProjectControlsTask, finished);
+        Assert.NotNull(d.DesignSession);
+    }
+
+    [Fact]
+    public void A_document_that_cannot_be_reloaded_with_the_new_classes_falls_back_to_placeholders_and_the_swap_still_completes()
+    {
+        var (project, _) = ProjectWith("Strict", """
+            using RadSharp;
+
+            namespace Strict;
+
+            /// <summary>Fails the way a form file reader does (an exception the reader never absorbs) once it is on a form.</summary>
+            public class Sidebar : Panel
+            {
+                protected override void OnResize()
+                {
+                    base.OnResize();
+                    if (DesignMode && Parent is Form) throw new FormFileException("sidebar refuses");
+                }
+            }
+            """, """{ "class": "Sidebar", "name": "side1", "align": "client" }""",
+            """{ "class": "Label", "name": "lblHello", "caption": "Hello" }""");
+        var (d, host) = Start(project.ProjectFile, new DesignerOptions { WatchProject = false, LiveRun = NoPackages });
+        var doc = d.Document!;
+        var text = doc.Save();
+        host.Pump(d.ProjectControlsTask, "the design session");
+        Assert.True(d.DesignSession != null, string.Join("\n", d.OutputLines));
+        Assert.Equal(text, doc.Save());
+        Assert.Equal("placeholder Sidebar", ClassOf(d, "side1"));
+        Assert.Contains(d.OutputLines, l => l.Contains("sidebar refuses"));
+        Assert.Equal(["Sidebar"], Category(d, PaletteCategories.Project));
+        Assert.Contains("up to date", ((StatusBar)d.FindControl("sbMain")!).SimpleText);
+    }
+
+    const string GaugeCode = """
+        using RadSharp;
+
+        namespace Gauges;
+
+        public class Gauge : Label { }
+        """;
+    const string GaugeNode = """{ "class": "Gauge", "name": "gauge1", "left": 8, "top": 8 }""";
+
+    [Fact]
+    public void A_transient_failure_while_rebuilding_is_retried_and_keeps_the_last_good_session_meanwhile()
+    {
+        var (project, _) = ProjectWith("Gauges", GaugeCode, GaugeNode);
+        int calls = 0, failFrom = int.MaxValue, failUntil = 0;
+        var resolver = new LiveRunOptions
+        {
+            // What File.ReadAllText does right after a watcher event: the editor still holds the file.
+            Resolver = (_, _, _) => ++calls >= failFrom && calls <= failUntil
+                ? throw new IOException("The process cannot access the file")
+                : new DependencyResolution(null, "not resolved in this test", false),
+        };
+        var (d, host) = Start(project.ProjectFile, new DesignerOptions
+        {
+            WatchProject = false, LiveRun = resolver, TransientRetries = 2, TransientRetryDelay = TimeSpan.FromMilliseconds(10),
+        });
+        host.Pump(d.ProjectControlsTask, "the design session");
+        var first = d.DesignSession;
+        Assert.NotNull(first);
+        Assert.Equal("Gauge", ClassOf(d, "gauge1"));
+
+        // One failure: retried, and the new session installs.
+        failFrom = calls + 1; failUntil = calls + 1;
+        host.Pump(d.RefreshProjectControls(), "the retried rebuild");
+        Assert.NotNull(d.DesignSession);
+        Assert.NotSame(first, d.DesignSession);
+        Assert.Equal("Gauge", ClassOf(d, "gauge1"));
+        Assert.Contains(d.OutputLines, l => l.Contains("trying again"));
+
+        // Failing every time: after the retries the last good session is kept, its controls stay real.
+        var second = d.DesignSession;
+        failFrom = calls + 1; failUntil = int.MaxValue;
+        var rebuild = d.RefreshProjectControls();
+        host.Pump(rebuild, "the failed rebuild");
+        Assert.Same(second, d.DesignSession);
+        Assert.Equal("Gauge", ClassOf(d, "gauge1"));
+        Assert.Equal(["Gauge"], Category(d, PaletteCategories.Project));
+        Assert.Contains(d.OutputLines, l => l.Contains("couldn't be loaded") && l.Contains("The process cannot access the file"));
+    }
+
+    [Fact]
+    public void Build_output_is_ignored_below_the_project_folder_only()
+    {
+        // A project that lives under a folder called "bin" is still watched; its own bin and obj are not.
+        var root = Path.Combine(Path.GetTempPath(), "bin", "src", "App");
+        Assert.False(DesignerForm.IsBuildOutput(root, Path.Combine(root, "MainForm.cs")));
+        Assert.False(DesignerForm.IsBuildOutput(root, Path.Combine(root, "Forms", "MainForm.cs")));
+        Assert.True(DesignerForm.IsBuildOutput(root, Path.Combine(root, "obj", "Debug", "App.AssemblyInfo.cs")));
+        Assert.True(DesignerForm.IsBuildOutput(root, Path.Combine(root, "bin", "Debug", "net10.0", "Gen.cs")));
+        Assert.True(DesignerForm.IsBuildOutput(root, Path.Combine(root, ".git", "hooks", "x.cs")));
+        Assert.False(DesignerForm.IsBuildOutput(root, Path.Combine(root, "bin.cs")));   // a file, not a folder
+    }
 }

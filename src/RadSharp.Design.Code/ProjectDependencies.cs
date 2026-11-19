@@ -102,7 +102,49 @@ public sealed partial class ProjectDependencies
     IReadOnlyList<string> _watched = [];
     IReadOnlyList<(string ProjectFile, string Output)> _projectReferences = [];
     DateTime _resolvedAt;
-    internal GeneratorSet? Generators;
+    GeneratorSet? _generators;
+    int _leases;
+    bool _evicted;
+    readonly object _generatorLock = new();
+
+    /// <summary>
+    /// The source generators of this resolution, loaded on first use and kept while leased. A set is never unloaded
+    /// while a compile holds a lease: <see cref="Evict"/> (the cache dropped these dependencies) unloads it once the
+    /// last lease is released, and a set created after eviction goes with the lease that created it.
+    /// </summary>
+    internal GeneratorSet AcquireGenerators()
+    {
+        lock (_generatorLock)
+        {
+            var set = _generators ??= new GeneratorSet(Analyzers);
+            _leases++;
+            return set;
+        }
+    }
+
+    internal void ReleaseGenerators()
+    {
+        lock (_generatorLock)
+        {
+            if (--_leases == 0 && _evicted) DisposeGenerators();
+        }
+    }
+
+    /// <summary>These dependencies left the cache: unload the generators now if nothing uses them, else when the last user is done.</summary>
+    void Evict()
+    {
+        lock (_generatorLock)
+        {
+            _evicted = true;
+            if (_leases == 0) DisposeGenerators();
+        }
+    }
+
+    void DisposeGenerators()
+    {
+        _generators?.Dispose();
+        _generators = null;
+    }
 
     // ---- Resolving ----
 
@@ -119,7 +161,7 @@ public sealed partial class ProjectDependencies
     /// <summary>Forgets every cached resolution and failure (the next live run of each project runs MSBuild again).</summary>
     public static void ClearCache()
     {
-        foreach (var d in Cache.Values) d.Generators?.Dispose();
+        foreach (var d in Cache.Values) d.Evict();
         Cache.Clear();
         Failures.Clear();
     }
@@ -130,7 +172,7 @@ public sealed partial class ProjectDependencies
         lock (Locks.GetOrAdd(project.ProjectFile, _ => new object()))
         {
             Failures.TryRemove(project.ProjectFile, out _);
-            if (Cache.TryRemove(project.ProjectFile, out var old)) old.Generators?.Dispose();
+            if (Cache.TryRemove(project.ProjectFile, out var old)) old.Evict();
         }
     }
 
@@ -185,7 +227,7 @@ public sealed partial class ProjectDependencies
                 return new(null, error, false);
             }
             Failures.TryRemove(project.ProjectFile, out _);
-            if (Cache.TryGetValue(project.ProjectFile, out var old) && old != resolved) old.Generators?.Dispose();
+            if (Cache.TryGetValue(project.ProjectFile, out var old) && old != resolved) old.Evict();
             Cache[project.ProjectFile] = resolved;
             return new(resolved, null, false);
         }

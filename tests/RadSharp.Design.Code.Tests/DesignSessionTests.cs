@@ -288,4 +288,36 @@ public class DesignSessionTests
         Assert.Equal("teal", ((Label)cls.Prototype).Caption);
         Assert.Same(theme, RadSharp.Drawing.Theme.Current);
     }
+
+    [Fact]
+    public void A_generator_set_is_not_unloaded_under_a_compile_that_holds_it_and_goes_when_the_last_one_lets_go()
+    {
+        var project = WriteProject(Path.Combine(TempDir(), "Gen"), "Gen");
+        var deps = ProjectDependencies.Resolve(project, Timeout).Dependencies!;
+        Assert.NotNull(deps);
+
+        var set = deps.AcquireGenerators();          // a compile (F9) is running with it...
+        var other = deps.AcquireGenerators();        // ...and so is the design-session rebuild
+        Assert.Same(set, other);
+        ProjectDependencies.Invalidate(project);      // Project > Refresh evicts the resolution meanwhile
+        Assert.False(set.IsUnloaded);
+        deps.ReleaseGenerators();
+        Assert.False(set.IsUnloaded);
+        deps.ReleaseGenerators();
+        Assert.True(set.IsUnloaded);
+
+        // A compile that starts on already evicted dependencies gets a set that goes with it, never one that lingers.
+        var late = deps.AcquireGenerators();
+        Assert.False(late.IsUnloaded);
+        deps.ReleaseGenerators();
+        Assert.True(late.IsUnloaded);
+
+        // Nothing leased at eviction: unloaded at once.
+        var fresh = ProjectDependencies.Resolve(project, Timeout).Dependencies!;
+        var idle = fresh.AcquireGenerators();
+        fresh.ReleaseGenerators();
+        Assert.False(idle.IsUnloaded);               // still cached: kept for the next compile
+        ProjectDependencies.Invalidate(project);
+        Assert.True(idle.IsUnloaded);
+    }
 }

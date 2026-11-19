@@ -548,6 +548,7 @@ Most of these were found by building the reference app; each came with a failing
 150 %; the designer's alignment tools are covered by a scripted-rebuild test like `RebuildTileEditorTests`; the
 categorized/filterable palette is exercised by a designer UI test (the Anchors editor already is, see M9's status
 note — its tests landed in `RadSharp.Core.Tests` since `PropertyGrid` lives in `RadSharp.Core`).
+Review fixes (2026-11-19): the name box refuses a name held inside a placeholder's raw children ("is not a valid, unused name") and leaves the code-behind alone; a failed design-session rebuild (an exception, not compile errors) keeps the last good session and is retried (`DesignerOptions.TransientRetries`, default 3); the project watcher refreshes after an overflow and ignores only bin/obj/.vs/.git below the project folder; a root form that throws at design time says so instead of "The root node must be a Form".
 
 ## M17: Ship it (M)
 

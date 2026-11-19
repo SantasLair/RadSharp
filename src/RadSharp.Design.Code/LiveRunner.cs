@@ -206,6 +206,8 @@ public sealed class LiveSession : IDisposable
             new CSharpCompilationOptions(OutputKind.DynamicallyLinkedLibrary, nullableContextOptions: nullable,
                 allowUnsafe: deps?.AllowUnsafeBlocks ?? false, checkOverflow: deps?.CheckForOverflowUnderflow ?? false));
 
+        // Held until the compilation is emitted: the project's generators aren't unloaded under a compile that runs them.
+        using var generatorLease = new GeneratorLease();
         var generators = new List<ISourceGenerator> { new FormGenerator().AsSourceGenerator(), new MetadataGenerator().AsSourceGenerator() };
         var additional = forms.Select(f => (AdditionalText)new Text(f.Path, f.Text)).ToList();
         var configs = new List<AnalyzerConfig>();
@@ -214,7 +216,7 @@ public sealed class LiveSession : IDisposable
         {
             try
             {
-                var set = GeneratorsFor(deps);
+                var set = generatorLease.Acquire(deps);
                 generators.AddRange(set.Generators);
                 foreach (var failure in set.Failures) messages.Add(Notice(AnalyzerFailedId, "Source generator not loaded: " + failure));
             }
@@ -257,9 +259,23 @@ public sealed class LiveSession : IDisposable
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
     }
 
-    static GeneratorSet GeneratorsFor(ProjectDependencies deps)
+    /// <summary>A compile's hold on its dependencies' generator set (see <see cref="ProjectDependencies.AcquireGenerators"/>).</summary>
+    sealed class GeneratorLease : IDisposable
     {
-        lock (deps) return deps.Generators ??= new GeneratorSet(deps.Analyzers);
+        ProjectDependencies? _deps;
+
+        public GeneratorSet Acquire(ProjectDependencies deps)
+        {
+            var set = deps.AcquireGenerators();
+            _deps = deps;
+            return set;
+        }
+
+        public void Dispose()
+        {
+            _deps?.ReleaseGenerators();
+            _deps = null;
+        }
     }
 
     static BuildMessage ToMessage(Diagnostic d)

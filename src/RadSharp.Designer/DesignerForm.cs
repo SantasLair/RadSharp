@@ -378,7 +378,13 @@ public partial class DesignerForm : Form
             edtName.Text = target.Name;
             return;
         }
-        doc.Rename(target, name);
+        if (!doc.Rename(target, name))
+        {
+            // The document refused: the code stays as it is, so the form file and the code-behind keep agreeing.
+            sbMain.SimpleText = $"\"{name}\" is not a valid, unused name";
+            edtName.Text = target.Name;
+            return;
+        }
         if (old.Length > 0) RenameInCode(old, name);
     }
 

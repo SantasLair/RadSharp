@@ -268,7 +268,7 @@ public sealed class DesignDocument
     /// </summary>
     public string? NameProblem(Control control, string name)
     {
-        if (name.Length == 0 || !IsIdentifier(name) || (Form.FindControl(name) is { } other && other != control))
+        if (name.Length == 0 || !IsIdentifier(name) || (Form.FindControl(name) is { } other && other != control) || IsNameInPlaceholder(name))
             return $"\"{name}\" is not a valid, unused name";
         if (control != Form && HiddenMember(name) is { } hidden)
             return $"\"{name}\" would hide the inherited member {hidden}; choose another name";
@@ -361,7 +361,7 @@ public sealed class DesignDocument
     /// <summary>Renames a control (the form generator turns the name into a field).</summary>
     public bool Rename(Control control, string name)
     {
-        if (NameProblem(control, name) != null || IsNameInPlaceholder(name)) return false;
+        if (NameProblem(control, name) != null || IsNameInPlaceholder(name)) return false;   // (the placeholder check is also in NameProblem; kept as the guard)
         Snapshot();
         control.Name = name;
         NotifyChanged();
