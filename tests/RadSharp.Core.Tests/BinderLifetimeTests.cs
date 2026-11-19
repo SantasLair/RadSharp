@@ -157,4 +157,74 @@ public class BinderLifetimeTests
         Assert.True(e2SawLoading);
         Assert.False(b.IsLoading);
     }
+
+    // ---- clean fields are parsed, not only validated ----
+
+    [Fact]
+    public void A_value_map_combo_whose_model_value_is_not_in_the_map_is_invalid_even_when_the_user_never_touched_it()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 300, 100);
+        var terms = new ComboBox { Items = ["Net 14", "Net 30", "Net 60"] };
+        terms.SetBounds(10, 10, 200, 26);
+        f.Add(terms);
+        f.PerformLayout();
+        var b = new Binder<Rec>();
+        b.Bind(terms, r => r.Terms, (r, v) => r.Terms = v, [14, 30, 60]);
+        var m = new Rec("x") { Terms = 0 };
+        b.Current = m;
+        Assert.Equal(-1, terms.ItemIndex);
+        Assert.False(b.IsDirty);
+        Assert.False(b.Validate());
+        Assert.Equal("Choose a value from the list.", b.Errors.Single().Message);
+        Assert.False(b.Commit());
+        Assert.Equal(0, m.Terms);
+        b.Current = new Rec("y") { Terms = 30 };           // a mapped value is fine
+        Assert.True(b.Validate());
+        Assert.True(b.Commit());
+    }
+
+    [Fact]
+    public void A_radio_group_with_an_unmapped_enum_value_is_invalid_until_the_user_chooses()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 300, 100);
+        RadioButton a = new() { Caption = "A" }, bb = new() { Caption = "B" };
+        a.SetBounds(10, 10, 100, 24);
+        bb.SetBounds(10, 40, 100, 24);
+        f.Add(a);
+        f.Add(bb);
+        f.PerformLayout();
+        var b = new Binder<Rec>();
+        b.BindRadios(r => r.Kind, (r, v) => r.Kind = v, (a, Kind.A), (bb, Kind.B));
+        var m = new Rec("x");                              // Kind.None: no button stands for it
+        b.Current = m;
+        Assert.False(a.Checked || bb.Checked);
+        Assert.False(b.Validate());
+        Assert.Equal("Choose one of the options.", b.Errors.Single().Message);
+        f.Simulate.Click(bb);
+        Assert.True(b.Commit());
+        Assert.Equal(Kind.B, m.Kind);
+    }
+
+    [Fact]
+    public void A_non_optional_date_picker_without_a_date_is_invalid_when_clean()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 300, 100);
+        var picker = new DateTimePicker { Format = "yyyy-MM-dd", ShowCheckbox = true };
+        picker.SetBounds(10, 10, 200, 26);
+        f.Add(picker);
+        f.PerformLayout();
+        var b = new Binder<Rec>();
+        b.Bind(picker, r => r.Since, (r, v) => r.Since = v);
+        b.Current = new Rec("x") { Since = new DateOnly(2026, 3, 4) };
+        Assert.True(b.Validate());
+        picker.Change += _ => { if (b.IsLoading) picker.Checked = false; };   // app code clears the date while it loads: clean, but no date
+        b.Current = new Rec("y") { Since = new DateOnly(2026, 5, 6) };
+        Assert.Null(picker.Value);
+        Assert.False(b.IsDirty);
+        Assert.False(b.Validate());
+        Assert.Equal("Enter a date.", b.Errors.Single().Message);
+    }
 }

@@ -236,7 +236,7 @@ public sealed class Binder<T> : IDisposable where T : class
 
     /// <summary>
     /// Validates every writable field without writing anything: an edited field is parsed and its value checked, a clean one is
-    /// checked as loaded (so a new record with an empty required name fails too). Returns false and fills <see cref="Errors"/> if
+    /// parsed and checked as shown (so a new record with an empty required name fails too). Returns false and fills <see cref="Errors"/> if
     /// any is invalid.
     /// </summary>
     public bool Validate()
@@ -247,7 +247,7 @@ public sealed class Binder<T> : IDisposable where T : class
 
     /// <summary>
     /// Writes the edited fields to <see cref="Current"/> through their setters, all or nothing: every writable field is validated
-    /// first (an edited one is parsed and checked, a clean one is checked as loaded), and if any fails nothing is written,
+    /// first (an edited one is parsed and checked, a clean one is parsed and checked as shown), and if any fails nothing is written,
     /// <see cref="Errors"/> lists the problems and the result is false (nothing throws). On success the controls show the stored
     /// values (formatted again) and are clean. Fields the user
     /// didn't edit are not written (they are re-read, in case a setter changed them). With <see cref="Current"/> null there is
@@ -282,7 +282,7 @@ public sealed class Binder<T> : IDisposable where T : class
     public bool FocusFirstError() => _errors.Count > 0 && _errors[0].Control.Focus();
 
     /// <summary>
-    /// Every writable field validated (an edited one parsed and checked, a clean one checked as loaded); returns the edited
+    /// Every writable field validated (an edited one parsed and checked, a clean one parsed and checked as shown); returns the edited
     /// ones, or null (and <see cref="Errors"/> filled) if any failed.
     /// </summary>
     List<BoundField>? Prepare()
@@ -505,7 +505,9 @@ internal sealed class Field<TModel, TValue, TRaw>(
 
     internal override bool CheckLoaded(out string? error)
     {
-        error = Validator?.Invoke(_loaded);
+        // Parsed like an edit (a combo whose value isn't in the map has nothing chosen), but nothing is written or kept.
+        if (!parse(adapter.Read(), out var v, out error)) { Error = error; return false; }
+        error = Validator?.Invoke(v);
         Error = error;
         return error == null;
     }
