@@ -16,6 +16,7 @@ public class BinderLifetimeTests
         public Rec(string name) => _name = name;
         public string Name { get => _name; set { _name = value; Raise(nameof(Name)); } }
         public string Other { get; set; } = "";
+        public bool Poison;
         public int Terms { get; set; }
         public Kind Kind { get; set; } = Kind.None;
         public DateOnly Since { get; set; }
@@ -226,5 +227,43 @@ public class BinderLifetimeTests
         Assert.False(b.IsDirty);
         Assert.False(b.Validate());
         Assert.Equal("Enter a date.", b.Errors.Single().Message);
+    }
+
+    // ---- a getter that throws ----
+
+    [Fact]
+    public void A_getter_that_throws_leaves_the_controls_and_Current_as_they_were()
+    {
+        var f = new Form();
+        f.SetBounds(0, 0, 300, 100);
+        Edit e1 = new(), e2 = new();
+        e1.SetBounds(10, 10, 200, 26);
+        e2.SetBounds(10, 40, 200, 26);
+        f.Add(e1);
+        f.Add(e2);
+        f.PerformLayout();
+        var b = new Binder<Rec>();
+        b.Bind(e1, r => r.Name, (r, v) => r.Name = v);
+        b.Bind(e2, r => r.Poison || r.Name == "boom" ? throw new InvalidOperationException("getter") : r.Other, (r, v) => r.Other = v);
+        var m1 = new Rec("one") { Other = "o1" };
+        b.Current = m1;
+        f.Simulate.Click(e1);
+        e1.SelectAll();
+        f.Simulate.Type("edited");
+
+        var boom = new Rec("boom");
+        var ex = Assert.Throws<InvalidOperationException>(() => b.Current = boom);
+        Assert.Equal("getter", ex.Message);
+        Assert.Same(m1, b.Current);
+        Assert.Equal("edited", e1.Text);                   // not half-loaded: the first field was not overwritten either
+        Assert.Equal("o1", e2.Text);
+        Assert.True(b.IsDirty);
+        Assert.Equal(1, m1.Subscribers);
+        Assert.Equal(0, boom.Subscribers);
+        Assert.False(b.IsLoading);
+
+        m1.Poison = true;                                  // Revert reads the same getters
+        Assert.Throws<InvalidOperationException>(b.Revert);
+        Assert.Equal("edited", e1.Text);
     }
 }

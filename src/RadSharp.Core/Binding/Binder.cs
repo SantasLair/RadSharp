@@ -62,7 +62,7 @@ public sealed class Binder<T> : IDisposable where T : class
         ArgumentNullException.ThrowIfNull(owner);
         _owner = owner;
         _ownerClosed = _ => Unlisten();
-        _ownerShown = _ => { if (_disposed) return; Listen(); LoadAll(); };
+        _ownerShown = _ => { if (_disposed) return; Listen(); Reload(); };
         owner.Closed += _ownerClosed;
         owner.Shown += _ownerShown;
     }
@@ -72,8 +72,9 @@ public sealed class Binder<T> : IDisposable where T : class
 
     /// <summary>
     /// The object being edited. Setting it (even to the same object) loads every bound control from it and discards unsaved
-    /// edits (check <see cref="IsDirty"/> first); null clears and disables the controls. Throws
-    /// <see cref="ObjectDisposedException"/> once the binder is disposed.
+    /// edits (check <see cref="IsDirty"/> first); null clears and disables the controls. Every getter is read before any
+    /// control changes: if one throws, the exception propagates and the controls, <see cref="Current"/> and the model
+    /// subscription stay as they were. Throws <see cref="ObjectDisposedException"/> once the binder is disposed.
     /// </summary>
     public T? Current
     {
@@ -81,6 +82,7 @@ public sealed class Binder<T> : IDisposable where T : class
         set
         {
             ObjectDisposedException.ThrowIf(_disposed, this);
+            if (value != null) FetchAll(value);   // before anything changes: a getter that throws leaves everything as it was
             Unlisten();
             _current = value;
             Listen();
@@ -197,12 +199,13 @@ public sealed class Binder<T> : IDisposable where T : class
         ArgumentNullException.ThrowIfNull(get);
         ObjectDisposedException.ThrowIf(_disposed, this);
         var field = new Field<T, TValue, TRaw>(adapter, get, set, toRaw, parse);
+        if (_current != null) field.Fetch(_current);   // a throwing getter binds nothing
         _fields.Add(field);
         field.Attach(_changed);
         _loadDepth++;
         try
         {
-            if (_current != null) field.Load(_current);
+            if (_current != null) field.Load();
             else field.Clear();
             field.SetAvailable(_current != null);
         }
@@ -217,7 +220,7 @@ public sealed class Binder<T> : IDisposable where T : class
     public void Revert()
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
-        LoadAll();
+        Reload();
     }
 
     /// <summary>
@@ -228,8 +231,9 @@ public sealed class Binder<T> : IDisposable where T : class
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
         if (_current == null) return;
+        FetchAll(_current);
         _loadDepth++;
-        try { foreach (var f in _fields) f.Refresh(_current); }
+        try { foreach (var f in _fields) f.Refresh(); }
         finally { _loadDepth--; }
         CheckDirty();
     }
@@ -271,7 +275,7 @@ public sealed class Binder<T> : IDisposable where T : class
             // The edited fields show the stored values; the others are re-read, since a setter may have changed them too.
             foreach (var f in _fields)
                 if (dirty.Contains(f)) f.AfterCommit(target);
-                else f.Refresh(target);
+                else { f.Fetch(target); f.Refresh(); }
         }
         finally { _loadDepth--; }
         CheckDirty();
@@ -309,6 +313,19 @@ public sealed class Binder<T> : IDisposable where T : class
 
     void SetErrors(List<BindingError> errors) => _errors = errors;
 
+    /// <summary>Re-reads every getter first, then loads the controls (nothing changes if a getter throws).</summary>
+    void Reload()
+    {
+        if (_current != null) FetchAll(_current);
+        LoadAll();
+    }
+
+    void FetchAll(T model)
+    {
+        foreach (var f in _fields) f.Fetch(model);
+    }
+
+    /// <summary>Loads the controls from what <see cref="FetchAll"/> read (or clears them with no <see cref="Current"/>).</summary>
     void LoadAll()
     {
         if (_disposed) return;
@@ -317,7 +334,7 @@ public sealed class Binder<T> : IDisposable where T : class
         {
             foreach (var f in _fields)
             {
-                if (_current != null) f.Load(_current);
+                if (_current != null) f.Load();
                 else f.Clear();
                 f.SetAvailable(_current != null);
             }
@@ -410,9 +427,10 @@ public abstract class BoundField
     /// <summary>The field's problem from the last commit or validation, or null.</summary>
     public string? Error { get; internal set; }
 
-    internal abstract void Load(object model);
+    internal abstract void Fetch(object model);
+    internal abstract void Load();
     internal abstract void Clear();
-    internal abstract void Refresh(object model);
+    internal abstract void Refresh();
     internal abstract bool Prepare(out string? error);
     internal abstract bool CheckLoaded(out string? error);
     internal abstract void WritePending(object model);
@@ -454,6 +472,7 @@ internal sealed class Field<TModel, TValue, TRaw>(
 
     TRaw _baseline = default!;     // the control's raw value right after the last load
     TValue _loaded = default!;     // the model value loaded last
+    TValue _fetched = default!;    // read from the model by Fetch, applied by Load or Refresh
     TValue _pending = default!;    // parsed by Prepare, written by WritePending
     readonly List<Control> _disabled = [];
     NotifyEvent? _handler;
@@ -463,9 +482,11 @@ internal sealed class Field<TModel, TValue, TRaw>(
     public override bool IsReadOnly => set == null;
     public override bool IsDirty => set != null && !RawEq.Equals(adapter.Read(), _baseline);
 
-    internal override void Load(object model)
+    internal override void Fetch(object model) => _fetched = get((TModel)model);
+
+    internal override void Load()
     {
-        var v = get((TModel)model);
+        var v = _fetched;
         adapter.Write(toRaw(v));
         _baseline = adapter.Read();   // read back: the control may normalize (clamp, cut to MaxLength...)
         _loaded = v;
@@ -480,9 +501,9 @@ internal sealed class Field<TModel, TValue, TRaw>(
         Error = null;
     }
 
-    internal override void Refresh(object model)
+    internal override void Refresh()
     {
-        var v = get((TModel)model);
+        var v = _fetched;
         if (ValueEq.Equals(v, _loaded)) return;
         _loaded = v;
         if (!IsDirty)
