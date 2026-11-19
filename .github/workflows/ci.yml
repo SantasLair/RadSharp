@@ -23,6 +23,13 @@ jobs:
         run: dotnet build RadSharp.slnx --configuration Release
       - name: Test (layout vectors, golden images, input, editors, generators, designer)
         run: dotnet test RadSharp.slnx --configuration Release --no-build
+      # The reference app builds against freshly packed packages (pack.ps1, then a restore from nuget.org): slow and
+      # platform-independent, so one OS is enough. The default suite above doesn't need the packages.
+      - name: Reference app builds from the packed packages (Windows only)
+        if: runner.os == 'Windows'
+        env:
+          RADSHARP_REFAPP_PACK: '1'
+        run: dotnet test tests/RadSharp.RefApp.Tests --configuration Release --no-build --filter Category=Pack
       - name: Upload golden-image failures
         if: failure()
         uses: actions/upload-artifact@v4

@@ -15,6 +15,10 @@ public class RebuildReferenceAppTests
     [Fact]
     public void Recipes_rebuild_every_committed_form_byte_for_byte()
     {
+        // File > New Application refuses a package folder that doesn't exist, and a fresh clone has no artifacts/packages
+        // (git-ignored, made by pack). The recipe only writes the path into nuget.config (never restores), so an empty
+        // folder at the real path is enough and keeps the committed relative path.
+        Directory.CreateDirectory(RefApp.Packages);
         var temp = RefApp.TempDir("radsharp-refapp-");
         var d = DesignerDriver.Start(temp);
         var folder = Path.Combine(RefApp.RecipeLocation, TallyRecipe.AppName);
