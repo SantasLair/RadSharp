@@ -77,7 +77,7 @@ public partial class DesignerForm
         if (newName == oldName) return false;
         if (_project.ValidateFormName(newName, form.Path) is { } problem) { Dialogs.ShowMessage(problem, this); return false; }
         // Other open forms' tabs only show a class name, but unsaved edits to this form must reach the renamed file.
-        if (form.Document.Modified) Save(form);
+        if (form.Document.Modified && !Save(form)) return false;
         string newFile;
         try { newFile = _project.RenameForm(form.Path, newName); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -227,10 +227,18 @@ public partial class DesignerForm
     {
         var code = RadProject.CodeFileFor(form.Path);
         if (!File.Exists(code)) { sbMain.SimpleText = $"{Path.GetFileName(code)} is missing"; return 0; }
-        var original = File.ReadAllText(code);
-        var (source, line) = CodeIntegration.EnsureHandler(original, form.ClassName, handler, parameters);
-        if (source != original) File.WriteAllText(code, source);
-        return line;
+        try
+        {
+            var original = SharedFile.ReadAllText(code);
+            var (source, line) = CodeIntegration.EnsureHandler(original, form.ClassName, handler, parameters);
+            if (source != original) SharedFile.WriteAllText(code, source);
+            return line;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            sbMain.SimpleText = $"Could not update {Path.GetFileName(code)}: {e.Message}";
+            return 0;
+        }
     }
 
     /// <summary>
@@ -253,12 +261,19 @@ public partial class DesignerForm
                     target.EventHandlers[ev] = renamed;
                     renames.Add((handler, renamed));
                 }
-        foreach (var file in project.SourceFiles)
+        try
         {
-            var source = File.ReadAllText(file);
-            var updated = source;
-            foreach (var (o, n) in renames) updated = CodeIntegration.RenameIdentifier(updated, o, n);
-            if (updated != source) File.WriteAllText(file, updated);
+            foreach (var file in project.SourceFiles)
+            {
+                var source = SharedFile.ReadAllText(file);
+                var updated = source;
+                foreach (var (o, n) in renames) updated = CodeIntegration.RenameIdentifier(updated, o, n);
+                if (updated != source) SharedFile.WriteAllText(file, updated);
+            }
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            sbMain.SimpleText = $"Could not update code after rename: {e.Message}";
         }
         form.Document.NotifyChanged();
         Save(form);

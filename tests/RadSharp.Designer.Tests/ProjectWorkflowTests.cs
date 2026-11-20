@@ -645,6 +645,77 @@ public class ProjectWorkflowTests
         Assert.Contains("ShellForm", d.Caption);
     }
 
+    static MenuItem SaveItem(DesignerForm d) =>
+        ((MainMenu)d.FindControl("mnuMain")!).Items.SelectMany(m => m.Items).Single(m => m.Caption.StartsWith("Save", StringComparison.Ordinal) && !m.Caption.StartsWith("Save All", StringComparison.Ordinal) && !m.Caption.StartsWith("Save As", StringComparison.Ordinal));
+
+    /// <summary>Holds <paramref name="path"/> open FileShare.Read (denying writers) on another thread until released.</summary>
+    static (Action Release, Thread Holder) HoldLocked(string path)
+    {
+        var held = new ManualResetEventSlim();
+        var release = new ManualResetEventSlim();
+        var task = new Thread(() =>
+        {
+            using var s = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.Read);
+            held.Set();
+            release.Wait(TimeSpan.FromSeconds(30));
+        });
+        task.Start();
+        Assert.True(held.Wait(TimeSpan.FromSeconds(10)));
+        return (release.Set, task);
+    }
+
+    [Fact]
+    public void Save_retries_while_another_reader_holds_the_form_file()
+    {
+        if (!OperatingSystem.IsWindows()) return;   // locks are advisory elsewhere
+        var project = RadProject.Create(TempDir(), "Retry");
+        var (d, _) = Start(project.ProjectFile);
+        var form = d.ActiveForm!;
+        d.Document!.Create(ComponentRegistry.Find("Label")!, d.Document.Form, 10, 10);
+        Assert.True(d.Document.Modified);
+
+        var (release, task) = HoldLocked(form.Path);
+        // Released from another thread after ~200 ms; the save on this thread must outlast the lock.
+        var releaser = new Thread(() => { Thread.Sleep(200); release(); });
+        releaser.Start();
+        SaveItem(d).PerformClick();
+        releaser.Join();
+        task.Join();
+
+        Assert.False(d.Document.Modified);
+        Assert.Contains("\"class\": \"Label\"", File.ReadAllText(form.Path));
+    }
+
+    [Fact]
+    public void Save_that_never_gets_the_file_reports_an_error_and_keeps_the_document_dirty()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var project = RadProject.Create(TempDir(), "Locked");
+        var (d, _) = Start(project.ProjectFile);
+        var form = d.ActiveForm!;
+        d.Document!.Create(ComponentRegistry.Find("Label")!, d.Document.Form, 10, 10);
+
+        var oldAttempts = SharedFile.RetryAttempts; var oldDelay = SharedFile.RetryDelayMs;
+        SharedFile.RetryAttempts = 3; SharedFile.RetryDelayMs = 10;
+        var (release, task) = HoldLocked(form.Path);
+        try
+        {
+            var ex = Record.Exception(() => SaveItem(d).PerformClick());
+            Assert.Null(ex);
+            Assert.True(d.Document.Modified);
+            Assert.False(d.Save(form));
+            var status = (StatusBar)d.FindControl("sbMain")!;
+            Assert.StartsWith("Could not save ", status.SimpleText);
+        }
+        finally
+        {
+            SharedFile.RetryAttempts = oldAttempts; SharedFile.RetryDelayMs = oldDelay;
+            release(); task.Join();
+        }
+        Assert.True(d.Save(form));   // once free, it works
+        Assert.False(d.Document.Modified);
+    }
+
     [Fact]
     public void Rename_form_fails_safely_when_a_target_file_exists()
     {

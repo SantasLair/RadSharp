@@ -259,7 +259,7 @@ public sealed partial class ProjectDependencies
             try
             {
                 var folder = Path.GetDirectoryName(file)!;
-                foreach (Match m in ProjectReferencePattern().Matches(File.ReadAllText(file)))
+                foreach (Match m in ProjectReferencePattern().Matches(SharedFile.ReadAllText(file)))
                 {
                     var path = Path.GetFullPath(m.Groups["path"].Value.Replace('\\', Path.DirectorySeparatorChar), folder);
                     if (!seen.Add(path)) continue;
@@ -597,7 +597,7 @@ public sealed partial class ProjectDependencies
         List<string> names = [];
         try
         {
-            using var stream = File.OpenRead(path);
+            using var stream = SharedFile.OpenRead(path);
             using var pe = new PEReader(stream);
             if (!pe.HasMetadata) return names;
             var md = pe.GetMetadataReader();

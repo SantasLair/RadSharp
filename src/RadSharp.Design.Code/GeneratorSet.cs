@@ -100,7 +100,7 @@ sealed class GeneratorSet : IDisposable
             {
                 if (_loaded.TryGetValue(path, out var a)) return a;
                 // From memory: a project's own analyzer (a ProjectReference with OutputItemType="Analyzer") stays rebuildable.
-                a = LoadFromStream(new MemoryStream(File.ReadAllBytes(path)));
+                a = LoadFromStream(new MemoryStream(SharedFile.ReadAllBytes(path)));
                 _loaded[path] = a;
                 return a;
             }

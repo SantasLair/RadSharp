@@ -217,7 +217,13 @@ public partial class DesignerForm : Form
 
     public bool Save(OpenForm form)
     {
-        File.WriteAllText(form.Path, form.Document.Save());
+        try { SharedFile.WriteAllText(form.Path, form.Document.Save()); }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            // Another process (or a still-running compile) holds the file: say so, and leave the document dirty.
+            sbMain.SimpleText = $"Could not save {Path.GetFileName(form.Path)}: {e.Message}";
+            return false;
+        }
         form.Document.MarkSaved();
         form.Sheet.Caption = form.ClassName;
         UpdateTitle();
@@ -226,8 +232,9 @@ public partial class DesignerForm : Form
 
     public void SaveAll()
     {
-        foreach (var f in _forms.Where(f => f.Document.Modified)) Save(f);
-        sbMain.SimpleText = "All forms saved";
+        bool ok = true;
+        foreach (var f in _forms.Where(f => f.Document.Modified)) ok &= Save(f);
+        if (ok) sbMain.SimpleText = "All forms saved";
     }
 
     /// <summary>Asks once about all modified forms in <paramref name="forms"/>; false if the user cancelled.</summary>
@@ -238,7 +245,7 @@ public partial class DesignerForm : Form
         var names = string.Join(", ", modified.Select(f => f.ClassName));
         switch (Dialogs.MessageDlg($"Save changes to {names}?", MessageType.Confirmation, MessageButtons.YesNoCancel, this))
         {
-            case ModalResult.Yes: foreach (var f in modified) Save(f); return true;
+            case ModalResult.Yes: return modified.Select(Save).ToList().All(ok => ok);
             case ModalResult.No: return true;
             default: return false;
         }
