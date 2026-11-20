@@ -87,15 +87,41 @@ public sealed class DesignSession : IDisposable
     /// <summary>The host crashed or the pipe broke. Show an error with a restart affordance (<see cref="RestartAsync"/>).</summary>
     public event EventHandler<DisconnectedEventArgs>? Disconnected;
 
-    /// <summary>Opens a form file. Its panes arrive as <see cref="DesignDocument.WindowOpened"/>.</summary>
-    public DesignDocument OpenDocument(string path)
+    /// <summary>
+    /// Opens a form file. Its panes arrive as <see cref="DesignDocument.WindowOpened"/>. <paramref name="projectAssembly"/>:
+    /// the built assembly of the project the file belongs to (its <c>TargetPath</c>), if known; the host loads it first,
+    /// so the form shows the project's own controls, and follows its rebuilds.
+    /// </summary>
+    public DesignDocument OpenDocument(string path, string? projectAssembly = null)
     {
         if (path == null) throw new ArgumentNullException(nameof(path));
         ThrowIfDisposed();
-        var doc = new DesignDocument(this, _nextDocId++, path);
+        var doc = new DesignDocument(this, _nextDocId++, path) { ProjectAssembly = NullIfEmpty(projectAssembly) };
         _docs.Add(doc.Id, doc);
-        Send(new OpenDocument { DocId = doc.Id, Path = path });
+        SendOpen(doc);
         return doc;
+    }
+
+    private static string? NullIfEmpty(string? s) => string.IsNullOrEmpty(s) ? null : s;
+
+    /// <summary>What opening a document takes: its project assembly (if any), then the document.</summary>
+    private bool SendOpen(DesignDocument doc)
+    {
+        bool ok = true;
+        if (doc.ProjectAssembly != null) ok &= Send(new SetProjectAssembly { DocId = doc.Id, Path = doc.ProjectAssembly });
+        return ok & Send(new OpenDocument { DocId = doc.Id, Path = doc.Path });
+    }
+
+    /// <summary>
+    /// The document's project assembly changed (another configuration became active, the file moved to another
+    /// project): tells the host, which reads the form again with that project's controls. Nothing is sent if it is the same.
+    /// </summary>
+    internal void SetProjectAssembly(DesignDocument doc, string? projectAssembly)
+    {
+        projectAssembly = NullIfEmpty(projectAssembly);
+        if (string.Equals(doc.ProjectAssembly, projectAssembly, StringComparison.OrdinalIgnoreCase)) return;
+        doc.ProjectAssembly = projectAssembly;
+        Send(new SetProjectAssembly { DocId = doc.Id, Path = projectAssembly ?? "" });
     }
 
     /// <summary>The document with <paramref name="docId"/>, if open.</summary>
@@ -171,7 +197,7 @@ public sealed class DesignSession : IDisposable
             _connection = conn;
             Hook(conn);
             bool ok = true;
-            foreach (var doc in _docs.Values.ToList()) ok &= Send(new OpenDocument { DocId = doc.Id, Path = doc.Path });
+            foreach (var doc in _docs.Values.ToList()) ok &= SendOpen(doc);
             if (_activeDocId != 0) ok &= Send(new ActivateDocument { DocId = _activeDocId });
             if (!ok) throw new IOException("The design host disconnected while its documents were being reopened.");
         }

@@ -37,6 +37,7 @@ public class ProtocolTests
         new TextInput { WindowId = 13, Text = "h\u00e9llo \U0001F600" },
         new Command { DocId = 14, Name = "SelectAll" },
         new CloseWindow { WindowId = 15 },
+        new SetProjectAssembly { DocId = 33, Path = @"C:\proj\bin\Debug\net10.0\App.dll" },
         new CodeResponse { RequestId = 31, Found = true, Text = "class A\r\n{\r\n}\r\n// é中" },
         new HelloAck { ProtocolVersion = 1, HostVersion = "0.1.0-dev" },
         new WindowOpened { WindowId = 16, DocId = 5, Role = WindowRole.Dialog, OwnerWindowId = 2, X = -5, Y = 6, Width = 300, Height = 200, Title = "Open", Modal = true },
@@ -88,7 +89,7 @@ public class ProtocolTests
         Assert.All(concrete, t => Assert.Contains(t, tested));
         var bytes = AllMessages().Select(m => m.MessageType).ToList();
         Assert.Equal(bytes.Count, bytes.Distinct().Count());
-        Assert.Equal(3, ProtocolInfo.Version);
+        Assert.Equal(4, ProtocolInfo.Version);
     }
 
     [Fact]

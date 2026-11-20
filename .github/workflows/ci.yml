@@ -3,13 +3,19 @@ name: CI
 on:
   push:
   pull_request:
+  # Actions tab -> CI -> "Run workflow": the same jobs plus macOS (for a macOS designer build, or a clean macOS run).
+  workflow_dispatch:
 
 jobs:
   test:
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, macos-latest, ubuntu-latest]
+        # macOS runs only when started by hand: the hosted macOS runners kept dying mid-test ("lost communication"),
+        # so day to day macOS is checked on a local Mac with tools/mac-check.sh.
+        os: ${{ fromJSON(github.event_name == 'workflow_dispatch'
+          && '["windows-latest", "macos-latest", "ubuntu-latest"]'
+          || '["windows-latest", "ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -25,6 +31,13 @@ jobs:
         # A hung test fails after 5 minutes and names itself (blame-hang) instead of holding the job for hours.
         run: dotnet test RadSharp.slnx --configuration Release --no-build --blame-hang --blame-hang-timeout 5m --blame-hang-dump-type none
         timeout-minutes: 30
+      # The reference app builds against freshly packed packages (pack.ps1, then a restore from nuget.org): slow and
+      # platform-independent, so one OS is enough. The default suite above doesn't need the packages.
+      - name: Reference app builds from the packed packages (Windows only)
+        if: runner.os == 'Windows'
+        env:
+          RADSHARP_REFAPP_PACK: '1'
+        run: dotnet test tests/RadSharp.RefApp.Tests --configuration Release --no-build --filter Category=Pack
       - name: Upload golden-image failures
         if: failure()
         uses: actions/upload-artifact@v4

@@ -165,7 +165,8 @@ public class DesignSurface : Control
     {
         var form = _doc!.Form;
         for (Control? c = form.HitTestForm(Math.Clamp(x, 0, form.Width - 1), Math.Clamp(y, 0, form.Height - 1)); c != null; c = c.Parent)
-            if (DesignDocument.AcceptsChild(c, cls)) return c;
+            // Not into a control's own (transient) child: the form file wouldn't save what is dropped there.
+            if (!c.IsTransient && DesignDocument.AcceptsChild(c, cls)) return c;
         return form;
     }
 
@@ -496,7 +497,7 @@ public class DesignSurface : Control
                 PendingClass = null;
                 _doc.Select(_doc.Primary.Parent is { } p && p != _doc.Form ? p : null);
                 break;
-            case Key.A when cmd: _doc.SelectMany(_doc.PasteTarget().Children.Where(c => c.IsShown)); break;
+            case Key.A when cmd: _doc.SelectMany(_doc.PasteTarget().Children.Where(c => c.IsShown && !c.IsTransient)); break;
             case Key.C when cmd: CopySelection(); break;
             case Key.X when cmd: CopySelection(); _doc.DeleteSelection(); break;
             case Key.V when cmd: PasteClipboard(); break;

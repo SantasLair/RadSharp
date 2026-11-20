@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    A project with its own controls, for the project-assembly tests (ProjectAssembly, the design host's
+    SetProjectAssembly). The tests build it without referencing its output, and load it the way the Visual Studio
+    design host loads a project's build output.
+  -->
+  <PropertyGroup>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\RadSharp.Core\RadSharp.Core.csproj" />
+    <ProjectReference Include="..\SampleData\SampleData.csproj" />
+    <ProjectReference Include="..\..\..\src\RadSharp.Generators\RadSharp.Generators.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false" />
+  </ItemGroup>
+
+</Project>

@@ -6,8 +6,11 @@ namespace RadSharp.DesignHost.Protocol;
 /// <summary>Protocol constants.</summary>
 public static class ProtocolInfo
 {
-    /// <summary>Wire protocol version, exchanged in Hello / HelloAck.</summary>
-    public const int Version = 3;
+    /// <summary>
+    /// Wire protocol version, exchanged in Hello / HelloAck. The client and the host ship together (in the VSIX), so the
+    /// client accepts only a host of its own version. 4: <see cref="SetProjectAssembly"/>.
+    /// </summary>
+    public const int Version = 4;
 
     /// <summary>Largest accepted frame (type byte + payload), in bytes.</summary>
     public const int MaxFrameLength = 256 * 1024 * 1024;
@@ -399,6 +402,23 @@ public sealed class Log : Message
     public string Text { get; set; } = "";
     public override void Write(BinaryWriter w) { w.Write(Level); w.Write(Text ?? ""); }
     public override void Read(BinaryReader r) { Level = r.ReadInt32(); Text = r.ReadString(); }
+}
+
+/// <summary>
+/// The built assembly of the project a document belongs to (its MSBuild <c>TargetPath</c> in the active configuration),
+/// sent before <see cref="OpenDocument"/> with the same <see cref="DocId"/>, and again whenever it changes. The host
+/// loads it so the form shows the project's own controls (and its component libraries'), reloads it whenever it is
+/// rebuilt, and unloads it once no open document names it. An empty <see cref="Path"/>: the document uses no project
+/// assembly. Problems are reported as <see cref="Log"/> warnings. (Protocol 4.)
+/// </summary>
+public sealed class SetProjectAssembly : Message
+{
+    public const byte Type = 0x1A;
+    public override byte MessageType => Type;
+    public int DocId { get; set; }
+    public string Path { get; set; } = "";
+    public override void Write(BinaryWriter w) { w.Write(DocId); w.Write(Path ?? ""); }
+    public override void Read(BinaryReader r) { DocId = r.ReadInt32(); Path = r.ReadString(); }
 }
 
 /// <summary>Asks the client for the current text of a code file (its editor buffer); answered by <see cref="CodeResponse"/>.</summary>

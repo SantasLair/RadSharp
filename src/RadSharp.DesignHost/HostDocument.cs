@@ -178,11 +178,52 @@ internal sealed class HostDocument
         return form;
     }
 
+    /// <summary>
+    /// The controls of the document's project (<see cref="SetProjectAssembly"/>), which the document may create and the
+    /// palette lists first, as Visual Studio's Toolbox lists a project's own components.
+    /// </summary>
+    public ProjectClassSet ProjectClasses { get; set; } = ProjectClassSet.Empty;
+
+    /// <summary>
+    /// The project's classes changed (its assembly was loaded, rebuilt or dropped): reads the form again from
+    /// <paramref name="json"/>, the text saved while the old classes were still loaded, with the new ones (see
+    /// <see cref="DesignDocument.ReloadWith"/>), and refills the palette. Returns what to tell the user.
+    /// </summary>
+    public IReadOnlyList<string> SwapProjectClasses(ProjectClassSet next, string json)
+    {
+        ProjectClasses = next;
+        IReadOnlyList<string> warnings;
+        string? problem;
+        try { (warnings, problem) = Doc.ReloadWith(json, next.Classes.Count == 0 ? null : next.Find); }
+        finally
+        {
+            // Whatever happened above (or in the palette): the panes show the new state.
+            try { FillPalette(); }
+            finally
+            {
+                StateDirty = ModifiedStale = true;
+                Surface?.Invalidate();
+            }
+        }
+        return problem == null ? warnings : [problem, .. warnings];
+    }
+
+    /// <summary>
+    /// Holds controls of the document rather than the document (null: nothing), so its form must not be replaced now:
+    /// an edit made afterwards would go to a control no longer on the form, and be lost.
+    /// </summary>
+    public string? Busy =>
+        Surface?.IsTracking == true ? "the drag on the form"
+        : GridProps?.IsEditing == true || GridEvents?.IsEditing == true ? "the Object Inspector's edit"
+        : null;
+
     void FillPalette()
     {
         if (PaletteTree == null) return;
         _syncing = true;
-        ComponentPalette.Fill(PaletteTree, _palette, PaletteFilter?.Text ?? "");
+        PaletteTree.Selected = null;   // its node (and class) may be about to go
+        var set = ProjectClasses;
+        ComponentPalette.Fill(PaletteTree, set.PaletteClasses(_palette), PaletteFilter?.Text ?? "", set.PaletteCategory, projectFirst: true);
         _syncing = false;
         if (Surface != null) Surface.PendingClass = null;
     }
@@ -257,7 +298,7 @@ internal sealed class HostDocument
             case "Copy": Surface?.CopySelection(); break;
             case "Paste": Surface?.PasteClipboard(); break;
             case "Delete": Doc.DeleteSelection(); break;
-            case "SelectAll": Doc.SelectMany(Doc.PasteTarget().Children.Where(c => c.IsShown || c is Component)); break;
+            case "SelectAll": Doc.SelectMany(Doc.PasteTarget().Children.Where(c => (c.IsShown || c is Component) && !c.IsTransient)); break;
             case "BringToFront": Reorder(toFront: true); break;
             case "SendToBack": Reorder(toFront: false); break;
             // The editors are modal RadSharp forms; HeadlessPlatform shows them as Dialog windows owned by the surface.

@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Threading.Tasks;
 using System.Windows;
 using Grid = System.Windows.Controls.Grid;
@@ -282,6 +283,38 @@ public class SessionTests
         Assert.Null(docError);
         Assert.Null(globalError!.Document);
         Assert.Equal("global", globalError.Text);
+    });
+
+    [Fact]
+    public void A_documents_project_assembly_is_sent_before_the_document() => Ui.RunSta(() =>
+    {
+        using var rig = new Rig();
+        Assert.Empty(rig.Host.All<SetProjectAssembly>());   // none given: none sent
+        const string dll = @"C:\app\bin\Debug\net10.0\App.dll";
+        var doc = rig.Session.OpenDocument(@"C:\app\MainForm.radform.json", dll);
+        rig.Host.WaitFor<OpenDocument>(m => m.DocId == doc.Id);
+        var sent = rig.Host.All<Message>().Where(m => m is SetProjectAssembly || m is OpenDocument open && open.DocId == doc.Id).ToList();
+        Assert.Equal(2, sent.Count);
+        var project = Assert.IsType<SetProjectAssembly>(sent[0]);
+        Assert.Equal(doc.Id, project.DocId);
+        Assert.Equal(dll, project.Path);
+        Assert.Equal(dll, doc.ProjectAssembly);
+    });
+
+    [Fact]
+    public void A_changed_project_assembly_is_sent_once_and_none_is_sent_as_an_empty_path() => Ui.RunSta(() =>
+    {
+        using var rig = new Rig();
+        const string release = @"C:\app\bin\Release\net10.0\App.dll";
+        rig.Doc.SetProjectAssembly(release);
+        rig.Doc.SetProjectAssembly(release.ToUpperInvariant());   // the same file: nothing more
+        rig.Doc.SetProjectAssembly(null);
+        rig.Doc.SetProjectAssembly(null);
+        rig.Host.WaitFor<SetProjectAssembly>(m => m.Path.Length == 0);
+        rig.Doc.Activate();
+        rig.Host.WaitFor<ActivateDocument>();
+        Assert.Equal(new[] { release, "" }, rig.Host.All<SetProjectAssembly>().Select(m => m.Path).ToArray());
+        Assert.Null(rig.Doc.ProjectAssembly);
     });
 
     [Fact]

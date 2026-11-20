@@ -29,7 +29,10 @@ public partial class Control
     public Control? Parent { get; private set; }
     public IReadOnlyList<Control> Children => _children;
 
-    /// <summary>A child a control adds for its own use while it runs (a grid's in-place editor): never written to a form file.</summary>
+    /// <summary>
+    /// A child a control adds for its own use (a grid's in-place editor, or any child its constructor creates: see
+    /// <see cref="ComponentClass.Create"/>): never written to a form file, and a designer selects its parent instead.
+    /// </summary>
     public bool IsTransient { get; internal set; }
     /// <summary>For a popup: the control that receives typed text while the popup is open, if it has focus (an editable combo box's edit); null means none.</summary>
     internal Control? PopupTextTarget { get; set; }

@@ -3,6 +3,7 @@ using System.Diagnostics;
 using RadSharp.Design;
 using RadSharp.DesignHost.Protocol;
 using RadSharp.Diagnostics;
+using RadSharp.Drawing;
 using RadSharp.Threading;
 
 
@@ -33,6 +34,14 @@ public sealed class DesignHostServer
     readonly Stopwatch _clock = Stopwatch.StartNew();
     readonly HeadlessPlatform _platform;
     readonly Dictionary<int, PendingCode> _pendingCode = [];
+    readonly Dictionary<string, ProjectAssembly> _projects = new(StringComparer.OrdinalIgnoreCase);
+    readonly Dictionary<int, string> _docProject = [];
+    /// <summary>When a rebuild was last seen changing (the host clock, ms), with the build's change stamp then.</summary>
+    readonly Dictionary<string, (long Since, long Stamp)> _staleSince = new(StringComparer.OrdinalIgnoreCase);
+    /// <summary>Projects whose load failed after a rebuild: when to try once more (the file may have been half written).</summary>
+    readonly Dictionary<string, long> _retryAt = new(StringComparer.OrdinalIgnoreCase);
+    readonly HashSet<string> _toldBusy = new(StringComparer.OrdinalIgnoreCase);
+    long _nextProjectCheck;
     int _nextWindowId = 1, _activeDoc, _nextRequestId = 1;
     long _nextTick;
     double _scale = 1;
@@ -72,6 +81,7 @@ public sealed class DesignHostServer
         var previousPlatform = PlatformHost.Current;
         PlatformHost.Current = _platform;
         Application.ThreadException += OnThreadException;
+        FormRenderer.PaintError += OnPaintError;
         var reader = new Thread(ReadLoop) { IsBackground = true, Name = "RadSharp design host reader" };
         var writer = new Thread(WriteLoop) { IsBackground = true, Name = "RadSharp design host writer" };
         reader.Start();
@@ -87,9 +97,13 @@ public sealed class DesignHostServer
             _byForm.Clear();
             _docs.Clear();
             _pendingCode.Clear();
+            foreach (var project in _projects.Values) project.Dispose();
+            _projects.Clear();
+            _docProject.Clear();
             _outbox.CompleteAdding();
             writer.Join(TimeSpan.FromSeconds(2));
             Application.ThreadException -= OnThreadException;
+            FormRenderer.PaintError -= OnPaintError;
             if (PlatformHost.Current == _platform) PlatformHost.Current = previousPlatform;
             SynchronizationContext.SetSynchronizationContext(previousContext);
         }
@@ -159,7 +173,9 @@ public sealed class DesignHostServer
     void Flush()
     {
         ExpireCodeRequests();
+        _paintErrorsThisFlush = 0;
         long now = _clock.ElapsedMilliseconds;
+        if (AutoCheckProjects) CheckProjects(now);
         foreach (var doc in _docs.Values)
         {
             if (!doc.StateDirty && !doc.ModifiedStale) continue;
@@ -202,6 +218,33 @@ public sealed class DesignHostServer
                     Send(frames[i], i == frames.Count - 1 ? () => w.FrameInFlight = false : null);
             }
         }
+    }
+
+    /// <summary>The least time between two reports about the same control (its message may change on every paint).</summary>
+    internal TimeSpan PaintErrorInterval { get; set; } = TimeSpan.FromSeconds(10);
+
+    /// <summary>The most paint errors reported in one pass over the windows, whatever the controls.</summary>
+    const int MaxPaintErrorsPerFlush = 5;
+
+    readonly System.Runtime.CompilerServices.ConditionalWeakTable<Control, System.Runtime.CompilerServices.StrongBox<long>> _paintErrorAt = new();
+    int _paintErrorsThisFlush;
+
+    void OnPaintError(Control control, Exception e)
+    {
+        // Only this host's designed forms (painting runs on this thread; a test process may paint others elsewhere).
+        if (!_docs.Values.Any(d => ReferenceEquals(d.Doc.Form, control.Root))) return;
+        // The first failure of a control is reported at once; after that one per interval, and a few per pass.
+        long now = _clock.ElapsedMilliseconds;
+        if (_paintErrorAt.TryGetValue(control, out var last))
+        {
+            if (now - last.Value < PaintErrorInterval.TotalMilliseconds) return;
+            last.Value = now;
+        }
+        else if (_paintErrorsThisFlush >= MaxPaintErrorsPerFlush) return;   // not recorded: reported on a later paint
+        else _paintErrorAt.Add(control, new System.Runtime.CompilerServices.StrongBox<long>(now));
+        if (++_paintErrorsThisFlush > MaxPaintErrorsPerFlush) return;
+        var name = control.Name.Length > 0 ? $"{control.Name} ({control.GetType().Name})" : control.GetType().Name;
+        Log(2, $"{name} can't paint at design time: {e.GetType().Name}: {e.Message}");
     }
 
     void OnThreadException(object? sender, ThreadExceptionEventArgs e)
@@ -333,6 +376,7 @@ public sealed class DesignHostServer
                 if (!_docs.TryGetValue(m.DocId, out var doc)) break;
                 if (!doc.Execute(m.Name)) Log(2, $"Unknown command \"{m.Name}\".");
                 break;
+            case SetProjectAssembly m: SetProject(m.DocId, m.Path); break;
             case CodeResponse m:
                 if (_pendingCode.Remove(m.RequestId, out var pending)) pending.Continue(m.Found ? m.Text : null);
                 else Log(1, $"Ignoring CodeResponse {m.RequestId}: no such pending request.");
@@ -476,20 +520,23 @@ public sealed class DesignHostServer
         if (_docs.ContainsKey(docId)) { SendError(docId, $"Document {docId} is already open."); return; }
         string full;
         var doc = new DesignDocument();
+        var project = ProjectOf(docId);
+        if (project.Classes.Count > 0) doc.ProjectClasses = project.Find;
         try
         {
             full = Path.GetFullPath(path);
-            var warnings = doc.Load(File.ReadAllText(full));
+            var warnings = KeepingTheme(() => doc.Load(File.ReadAllText(full)));
             doc.FileName = full;
             foreach (var warning in warnings.Take(10)) Log(2, $"{Path.GetFileName(full)}: {warning}");
         }
         catch (Exception e) when (e is not OutOfMemoryException)
         {
             SendError(docId, $"Could not open {Path.GetFileName(path)}: {e.Message}");
+            ForgetProject(docId);   // the document never opened: it must not keep its project loaded
             return;
         }
 
-        var hd = new HostDocument(this, docId, full, doc);
+        var hd = new HostDocument(this, docId, full, doc) { ProjectClasses = project };
         _docs[docId] = hd;
         hd.SurfaceWindow = AddPane(hd, WindowRole.Surface, hd.Title);
         hd.InspectorWindow = AddPane(hd, WindowRole.Inspector, "Object Inspector");
@@ -510,7 +557,7 @@ public sealed class DesignHostServer
 
     void CloseDoc(int docId)
     {
-        if (!_docs.Remove(docId, out var doc)) return;
+        if (!_docs.Remove(docId, out var doc)) { ForgetProject(docId); return; }
         foreach (var id in _pendingCode.Where(p => p.Value.DocId == docId).Select(p => p.Key).ToList()) _pendingCode.Remove(id);
         var panes = doc.Windows.ToList();
         // Dialogs opened over this document's panes go too.
@@ -518,6 +565,13 @@ public sealed class DesignHostServer
         foreach (var w in panes) CloseWindowCore(w);
         if (doc.Surface != null) doc.Surface.Document = null;
         if (_activeDoc == docId) _activeDoc = _docs.Keys.FirstOrDefault();
+        ForgetProject(docId);
+    }
+
+    /// <summary>The document is gone (closed, or never opened): its project is unloaded once no other document uses it.</summary>
+    void ForgetProject(int docId)
+    {
+        if (_docProject.Remove(docId, out var project)) UnloadIfUnused(project);
     }
 
     void ReloadDoc(int docId)
@@ -525,7 +579,7 @@ public sealed class DesignHostServer
         if (!_docs.TryGetValue(docId, out var doc)) return;
         try
         {
-            var warnings = doc.Doc.Load(File.ReadAllText(doc.Path));
+            var warnings = KeepingTheme(() => doc.Doc.Load(File.ReadAllText(doc.Path)));
             foreach (var warning in warnings.Take(10)) Log(2, $"{Path.GetFileName(doc.Path)}: {warning}");
         }
         catch (Exception e) when (e is not OutOfMemoryException)
@@ -577,6 +631,188 @@ public sealed class DesignHostServer
             try { File.Delete(temp); } catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
             throw;
         }
+    }
+
+    // =====================================================================
+    // Project assemblies (the project's own controls)
+    // =====================================================================
+
+    /// <summary>How long a rebuilt assembly must stay unchanged before it is reloaded (the build may still be writing).</summary>
+    internal TimeSpan ProjectSettleTime { get; set; } = TimeSpan.FromMilliseconds(750);
+
+    /// <summary>False: the UI loop doesn't check for rebuilds itself (tests call <see cref="CheckProjects"/> with their own clock).</summary>
+    internal bool AutoCheckProjects { get; set; } = true;
+
+    /// <summary>How often the loaded project assemblies are checked for a rebuild.</summary>
+    internal TimeSpan ProjectCheckInterval { get; set; } = TimeSpan.FromSeconds(1);
+
+    /// <summary>The loaded project assemblies, by full path (for tests).</summary>
+    internal IReadOnlyDictionary<string, ProjectAssembly> Projects => _projects;
+
+    /// <summary>
+    /// Project code may set <see cref="Theme.Current"/> as a side effect (a static constructor, say): the panes keep
+    /// the designer's theme.
+    /// </summary>
+    static T KeepingTheme<T>(Func<T> action)
+    {
+        var theme = Theme.Current;
+        try { return action(); }
+        finally { Theme.Current = theme; }
+    }
+
+    /// <summary>The classes of the project <paramref name="docId"/> belongs to (none if it has no project assembly).</summary>
+    ProjectClassSet ProjectOf(int docId) =>
+        _docProject.TryGetValue(docId, out var path) && _projects.TryGetValue(path, out var p) ? p.ClassSet : ProjectClassSet.Empty;
+
+    /// <summary>
+    /// The document's project assembly (sent before the document is opened, or later when it changes): loaded unless
+    /// another document has it already. An empty path: the document has none. If the document is open, it is read again
+    /// with the new classes; the old assembly is unloaded when no document uses it any more.
+    /// </summary>
+    void SetProject(int docId, string path)
+    {
+        string? full = null;
+        if (!string.IsNullOrWhiteSpace(path))
+        {
+            try { full = Path.GetFullPath(path); }
+            catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+            {
+                Log(2, $"Project controls: '{path}' is not a valid path ({e.Message}).");
+                return;
+            }
+        }
+        var old = _docProject.GetValueOrDefault(docId);
+        if (string.Equals(old, full, StringComparison.OrdinalIgnoreCase)) return;
+        if (full == null) _docProject.Remove(docId);
+        else _docProject[docId] = full;
+        if (full != null && !_projects.ContainsKey(full)) _projects[full] = LoadProject(full);
+        if (_docs.TryGetValue(docId, out var doc)) Swap([doc], ProjectOf(docId));
+        if (old != null) UnloadIfUnused(old);
+    }
+
+    ProjectAssembly LoadProject(string path)
+    {
+        var project = KeepingTheme(() => ProjectAssembly.Load(path));
+        if (project.Error != null) Log(2, $"Project controls: {project.Error}");
+        else
+        {
+            var names = project.Classes.Select(c => $"{c.Name} ({project.ClassSet.CategoryOf(c)})");
+            var text = project.Classes.Count == 0
+                ? $"Project controls: {Path.GetFileName(path)} defines none."
+                : $"Project controls from {Path.GetFileName(path)}: {string.Join(", ", names)}.";
+            Inform(text);
+        }
+        foreach (var warning in project.Warnings) Log(2, $"Project controls: {warning}");
+        return project;
+    }
+
+    /// <summary>Information the IDE should show too (<see cref="Log"/> forwards only warnings and errors).</summary>
+    void Inform(string text)
+    {
+        Log(1, text);
+        Send(new Protocol.Log { Level = 1, Text = text });
+    }
+
+    void UnloadIfUnused(string path)
+    {
+        if (_docProject.ContainsValue(path) || !_projects.Remove(path, out var project)) return;
+        _staleSince.Remove(path);
+        _retryAt.Remove(path);
+        _toldBusy.Remove(path);
+        project.Dispose();
+    }
+
+    /// <summary>
+    /// Gives <paramref name="docs"/> the classes of <paramref name="next"/>: each form is saved while the old classes are
+    /// still loaded, then read again with the new ones (keeping undo, the selection and the modified state); a form that
+    /// can't take them gets placeholders instead (<see cref="DesignDocument.ReloadWith"/>).
+    /// </summary>
+    void Swap(IEnumerable<HostDocument> docs, ProjectClassSet next)
+    {
+        foreach (var doc in docs.ToList())
+        {
+            var name = Path.GetFileName(doc.Path);
+            string json;
+            try { json = doc.Doc.Save(); }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                // The old controls can't be written. Keeping them would leave the form on code that is about to be
+                // unloaded (a later save would write their base classes): go back to the last text that could be saved.
+                json = doc.Doc.LastGoodText;
+                Log(2, $"{name}: a control on the form can't be saved ({e.GetType().Name}: {e.Message}); the form is reloaded from its last good state, so changes made since are lost.");
+            }
+            try
+            {
+                var messages = KeepingTheme(() => doc.SwapProjectClasses(next, json));
+                // Not the "unknown class" ones: a project that isn't built says so once, when it is loaded.
+                foreach (var m in messages.Where(m => !m.Contains("unknown class", StringComparison.Ordinal)).Take(10))
+                    Log(2, $"{name}: {m}");
+            }
+            catch (Exception e) when (e is not OutOfMemoryException)
+            {
+                // One form failing must not stop the others from moving to the new code.
+                Log(3, $"{name}: can't move the form onto the rebuilt project ({e.GetType().Name}: {e.Message}).");
+            }
+        }
+    }
+
+    /// <summary>Reloads every project assembly that was rebuilt and has stayed unchanged for <see cref="ProjectSettleTime"/>.</summary>
+    internal void CheckProjects(long now)
+    {
+        if (_projects.Count == 0 || now < _nextProjectCheck) return;
+        _nextProjectCheck = now + (long)ProjectCheckInterval.TotalMilliseconds;
+        foreach (var (path, project) in _projects.ToList())
+        {
+            bool retry = false;
+            if (_retryAt.TryGetValue(path, out var due))
+            {
+                // The load failed right after a rebuild: once more when it has settled (a slow copy, an antivirus scan).
+                if (now < due) continue;
+                _retryAt.Remove(path);
+                retry = true;
+            }
+            else if (!project.IsStale()) { _staleSince.Remove(path); continue; }
+            if (!retry)
+            {
+                // Settled: unchanged for ProjectSettleTime. A file that changes again restarts the wait.
+                var stamp = project.ChangeStamp();
+                if (!_staleSince.TryGetValue(path, out var seen) || seen.Stamp != stamp) { _staleSince[path] = (now, stamp); continue; }
+                if (now - seen.Since < ProjectSettleTime.TotalMilliseconds) continue;
+            }
+            if (BusyWith(path) is { } busy)
+            {
+                // Replacing the forms now would pull them from under what is editing them: wait until it is done.
+                if (_toldBusy.Add(path)) Inform($"Project controls: {Path.GetFileName(path)} was rebuilt; it is reloaded once {busy} is done.");
+                continue;
+            }
+            _staleSince.Remove(path);
+            _toldBusy.Remove(path);
+            ReloadProject(path);
+            if (!retry && _projects.TryGetValue(path, out var reloaded) && reloaded.Error != null && reloaded.FileExists)
+                _retryAt[path] = now + (long)ProjectSettleTime.TotalMilliseconds;
+        }
+    }
+
+    /// <summary>What holds controls of a form that uses <paramref name="path"/> (null: nothing): see <see cref="HostDocument.Busy"/>.</summary>
+    string? BusyWith(string path)
+    {
+        var docs = Using(path).ToList();
+        if (docs.Count == 0) return null;
+        if (_modalStack.Count > 0) return "the dialog";
+        return docs.Select(d => d.Busy).FirstOrDefault(b => b != null);
+    }
+
+    IEnumerable<HostDocument> Using(string path) =>
+        _docProject.Where(p => string.Equals(p.Value, path, StringComparison.OrdinalIgnoreCase) && _docs.ContainsKey(p.Key)).Select(p => _docs[p.Key]);
+
+    /// <summary>The project was rebuilt: load the new code, move its forms onto it, then unload the old code.</summary>
+    internal void ReloadProject(string path)
+    {
+        if (!_projects.TryGetValue(path, out var old)) return;
+        var next = LoadProject(path);
+        _projects[path] = next;
+        try { Swap(Using(path), next.ClassSet); }
+        finally { old.Dispose(); }   // whatever happened: the old code never leaks
     }
 
     // =====================================================================

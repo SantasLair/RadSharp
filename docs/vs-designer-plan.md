@@ -116,6 +116,13 @@ host was working. The host no longer falls back to the disk when a `CodeRequest`
 `Error("code editor did not respond; try again")` and takes the handler name back off the form. It also takes the
 handler name back, and sends `Error`, if the code file cannot be read or the handler cannot be added.
 
+**v4: project controls** (`ProtocolInfo.Version = 4`). `SetProjectAssembly(docId, path)` (0x1A, client to host): the
+MSBuild `TargetPath` of the project the document belongs to, sent before `OpenDocument` with the same `docId`, again
+for every document after a host restart, and whenever it changes (an empty path: none). The host loads it and shows
+the project's own controls; see "Project controls" below. The message is additive. The client still accepts only a
+host that answers `HelloAck` with its own version, as before: the two ship together in the VSIX, so a mismatched pair
+fails the handshake cleanly instead of sending a message the other side doesn't know.
+
 **Process contract.**
 - **Startup:** the client runs `RadSharpDesignHost.exe --pipe <name> [--parent-pid <pid>]`. The host creates
   `NamedPipeServerStream(name, InOut, 1, Byte, Asynchronous)` and accepts one connection. The client connects with
@@ -164,7 +171,8 @@ clipboard bridge goes through the client later, and v1 uses the in-process clipb
   normal editor. "Open With… → Source Code (Text) Editor" stays available for the raw JSON.
 - **Keyboard in VS panes.** VS pre-translates keys into commands. The pane must claim keys while focused
   (`IVsWindowPane.TranslateAccelerator` / WPF `PreviewKeyDown`) and route Edit-menu commands as `Command` messages.
-- **Custom controls from the user's project.** v1 shows built-in components only, as the standalone designer does today.
+- **Custom controls from the user's project.** v1 showed built-in components only. Done in protocol 4: see
+  "Project controls" below.
 - **Runtime.** The host is framework-dependent .NET 10, shipped inside the VSIX. RadSharp users already have the SDK.
 - **Verification.** Everything but the VSIX is tested headlessly or in the harness. The VSIX gets a build check plus
   a manual checklist in the experimental instance (`devenv /rootsuffix Exp`), because driving VS's UI can't be automated here.
@@ -247,6 +255,75 @@ main hive):**
 **Not yet checked live:** switching the VS colour theme while running, the dirty-tab close prompt, and a DPI change
 between monitors.
 
+## Project controls (protocol 4, shipped 2026-11-19)
+
+The 1.0 scope includes "project controls on the palette" for both designers, and the user decided on 2026-11-19 that
+the Visual Studio designer is in 1.0. The VS designer shows the project's own controls (any `Control` subclass the
+project defines; RadSharp's metadata generator already registers them in the project's own build) and those of the
+component libraries it uses. Ported from the 2026-11-14 work-in-progress (branch `parked/vs-project-controls-wip`)
+onto the standalone designer's model from `m16-palette`.
+
+**Two loaders, one set of rules.** The standalone designer has no build to load, so it compiles the project itself
+(`DesignSession`, Roslyn plus MSBuild for the dependencies), and it also sees unsaved code. Visual Studio has already
+built the project, and compiling it a second time in the host would mean a second MSBuild restore and resolve for every
+project. So the host loads VS's build output instead (`RadSharp.Design.ProjectAssembly`). Both designers then decide
+what to offer through `RadSharp.Design.ProjectClassSet`: the generated registrations, forms left out, the project's
+`[assembly: DesignTimeSetup(type, method)]` hook, each prototype created in design mode (a class that throws there
+isn't offered), duplicate names, palette categories (`Project`, then each library under its assembly name), and a
+project class taking over a RadSharp class's name, as in the running application. The documents use
+`DesignDocument.ProjectClasses` with `UnknownControl` placeholders, and rebuilds use `DesignDocument.ReloadWith`.
+
+- **Which assembly.** `ProjectOutput.For` asks `IVsUIShellOpenDocument.IsDocumentInAProject` for the form's project and
+  `IVsBuildPropertyStorage` for its `TargetPath` in the active configuration, falling back to DTE's `OutputPath` and
+  `OutputFileName`. `ClientDesignerView` passes it when the form opens and logs it to the "RadSharp Designer" Output
+  pane. It checks again whenever the tab is activated, so switching Debug and Release takes effect then.
+- **Loading.** The host loads the assembly once per path, shared by that project's documents, into a collectible load
+  context. RadSharp, SkiaSharp and the BCL come from the host. Managed files are read from memory, so `bin` is never
+  locked. A native DLL is copied to `%TEMP%\RadSharp.DesignHost\<pid>-<n>` only when it is asked for, and copies left by
+  hosts that are no longer running are removed. Libraries are the run-time assemblies in the project's `.deps.json`
+  that reference RadSharp.Core. A document of another project, or with no project, never sees these classes. The
+  assembly is unloaded when its last document closes.
+- **Toolbox.** The project's controls come first (`Project`, then its libraries), as Visual Studio's Toolbox puts a
+  project's own components at the top. The standalone designer keeps Delphi's order, with RadSharp's categories first
+  (`ComponentPalette.Fill(..., projectFirst)`).
+- **Rebuilds.** Every second the host checks the write times of the files it loaded. Once a change has settled
+  (750 ms with no file of the build, the dll, its pdb and deps, changing again), it loads the new build and saves every form of that project while the old classes are still loaded. It
+  then reads each form again with the new classes (`ReloadWith`: undo, the selection and the modified state are kept,
+  and a form that can't take the new classes gets placeholders), refills the palette, and unloads the old code. It waits
+  while a drag on the surface, an Object Inspector edit or a dialog holds the form's controls, and says so in the
+  Output pane. Before the first build, the assembly "isn't built yet" (a warning). The form's project controls are
+  placeholders that save unchanged, and they become real controls when the build appears.
+- **Safety.** These come from `m16-palette` and are shared with the standalone designer. A control that throws while
+  it is created or read stays an `UnknownControl` placeholder that writes its node back unchanged, so a setter that
+  throws costs nothing. A paint exception draws a red box with the message, and `FormRenderer.PaintError` reports it
+  once per control and message, which the host sends as a `Log` warning. A project's `Theme.Current` side effects are
+  undone. `FormRenderer.PaintError` is further rate-limited in the host (one report per control per 10 s, at most 5 per
+  pass), so a message that changes on every frame does not flood the Output pane. A locked or unreadable `.pdb` loads
+  without symbols. A load that fails right after a rebuild is tried once more after the settle time. If a form can't
+  be saved while it is swapped (a property getter throws), it goes back to its last text that could be saved (a
+  warning says so: changes since are lost) instead of staying on the old controls, which are about to be unloaded.
+- **Version skew.** If the project's reference to RadSharp.Core (major.minor) differs from the host's, the Output pane
+  gets one warning ("was built against RadSharp.Core X; the designer has Y; ..."), and a missing method, field or
+  type error carries the same hint. `FormReader.LoadInto` of a framework form never takes a class of a loaded
+  (collectible) project.
+- **A control's own children.** Children a control's constructor adds (a search box inside a custom title bar) are
+  marked `IsTransient` by `ComponentClass.Create`. They are not written to form files, so reading the file again
+  doesn't double them. Clicking one selects its owner, nothing can be dropped into one, and Select All skips them. No
+  RadSharp control has any (tested). The WIP's separate `IsSubcomponent` flag was folded into the existing
+  `IsTransient`.
+- **Tests.** `ProjectAssemblyTests` (Design), `ProjectHostTests` (the host over the protocol: palette order, placing a
+  project control from the palette and saving it, rebuild with unsaved changes and undo, waiting for a drag, unbuilt
+  then built, paint error reported once, two documents sharing a load, an empty path), a host-process test (the real
+  `RadSharpDesignHost.exe` draws a project control over the named pipe), client `SessionTests`, and `OutputPathsTests`.
+  The fixtures are `tests/Fixtures/SampleControls` and `SampleData`.
+- **Not yet.** A constructor that hangs freezes the host. VS stays responsive, and you restart the host. A project
+  compiled against a newer RadSharp.Core than the host's runs against the host's copy, so a member the host lacks
+  fails as that control's placeholder or paint error (with the version warning above). The `ProjectOutput` VS calls
+  are covered by the manual checklist only (step 18).
+- **Known limits.** The native DLL folder of an unloaded context is not deleted until the host exits, and a native
+  library that needs neighbouring DLLs is not found from the temp copy. A library's module initializer that fails
+  fails the whole project load. A constructor that never returns hangs the host (above).
+
 ## Manual test checklist
 
 Run these in the experimental instance only, never in the main VS hive.
@@ -314,3 +391,24 @@ Run these in the experimental instance only, never in the main VS hive.
 17. Dialogs and popups: open a property drop-down in RadSharp Properties and a dialog-style editor, if any.
     - The drop-down appears at the right place.
     - The dialog is owned by VS and centred over it.
+18. Project controls (protocol 4). Use a RadSharp app project with a control of its own, for example
+    `public class Gauge : Control` that paints a filled rectangle, and a form that uses it.
+    - Build the project, then open the form. The Output pane "RadSharp Designer" shows `project controls from
+      ...\bin\Debug\net10.0\<App>.dll` and `Project controls from <App>.dll: Gauge (Project)`. The control is drawn
+      on the surface, and RadSharp Toolbox lists **Project** first, with Gauge in it.
+    - Pick Gauge in the Toolbox and click the surface. A Gauge is added and the tab shows `*`. Ctrl+S writes
+      `"class": "Gauge"`.
+    - Change Gauge's `Paint` (another colour) and build. Within about 2 s the surface shows the new colour, and the `*`
+      and Ctrl+Z history are kept. During the build, `bin\...\<App>.dll` is not locked (no MSB3027 "file is locked by
+      RadSharpDesignHost").
+    - Run Clean, then open the form. It shows "isn't built yet" in the Output pane, and Gauge is a dashed
+      orange "unknown class" placeholder. Saving leaves the file unchanged. Build: the placeholder becomes a Gauge.
+    - Make the constructor throw when `DesignMode` is true, then build. The Output pane says it "can't be created at
+      design time", and the form keeps it as a placeholder. Make `Paint` throw instead, then build. A red box with the
+      message appears, and the Output pane reports it once.
+    - Hand-check `IVsBuildPropertyStorage.GetPropertyValue("TargetPath", ..., PST_PROJECT_FILE)` on a CPS/SDK-style
+      project: it must return the full `.dll` path (the code falls back to the DTE `OutputPath` + `OutputFileName`, and
+      prefers the managed `.dll` next to an `.exe` apphost). If it returns nothing, the Output pane says "not in a
+      project with a build output". A project system that is busy or throws keeps the previous path on tab activation.
+    - Switch the configuration to Release, build, then reactivate the tab. The Output pane shows the
+      `bin\Release\...` path.
