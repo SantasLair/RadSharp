@@ -75,8 +75,8 @@ public sealed class LiveSession : IDisposable
             // reference's output) from memory, so the user can rebuild it while the live run is open.
             if (deps.IsImmutable(path)) return LoadFromAssemblyPath(path);
             var pdb = Path.ChangeExtension(path, ".pdb");
-            using var image = new MemoryStream(File.ReadAllBytes(path));
-            using var symbols = File.Exists(pdb) ? new MemoryStream(File.ReadAllBytes(pdb)) : null;
+            using var image = new MemoryStream(SharedFile.ReadAllBytes(path));
+            using var symbols = File.Exists(pdb) ? new MemoryStream(SharedFile.ReadAllBytes(pdb)) : null;
             return LoadFromStream(image, symbols);
         }
 
@@ -182,14 +182,14 @@ public sealed class LiveSession : IDisposable
         var trees = new List<SyntaxTree> { CSharpSyntaxTree.ParseText(globalUsings, parse, "GlobalUsings.g.cs") };
         foreach (var file in deps != null ? deps.SourceFiles(project) : project.SourceFiles)
         {
-            var tree = CSharpSyntaxTree.ParseText(SourceText.From(File.ReadAllText(file), System.Text.Encoding.UTF8), parse, file);
+            var tree = CSharpSyntaxTree.ParseText(SourceText.From(SharedFile.ReadAllText(file), System.Text.Encoding.UTF8), parse, file);
             // A live run creates forms directly; the app's entry point (top-level statements) isn't needed.
             if (tree.GetCompilationUnitRoot().Members.Any(m => m is Microsoft.CodeAnalysis.CSharp.Syntax.GlobalStatementSyntax)) continue;
             trees.Add(tree);
         }
 
         var forms = project.FormFiles
-            .Select(f => (Path: f, Text: formOverrides != null && formOverrides.TryGetValue(Path.GetFullPath(f), out var t) ? t : File.ReadAllText(f)))
+            .Select(f => (Path: f, Text: formOverrides != null && formOverrides.TryGetValue(Path.GetFullPath(f), out var t) ? t : SharedFile.ReadAllText(f)))
             .ToList();
 
         var nullable = deps?.Nullable.ToLowerInvariant() switch
@@ -255,7 +255,7 @@ public sealed class LiveSession : IDisposable
 
     static string? TryRead(string path)
     {
-        try { return File.ReadAllText(path); }
+        try { return SharedFile.ReadAllText(path); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
     }
 

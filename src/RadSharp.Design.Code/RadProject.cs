@@ -21,7 +21,7 @@ public sealed class RadProject
     {
         get
         {
-            var text = File.ReadAllText(ProjectFile);
+            var text = SharedFile.ReadAllText(ProjectFile);
             int i = text.IndexOf("<RootNamespace>", StringComparison.Ordinal);
             if (i < 0) return Sanitize(Name);
             int j = text.IndexOf("</RootNamespace>", i, StringComparison.Ordinal);
@@ -72,7 +72,7 @@ public sealed class RadProject
     {
         System.IO.Directory.CreateDirectory(directory);
         var ns = Sanitize(name);
-        File.WriteAllText(Path.Combine(directory, name + ".csproj"), $"""
+        SharedFile.WriteAllText(Path.Combine(directory, name + ".csproj"), $"""
             <Project Sdk="Microsoft.NET.Sdk">
 
               <PropertyGroup>
@@ -93,7 +93,7 @@ public sealed class RadProject
             </Project>
 
             """);
-        File.WriteAllText(Path.Combine(directory, "Program.cs"), $"""
+        SharedFile.WriteAllText(Path.Combine(directory, "Program.cs"), $"""
             using RadSharp.Platform.Sdl;
             using {ns};
 
@@ -102,7 +102,7 @@ public sealed class RadProject
 
             """);
         if (packageSource != null)
-            File.WriteAllText(Path.Combine(directory, "nuget.config"), $"""
+            SharedFile.WriteAllText(Path.Combine(directory, "nuget.config"), $"""
                 <?xml version="1.0" encoding="utf-8"?>
                 <configuration>
                   <config>
@@ -115,10 +115,10 @@ public sealed class RadProject
                 </configuration>
 
                 """);
-        File.WriteAllText(Path.Combine(directory, ".gitignore"), "bin/\nobj/\npackages/\n");
+        SharedFile.WriteAllText(Path.Combine(directory, ".gitignore"), "bin/\nobj/\npackages/\n");
         var workflows = Path.Combine(directory, ".github", "workflows");
         System.IO.Directory.CreateDirectory(workflows);
-        File.WriteAllText(Path.Combine(workflows, "build.yml"), CrossPlatformWorkflow);
+        SharedFile.WriteAllText(Path.Combine(workflows, "build.yml"), CrossPlatformWorkflow);
         WriteDebugFiles(directory, name);
         var project = new RadProject(Path.Combine(directory, name + ".csproj"));
         project.AddForm("MainForm", name);
@@ -134,7 +134,7 @@ public sealed class RadProject
     {
         var vscode = Path.Combine(directory, ".vscode");
         System.IO.Directory.CreateDirectory(vscode);
-        File.WriteAllText(Path.Combine(vscode, "launch.json"), $$"""
+        SharedFile.WriteAllText(Path.Combine(vscode, "launch.json"), $$"""
             {
               "version": "0.2.0",
               "configurations": [
@@ -152,7 +152,7 @@ public sealed class RadProject
             }
 
             """);
-        File.WriteAllText(Path.Combine(vscode, "tasks.json"), $$"""
+        SharedFile.WriteAllText(Path.Combine(vscode, "tasks.json"), $$"""
             {
               "version": "2.0.0",
               "tasks": [
@@ -177,7 +177,7 @@ public sealed class RadProject
             """);
         var properties = Path.Combine(directory, "Properties");
         System.IO.Directory.CreateDirectory(properties);
-        File.WriteAllText(Path.Combine(properties, "launchSettings.json"), $$"""
+        SharedFile.WriteAllText(Path.Combine(properties, "launchSettings.json"), $$"""
             {
               "profiles": {
                 "{{name}}": {
@@ -229,7 +229,7 @@ public sealed class RadProject
 
     static HashSet<string> DeclaredTypes(string file)
     {
-        var root = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(File.ReadAllText(file)).GetRoot();
+        var root = Microsoft.CodeAnalysis.CSharp.CSharpSyntaxTree.ParseText(SharedFile.ReadAllText(file)).GetRoot();
         return [.. root.DescendantNodes().OfType<Microsoft.CodeAnalysis.CSharp.Syntax.BaseTypeDeclarationSyntax>().Select(t => t.Identifier.Text)];
     }
 
@@ -254,7 +254,7 @@ public sealed class RadProject
         var writes = new List<(string Path, string Text)>();
         foreach (var file in SourceFiles)
         {
-            var source = File.ReadAllText(file);
+            var source = SharedFile.ReadAllText(file);
             var updated = CodeIntegration.RenameIdentifier(source, oldName, newName);
             bool isCode = string.Equals(file, oldCode, StringComparison.OrdinalIgnoreCase);
             if (isCode || updated != source) writes.Add((isCode ? newCode : file, updated));
@@ -272,9 +272,9 @@ public sealed class RadProject
             }
             foreach (var (path, text) in writes)
             {
-                var original = File.ReadAllText(path);
-                undo.Add(() => File.WriteAllText(path, original));   // before the write: a write can fail after truncating
-                File.WriteAllText(path, text);
+                var original = SharedFile.ReadAllText(path);
+                undo.Add(() => SharedFile.WriteAllText(path, original));   // before the write: a write can fail after truncating
+                SharedFile.WriteAllText(path, text);
             }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException)
@@ -296,7 +296,7 @@ public sealed class RadProject
         get
         {
             if (!File.Exists(ProgramFile)) return null;
-            var m = System.Text.RegularExpressions.Regex.Match(File.ReadAllText(ProgramFile), @"\bSdlHost\.Run\(\s*new\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(");
+            var m = System.Text.RegularExpressions.Regex.Match(SharedFile.ReadAllText(ProgramFile), @"\bSdlHost\.Run\(\s*new\s+([A-Za-z_][A-Za-z0-9_]*)\s*\(");
             return m.Success ? m.Groups[1].Value : null;
         }
     }
@@ -305,10 +305,10 @@ public sealed class RadProject
     public bool SetMainForm(string className)
     {
         if (!File.Exists(ProgramFile)) return false;
-        var text = File.ReadAllText(ProgramFile);
+        var text = SharedFile.ReadAllText(ProgramFile);
         var updated = System.Text.RegularExpressions.Regex.Replace(text, @"(\bSdlHost\.Run\(\s*new\s+)[A-Za-z_][A-Za-z0-9_]*(\s*\()", "${1}" + className + "${2}");
         if (updated == text) return false;
-        File.WriteAllText(ProgramFile, updated);
+        SharedFile.WriteAllText(ProgramFile, updated);
         return true;
     }
 
@@ -341,7 +341,7 @@ public sealed class RadProject
     {
         string rel = Path.GetRelativePath(Path.GetDirectoryName(solutionFile)!, ProjectFile).Replace('\\', '/');
         string text;
-        try { text = File.ReadAllText(solutionFile).Replace('\\', '/'); }
+        try { text = SharedFile.ReadAllText(solutionFile).Replace('\\', '/'); }
         catch (IOException) { return false; }
         return text.Contains("\"" + rel + "\"", StringComparison.OrdinalIgnoreCase);
     }
@@ -381,7 +381,7 @@ public sealed class RadProject
             "\tEndGlobalSection",
             "EndGlobal",
         };
-        File.WriteAllText(path, string.Join("\r\n", lines) + "\r\n");
+        SharedFile.WriteAllText(path, string.Join("\r\n", lines) + "\r\n");
         return path;
     }
 
@@ -427,10 +427,10 @@ public sealed class RadProject
         form.SetBounds(0, 0, 480, 320);
         form.DesignWidth = 480;
         form.DesignHeight = 320;
-        File.WriteAllText(formFile, FormWriter.Save(form));
+        SharedFile.WriteAllText(formFile, FormWriter.Save(form));
         var codeFile = CodeFileFor(formFile);
         if (!File.Exists(codeFile))
-            File.WriteAllText(codeFile, $$"""
+            SharedFile.WriteAllText(codeFile, $$"""
                 using RadSharp;
 
                 namespace {{RootNamespace}};

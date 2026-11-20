@@ -561,6 +561,7 @@ generic collection editor (the bespoke Columns/Nodes/Menu editors stay). Done on
 - New Application writes a relative package path into `nuget.config`; `pack.ps1`/`pack.sh` pack every package with one
   version (CI uses it).
 Most of these were found by building the reference app; each came with a failing test first.
+- Shared reads: background compile/F9 reads go through `SharedFile` (FileShare.ReadWrite|Delete) so they no longer deny the UI thread's saves on Windows; designer saves (and rename/stub source writes) retry a sharing violation for about a second, then report in the status bar and leave the form dirty.
 
 **Done when:** a localized form that grows with its text lays out correctly in the flow/grid panels at 100 % and
 150 %; the designer's alignment tools are covered by a scripted-rebuild test like `RebuildTileEditorTests`; the
