@@ -97,7 +97,7 @@ public static unsafe class SdlHost
             first = false;
             return Windows.ContainsKey(mainForm);
         });
-        foreach (var w in Windows.Values.ToList()) w.Dispose();
+        foreach (var w in Windows.Values.ToList()) { w.Dispose(); w.Form.NotifyHostClosed(); }
         Windows.Clear();
         PlatformHost.Current = null;
         if (_liveResize) SDL_RemoveEventWatch(&OnEventWatch, 0);
@@ -105,6 +105,21 @@ public static unsafe class SdlHost
         _initialized = false;
         if (Application.ExitCode != 0) Environment.ExitCode = Application.ExitCode;
         return Application.ExitCode;
+    }
+
+    static bool _startupTraced;
+
+    /// <summary>
+    /// Opt-in start-up measurement: with RADSHARP_STARTUP_TRACE=1, the first presented frame prints
+    /// "startup: N ms" (process start to first present) to stderr. Off by default; costs one flag check per frame.
+    /// </summary>
+    internal static void TraceFirstPresent()
+    {
+        if (_startupTraced) return;
+        _startupTraced = true;
+        if (Environment.GetEnvironmentVariable("RADSHARP_STARTUP_TRACE") != "1") return;
+        using var self = System.Diagnostics.Process.GetCurrentProcess();
+        Console.Error.WriteLine($"startup: {(DateTime.Now - self.StartTime).TotalMilliseconds:0} ms");
     }
 
     /// <summary>Posts an action to run on the UI thread during the next loop iteration.</summary>
@@ -149,10 +164,14 @@ public static unsafe class SdlHost
         finally { ModalStack.Remove(form); }
     }
 
+    /// <summary>True while a modal form other than <paramref name="form"/> is open (it gets no input and no idle action updates).</summary>
+    internal static bool IsFormBlocked(Form form) => ModalStack.Count > 0 && ModalStack[^1] != form;
+
     internal static void CloseForm(Form form)
     {
         if (!Windows.Remove(form, out var window)) return;
         window.Dispose();
+        form.NotifyHostClosed();   // this path doesn't go through Form.Close: stop idle action updates for it
     }
 
     internal static bool OpenUrl(string url) => SDL_OpenURL(url);
@@ -442,6 +461,7 @@ internal sealed class SdlPlatform : IPlatformServices
     public void ShowForm(Form form) => SdlHost.ShowForm(form, form.Owner, modal: false);
     public void RunModal(Form form) => SdlHost.RunModal(form);
     public void CloseForm(Form form) => SdlHost.CloseForm(form);
+    public bool IsFormBlocked(Form form) => SdlHost.IsFormBlocked(form);
     public void ProcessEventsUntil(Func<bool> done) => SdlHost.RunLoop(() => !done());
     public void ShowFileDialog(FileDialogKind kind, Form? owner, FileDialogOptions options, Action<FileResult[]?> done) =>
         SdlHost.ShowFileDialog(kind, owner, options, done);
@@ -983,6 +1003,7 @@ internal sealed unsafe class FormWindow : IDisposable
         SDL_RenderClear(_renderer);
         SDL_RenderTexture(_renderer, _texture, null, null);
         SDL_RenderPresent(_renderer);
+        SdlHost.TraceFirstPresent();
     }
 
     /// <summary>Takes the window's current size, lays the form out and presents a frame immediately.</summary>

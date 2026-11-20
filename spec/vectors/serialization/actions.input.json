@@ -1,0 +1,28 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "root": {
+    "class": "Form",
+    "name": "frmActions",
+    "width": 480,
+    "height": 320,
+    "children": [
+      { "class": "MainMenu", "name": "mnuMain", "items": [
+        { "caption": "&File", "items": [
+          { "action": "actSave", "name": "mnuSave", "caption": "&Save", "shortcut": "Mod+S", "enabled": true },
+          { "caption": "Save &As...", "action": "actSave" },
+          { "action": "actBold", "checked": true }
+        ] }
+      ] },
+      { "class": "ToolBar", "name": "tbMain", "children": [
+        { "class": "ToolButton", "name": "tbSave", "action": "actSave", "caption": "&Save", "hint": "Save the file", "imageIndex": 0, "left": 4, "top": 4 },
+        { "class": "ToolButton", "name": "tbBold", "action": "actBold", "down": true, "left": 70, "top": 4 }
+      ] },
+      { "class": "Button", "name": "btnSave", "top": 80, "left": 16, "action": "actSave" },
+      { "class": "Button", "name": "btnKeep", "caption": "Store", "hint": "Mine", "action": "actSave", "left": 110, "top": 80 },
+      { "class": "Button", "name": "btnOff", "enabled": false, "action": "actSave", "left": 204, "top": 80 },
+      { "class": "Action", "name": "actSave", "top": 260, "left": 16, "caption": "&Save", "hint": "Save the file", "shortcut": "Mod+S", "imageIndex": 0, "onExecute": "actSave_Execute", "onUpdate": "actSave_Update" },
+      { "class": "Action", "name": "actBold", "caption": "&Bold", "autoCheck": true, "checked": true, "enabled": true, "visible": true, "left": 56, "top": 260, "onExecute": "actBold_Execute" }
+    ]
+  }
+}

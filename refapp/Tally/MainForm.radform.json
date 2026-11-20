@@ -1,0 +1,622 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmMain",
+    "caption": "Tally",
+    "height": 760,
+    "onShow": "frmMain_Show",
+    "width": 1140,
+    "children": [
+      {
+        "class": "MainMenu",
+        "name": "mnuMain",
+        "items": [
+          {
+            "caption": "&File",
+            "items": [
+              {
+                "caption": "&Import Clients…",
+                "enabled": false
+              },
+              {
+                "caption": "&Generate Demo Data…",
+                "enabled": false
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "&Settings…",
+                "enabled": false
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "name": "mniExit",
+                "caption": "E&xit",
+                "onClick": "mniExit_Click",
+                "shortcut": "Mod+Q"
+              }
+            ]
+          },
+          {
+            "caption": "&Edit",
+            "items": [
+              {
+                "name": "mniFind",
+                "caption": "&Find",
+                "onClick": "mniFind_Click",
+                "shortcut": "Mod+F"
+              }
+            ]
+          },
+          {
+            "caption": "&Client",
+            "items": [
+              {
+                "name": "mniNewClient",
+                "caption": "&New Client",
+                "onClick": "mniNewClient_Click",
+                "shortcut": "Mod+N"
+              },
+              {
+                "name": "mniSaveClient",
+                "caption": "&Save Client",
+                "enabled": false,
+                "onClick": "mniSaveClient_Click",
+                "shortcut": "Mod+S"
+              },
+              {
+                "name": "mniRevertClient",
+                "caption": "&Revert Changes",
+                "enabled": false,
+                "onClick": "mniRevertClient_Click"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "name": "mniDeleteClient",
+                "caption": "&Delete Client…",
+                "enabled": false,
+                "onClick": "mniDeleteClient_Click"
+              }
+            ]
+          },
+          {
+            "caption": "&Invoice",
+            "items": [
+              {
+                "name": "mniNewInvoice",
+                "caption": "&New Invoice…",
+                "enabled": false,
+                "onClick": "mniNewInvoice_Click",
+                "shortcut": "Mod+Shift+N"
+              },
+              {
+                "caption": "Mark &Paid",
+                "enabled": false
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "caption": "&Delete Invoice",
+                "enabled": false
+              }
+            ]
+          },
+          {
+            "caption": "&View",
+            "items": [
+              {
+                "name": "mniViewClients",
+                "caption": "&Clients",
+                "onClick": "mniViewClients_Click",
+                "shortcut": "Mod+1"
+              },
+              {
+                "name": "mniViewInvoices",
+                "caption": "&Invoices",
+                "onClick": "mniViewInvoices_Click",
+                "shortcut": "Mod+2"
+              },
+              {
+                "caption": "-",
+                "separator": true
+              },
+              {
+                "name": "mniDarkTheme",
+                "caption": "&Dark Theme",
+                "onClick": "mniDarkTheme_Click"
+              }
+            ]
+          },
+          {
+            "caption": "&Help",
+            "items": [
+              {
+                "name": "mniAbout",
+                "caption": "&About Tally…",
+                "onClick": "mniAbout_Click"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "class": "ToolBar",
+        "name": "tbMain",
+        "children": [
+          {
+            "class": "ToolButton",
+            "name": "btnNewClient",
+            "caption": "New Client",
+            "left": 4,
+            "onClick": "btnNewClient_Click",
+            "top": 4,
+            "width": 96
+          },
+          {
+            "class": "ToolButton",
+            "name": "btnNewInvoice",
+            "caption": "New Invoice",
+            "enabled": false,
+            "left": 102,
+            "onClick": "btnNewInvoice_Click",
+            "top": 4,
+            "width": 96
+          },
+          {
+            "class": "ToolSeparator",
+            "name": "sepTools",
+            "left": 200,
+            "top": 6
+          },
+          {
+            "class": "Edit",
+            "name": "edtSearch",
+            "height": 26,
+            "left": 211,
+            "onChange": "edtSearch_Change",
+            "placeholder": "Find clients (name, company, email, city)",
+            "top": 5,
+            "width": 280
+          }
+        ]
+      },
+      {
+        "class": "StatusBar",
+        "name": "sbMain",
+        "simpleText": "Ready"
+      },
+      {
+        "class": "TreeView",
+        "name": "tvNav",
+        "align": "left",
+        "onChange": "tvNav_Change",
+        "nodes": [
+          {
+            "text": "Clients",
+            "expanded": true,
+            "nodes": [
+              {
+                "text": "Active"
+              },
+              {
+                "text": "Archived"
+              }
+            ]
+          },
+          {
+            "text": "Invoices",
+            "expanded": true,
+            "nodes": [
+              {
+                "text": "Draft"
+              },
+              {
+                "text": "Sent"
+              },
+              {
+                "text": "Overdue"
+              },
+              {
+                "text": "Paid"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "class": "Splitter",
+        "name": "splNav"
+      },
+      {
+        "class": "PageControl",
+        "name": "pgMain",
+        "align": "client",
+        "onChange": "pgMain_Change",
+        "children": [
+          {
+            "class": "TabSheet",
+            "name": "tsClients",
+            "caption": "Clients",
+            "children": [
+              {
+                "class": "Panel",
+                "name": "pnlClient",
+                "align": "bottom",
+                "borderStyle": "none",
+                "height": 284,
+                "children": [
+                  {
+                    "class": "Label",
+                    "name": "lblName",
+                    "caption": "Name",
+                    "left": 12,
+                    "top": 14,
+                    "width": 76
+                  },
+                  {
+                    "class": "Edit",
+                    "name": "edtName",
+                    "height": 26,
+                    "left": 92,
+                    "onChange": "ClientField_Change",
+                    "top": 10,
+                    "width": 200
+                  },
+                  {
+                    "class": "Label",
+                    "name": "lblCompany",
+                    "caption": "Company",
+                    "left": 12,
+                    "top": 46,
+                    "width": 76
+                  },
+                  {
+                    "class": "Edit",
+                    "name": "edtCompany",
+                    "height": 26,
+                    "left": 92,
+                    "onChange": "ClientField_Change",
+                    "top": 42,
+                    "width": 200
+                  },
+                  {
+                    "class": "Label",
+                    "name": "lblEmail",
+                    "caption": "Email",
+                    "left": 12,
+                    "top": 78,
+                    "width": 76
+                  },
+                  {
+                    "class": "Edit",
+                    "name": "edtEmail",
+                    "height": 26,
+                    "left": 92,
+                    "onChange": "ClientField_Change",
+                    "top": 74,
+                    "width": 200
+                  },
+                  {
+                    "class": "Label",
+                    "name": "lblPhone",
+                    "caption": "Phone",
+                    "left": 12,
+                    "top": 110,
+                    "width": 76
+                  },
+                  {
+                    "class": "Edit",
+                    "name": "edtPhone",
+                    "height": 26,
+                    "left": 92,
+                    "onChange": "ClientField_Change",
+                    "top": 106,
+                    "width": 200
+                  },
+                  {
+                    "class": "Label",
+                    "name": "lblStreet",
+                    "caption": "Street",
+                    "left": 308,
+                    "top": 14,
+                    "width": 66
+                  },
+                  {
+                    "class": "Edit",
+                    "name": "edtStreet",
+                    "height": 26,
+                    "left": 378,
+                    "onChange": "ClientField_Change",
+                    "top": 10,
+                    "width": 170
+                  },
+                  {
+                    "class": "Label",
+                    "name": "lblCity",
+                    "caption": "City",
+                    "left": 308,
+                    "top": 46,
+                    "width": 66
+                  },
+                  {
+                    "class": "Edit",
+                    "name": "edtCity",
+                    "height": 26,
+                    "left": 378,
+                    "onChange": "ClientField_Change",
+                    "top": 42,
+                    "width": 170
+                  },
+                  {
+                    "class": "Label",
+                    "name": "lblPostcode",
+                    "caption": "Postcode",
+                    "left": 308,
+                    "top": 78,
+                    "width": 66
+                  },
+                  {
+                    "class": "Edit",
+                    "name": "edtPostcode",
+                    "height": 26,
+                    "left": 378,
+                    "onChange": "ClientField_Change",
+                    "top": 74,
+                    "width": 170
+                  },
+                  {
+                    "class": "Label",
+                    "name": "lblCountry",
+                    "caption": "Country",
+                    "left": 308,
+                    "top": 110,
+                    "width": 66
+                  },
+                  {
+                    "class": "Edit",
+                    "name": "edtCountry",
+                    "height": 26,
+                    "left": 378,
+                    "onChange": "ClientField_Change",
+                    "top": 106,
+                    "width": 170
+                  },
+                  {
+                    "class": "Label",
+                    "name": "lblTaxId",
+                    "caption": "Tax ID",
+                    "left": 308,
+                    "top": 142,
+                    "width": 66
+                  },
+                  {
+                    "class": "Edit",
+                    "name": "edtTaxId",
+                    "height": 26,
+                    "left": 378,
+                    "onChange": "ClientField_Change",
+                    "top": 138,
+                    "width": 170
+                  },
+                  {
+                    "class": "CheckBox",
+                    "name": "chkArchived",
+                    "caption": "Archived",
+                    "height": 22,
+                    "left": 92,
+                    "onChange": "ClientField_Change",
+                    "top": 140
+                  },
+                  {
+                    "class": "Label",
+                    "name": "lblNotes",
+                    "caption": "Notes",
+                    "left": 12,
+                    "top": 174,
+                    "width": 76
+                  },
+                  {
+                    "class": "Memo",
+                    "name": "memNotes",
+                    "height": 64,
+                    "left": 92,
+                    "onChange": "ClientField_Change",
+                    "top": 170,
+                    "width": 456
+                  },
+                  {
+                    "class": "Button",
+                    "name": "btnSaveClient",
+                    "caption": "Save",
+                    "enabled": false,
+                    "left": 92,
+                    "onClick": "btnSaveClient_Click",
+                    "top": 246,
+                    "width": 88
+                  },
+                  {
+                    "class": "Button",
+                    "name": "btnRevertClient",
+                    "caption": "Revert",
+                    "enabled": false,
+                    "left": 188,
+                    "onClick": "btnRevertClient_Click",
+                    "top": 246,
+                    "width": 88
+                  },
+                  {
+                    "class": "Label",
+                    "name": "lblClientInvoices",
+                    "caption": "Invoices",
+                    "left": 568,
+                    "top": 12,
+                    "width": 200
+                  },
+                  {
+                    "class": "ListView",
+                    "name": "lvClientInvoices",
+                    "anchors": ["left", "top", "right", "bottom"],
+                    "height": 238,
+                    "left": 568,
+                    "onDblClick": "lvClientInvoices_DblClick",
+                    "top": 36,
+                    "width": 352,
+                    "columns": [
+                      {
+                        "title": "Number",
+                        "width": 92
+                      },
+                      {
+                        "title": "Issued",
+                        "width": 92
+                      },
+                      {
+                        "title": "Status",
+                        "width": 74
+                      },
+                      {
+                        "alignment": "right",
+                        "title": "Total",
+                        "width": 80
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "class": "Splitter",
+                "name": "splClient",
+                "align": "bottom",
+                "height": 4
+              },
+              {
+                "class": "ListView",
+                "name": "lvClients",
+                "align": "client",
+                "autoSort": true,
+                "onChange": "lvClients_Change",
+                "onColumnClick": "lvClients_ColumnClick",
+                "onGetItem": "lvClients_GetItem",
+                "popupMenu": "pmClients",
+                "columns": [
+                  {
+                    "title": "Name",
+                    "width": 170
+                  },
+                  {
+                    "title": "Company",
+                    "width": 150
+                  },
+                  {
+                    "title": "Email",
+                    "width": 200
+                  },
+                  {
+                    "title": "Phone",
+                    "width": 110
+                  },
+                  {
+                    "title": "City",
+                    "width": 120
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "class": "TabSheet",
+            "name": "tsInvoices",
+            "caption": "Invoices",
+            "children": [
+              {
+                "class": "ListView",
+                "name": "lvInvoices",
+                "align": "client",
+                "autoSort": true,
+                "onColumnClick": "lvInvoices_ColumnClick",
+                "onDblClick": "lvInvoices_DblClick",
+                "onGetItem": "lvInvoices_GetItem",
+                "columns": [
+                  {
+                    "title": "Number",
+                    "width": 100
+                  },
+                  {
+                    "title": "Client",
+                    "width": 200
+                  },
+                  {
+                    "title": "Issued",
+                    "width": 100
+                  },
+                  {
+                    "title": "Due",
+                    "width": 100
+                  },
+                  {
+                    "title": "Status",
+                    "width": 90
+                  },
+                  {
+                    "alignment": "right",
+                    "title": "Total",
+                    "width": 110
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "class": "PopupMenu",
+        "name": "pmClients",
+        "left": 1000,
+        "top": 680,
+        "items": [
+          {
+            "caption": "&New Client",
+            "onClick": "mniNewClient_Click"
+          },
+          {
+            "name": "pmiNewInvoice",
+            "caption": "New &Invoice…",
+            "enabled": false,
+            "onClick": "mniNewInvoice_Click"
+          },
+          {
+            "caption": "-",
+            "separator": true
+          },
+          {
+            "name": "pmiDeleteClient",
+            "caption": "&Delete Client…",
+            "onClick": "mniDeleteClient_Click"
+          }
+        ]
+      },
+      {
+        "class": "Timer",
+        "name": "tmrSearch",
+        "enabled": false,
+        "interval": 300,
+        "left": 936,
+        "onTimer": "tmrSearch_Timer",
+        "top": 560
+      }
+    ]
+  }
+}

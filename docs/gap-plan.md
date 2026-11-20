@@ -485,9 +485,27 @@ earlier now load correctly. Spec: "Index members apply after what they index". T
 5. **Localization:** pull strings out of form files by key (`"caption": "@Save"`), a resource lookup with a current
    culture, and a designer switch for a locale. Minimal; no runtime language editor.
 
-**Done when:** a master/detail form (list bound to a collection, edit controls bound to the selection, a `Save` action
-enabled by a dirty flag) is written with no manual copy-in/copy-out code, in one form plus one frame, and works
-under NativeAOT.
+**Done when (as cut for 1.0, 2026-11-19):** a master/detail form with no copy-in/copy-out code, and a Save action enabled
+by a dirty flag, under NativeAOT. (Was: list bound to a collection, edit controls bound to the selection, in one form plus
+one frame.)
+
+**M15 status (2026-11-19): shipped as cut, `docs/binding-and-actions.md`.** What the reference-app scope (`docs/reference-app-scope.md`,
+section 3, M15) kept: **item 3 reduced to a code-side `Binder<T>`** (buffered two-way binding of edits, check boxes, radio
+groups, spin edits, track bars, combos and date pickers through typed lambdas; dirty tracking, validation, commit/revert;
+no reflection) and **item 4, the `Action` component** (buttons, tool buttons and menu items link by name or from code;
+caption, hint, shortcut, enabled, checked, visible, image; `onExecute`/`onUpdate` at idle). **Out, post-1.0:** item 1 frames
+(project controls in the designer replace them, M16), item 2 visual inheritance, the declarative `"text": "{Model.Name}"`
+syntax, list item-sources and converters in the generator, item 5 localization. Form format: the `action` member is
+additive and the format stays 1.0, as for `date` (spec, "Actions"; vector `serialization/actions`).
+
+*Binder lifetime contract (decided after review).* A binder made with an owner form (`new Binder<T>(this)`) is not used up by
+it: on `Closed` it stops listening to the model (the only leak path), on `Shown` and whenever `Current` is set it listens
+again and reloads, so a dialog created once can be shown for many records. Only an explicit `Dispose()` is terminal
+(`Current`, `Commit`, `Validate`, `Revert` and `Refresh` then throw `ObjectDisposedException`). Loads nest, a clean field
+is parsed as well as validated, and a getter that throws leaves the form and `Current` as they were. Code links to actions
+(`btn.Action = other.actSave`) are taken off the action when the client's form closes or the client leaves the form, and
+restored when it is shown or added again. Known gaps left for later: stored-default override loss in the writer, the
+generator's `[Component]`-name fallback, `Update`/`Executed` event naming, `DisableIfNoHandler`.
 
 ## M16: Layout panels and designer polish (M)
 

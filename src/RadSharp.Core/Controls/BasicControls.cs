@@ -151,15 +151,55 @@ public class Button : Control
     [Published(Category = "Behavior")] public ModalResult ModalResult { get; set; }
 
     /// <summary>The name of an ImageList whose pictures this button shows by <see cref="ImageIndex"/>.</summary>
-    [Published("images", Category = "Appearance")] public string ImagesName { get; set; } = "";
+    [Published("images", Category = "Appearance", References = typeof(ImageList))] public string ImagesName { get; set; } = "";
     [Published(Category = "Appearance")] public int ImageIndex { get; set; } = -1;
 
     /// <summary>The icon to draw, if any. Overridden by <see cref="ToolButton"/> to fall back to its toolbar's image list.</summary>
     protected virtual Picture? ResolveIcon() => ImageList.Resolve(this, ImagesName, ImageIndex);
 
+    ActionSlot? _actionSlot;
+
+    ActionSlot Slot => _actionSlot ??= new ActionSlot(a => new ButtonActionLink(a, this));
+
+    /// <summary>
+    /// The name of the <see cref="ActionItem"/> on the form this button runs and takes its caption, hint, enabled and
+    /// visible state and image index from (docs/binding-and-actions.md). Saved as <c>"action"</c>.
+    /// </summary>
+    [Published("action", Category = "Behavior", References = typeof(ActionItem))]
+    public string ActionName
+    {
+        get => _actionSlot?.Name ?? "";
+        set => Slot.SetName(value, OwningForm, Loading);   // from a form file the file's own values win
+    }
+
+    /// <summary>The linked action: set from code (it may be on another form), or found by <see cref="ActionName"/>.</summary>
+    public ActionItem? Action
+    {
+        get
+        {
+            OwningForm?.EnsureActionLinks();
+            return _actionSlot?.Action;
+        }
+        set => Slot.SetAction(value);
+    }
+
+    /// <summary>Whether the button follows its action now (no form walk; for the button's own code paths).</summary>
+    internal ActionLink? ActionLink => _actionSlot?.Link;
+
+    internal void ResolveAction(Form form, int stamp) => _actionSlot?.Resolve(form, stamp);
+
+    internal ActionSlot? PeekActionSlot => _actionSlot;
+
+    // Only an action on this form gives the value back when the file is loaded (a code link may point to another form's).
+    internal override bool IsActionLinked(string publishedName) =>
+        _actionSlot?.Link is { } link && link.Action.OwningForm is { } form && form == OwningForm
+        && ButtonActionLink.MemberOf(publishedName) is { } m && link.IsLinked(m);
+
+    /// <summary>Runs the linked action (unless code subscribed to <see cref="Control.Click"/>, which then runs instead), else raises Click.</summary>
     protected internal override void OnClick()
     {
-        base.OnClick();
+        if (_actionSlot?.Link is { } link && !HasClickHandlers) link.Action.Execute(this);
+        else base.OnClick();
         if (ModalResult != ModalResult.None && OwningForm is { } form) form.ModalResult = ModalResult;
     }
 

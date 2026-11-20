@@ -14,6 +14,14 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The packaging files every new project gets: the build workflow and the default icon (templates/radsharp-app
+         carries identical copies; a test checks they agree). -->
+    <EmbeddedResource Include="Packaging/build.yml" LogicalName="RadSharp.Packaging.build.yml" />
+    <EmbeddedResource Include="Packaging/app.ico" LogicalName="RadSharp.Packaging.app.ico" />
+    <EmbeddedResource Include="Packaging/app.png" LogicalName="RadSharp.Packaging.app.png" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\RadSharp.Design\RadSharp.Design.csproj" />
     <!-- The generators run in-process for live runs. -->
     <ProjectReference Include="..\RadSharp.Generators\RadSharp.Generators.csproj" />

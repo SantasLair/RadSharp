@@ -18,7 +18,7 @@ public static class PaletteCategories
     {
         ["Button"] = Standard, ["CheckBox"] = Standard, ["Edit"] = Standard, ["GroupBox"] = Standard,
         ["Label"] = Standard, ["Memo"] = Standard, ["RadioButton"] = Standard, ["Panel"] = Standard,
-        ["MainMenu"] = Standard, ["PopupMenu"] = Standard,
+        ["MainMenu"] = Standard, ["PopupMenu"] = Standard, ["Action"] = Standard,
 
         ["OpenDialog"] = Dialogs, ["SaveDialog"] = Dialogs, ["FolderDialog"] = Dialogs,
 

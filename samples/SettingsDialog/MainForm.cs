@@ -2,12 +2,19 @@ using RadSharp;
 
 namespace SettingsDialog;
 
-public sealed record Settings(string User, string Theme, bool Autosave, int Volume, int History);
+public sealed class Settings
+{
+    public string User { get; set; } = "";
+    public string Theme { get; set; } = "Light";
+    public bool Autosave { get; set; }
+    public int Volume { get; set; } = 7;
+    public int History { get; set; } = 50;
+}
 
 /// <summary>Opens <see cref="SettingsForm"/> modally and shows what came back (Delphi's ShowModal = mrOk pattern).</summary>
 public partial class MainForm : Form
 {
-    Settings _settings = new("", "Light", false, 7, 50);
+    readonly Settings _settings = new();
 
     public MainForm()
     {
@@ -18,13 +25,7 @@ public partial class MainForm : Form
     void btnSettings_Click(Control sender)
     {
         var dialog = new SettingsForm { Owner = this };
-        dialog.Load(_settings);
-        if (dialog.ShowModal() == ModalResult.Ok)
-        {
-            _settings = dialog.Result;
-            lblSummary.Caption = "Settings saved.";
-        }
-        else lblSummary.Caption = "Cancelled — nothing changed.";
+        lblSummary.Caption = dialog.Edit(_settings) ? "Settings saved." : "Cancelled — nothing changed.";
         ShowSettings();
     }
 

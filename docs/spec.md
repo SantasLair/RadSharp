@@ -161,6 +161,14 @@ selected date; absent = none), `minDate` (default `"0001-01-01"`), `maxDate` (de
 same date members plus `showCheckbox` (false), `checked` (true; with `showCheckbox`, false means "no date") and `format`
 (a .NET-style date pattern, "" = the culture's short date); event `onChange`. Vector: `serialization/dates`.
 
+**Actions.** `Action` is a non-visual component (like `Timer`) publishing `caption`, `hint`, `shortcut`, `enabled` (true),
+`checked`, `visible` (true), `imageIndex` (-1) and `autoCheck`; events `onExecute`, `onUpdate`. `Button` (and `ToolButton`) and
+menu items take an `action` member: the *name* of an Action on the same form (a reference property, like `popupMenu`).
+A control linked to an action takes the action's values for the members it has in common; a member the file sets
+explicitly on the control wins over the action's value, and the writer leaves a member out when the linked control's value
+equals the action's. Links made from code to another form's action are not part of the file. Added in 1.0 without a version
+bump (like `date`): a reader that predates it ignores the keys with a warning. Vector: `serialization/actions`.
+
 **Fonts** (Delphi's `TFont`/*ParentFont*). A control's `font` is optional; when absent the control
 inherits its parent's *effective* font, and the root form falls back to the theme's default (family
 `"Inter"`, the bundled Regular/Bold/Italic/Bold-Italic faces). Setting `font` on a container does not
