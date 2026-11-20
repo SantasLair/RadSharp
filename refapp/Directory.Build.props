@@ -1,0 +1,10 @@
+<Project>
+  <!--
+    refapp/Tally is built the way a user's project is: from the packed RadSharp packages (see Tally/nuget.config), without
+    the RadSharp repository's own Directory.Build.props (version stamping, package output, language settings). This file
+    ends MSBuild's search for Directory.Build.props here. Warnings stay errors, as everywhere in the repository.
+  -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+  </PropertyGroup>
+</Project>

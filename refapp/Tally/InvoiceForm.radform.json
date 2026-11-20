@@ -1,0 +1,282 @@
+{
+  "format": "radform",
+  "version": "1.0",
+  "generator": "RADSharp",
+  "root": {
+    "class": "Form",
+    "name": "frmInvoice",
+    "caption": "Invoice",
+    "height": 560,
+    "onCloseQuery": "frmInvoice_CloseQuery",
+    "startPosition": "centerOwner",
+    "width": 760,
+    "children": [
+      {
+        "class": "Label",
+        "name": "lblClient",
+        "caption": "Client",
+        "left": 12,
+        "top": 16,
+        "width": 70
+      },
+      {
+        "class": "ComboBox",
+        "name": "cboClient",
+        "dropDownCount": 12,
+        "left": 88,
+        "onChange": "Header_Change",
+        "style": "dropDown",
+        "top": 12,
+        "width": 300
+      },
+      {
+        "class": "Label",
+        "name": "lblNumber",
+        "caption": "Number",
+        "left": 412,
+        "top": 16,
+        "width": 64
+      },
+      {
+        "class": "Edit",
+        "name": "edtNumber",
+        "height": 26,
+        "left": 480,
+        "onChange": "Header_Change",
+        "top": 12,
+        "width": 128
+      },
+      {
+        "class": "Label",
+        "name": "lblIssued",
+        "caption": "Issued",
+        "left": 12,
+        "top": 48,
+        "width": 70
+      },
+      {
+        "class": "DateTimePicker",
+        "name": "dtpIssued",
+        "left": 88,
+        "onChange": "Header_Change",
+        "top": 44,
+        "width": 136
+      },
+      {
+        "class": "Label",
+        "name": "lblDue",
+        "caption": "Due",
+        "left": 240,
+        "top": 48,
+        "width": 40
+      },
+      {
+        "class": "DateTimePicker",
+        "name": "dtpDue",
+        "left": 284,
+        "onChange": "Header_Change",
+        "top": 44,
+        "width": 136
+      },
+      {
+        "class": "Label",
+        "name": "lblStatus",
+        "caption": "Status",
+        "left": 436,
+        "top": 48,
+        "width": 40
+      },
+      {
+        "class": "ComboBox",
+        "name": "cboStatus",
+        "items": [
+          "Draft",
+          "Sent",
+          "Paid"
+        ],
+        "left": 480,
+        "onChange": "Header_Change",
+        "top": 44,
+        "width": 128
+      },
+      {
+        "class": "StringGrid",
+        "name": "grdLines",
+        "anchors": ["left", "top", "right", "bottom"],
+        "colCount": 6,
+        "colSizing": true,
+        "editing": true,
+        "height": 280,
+        "left": 12,
+        "onGetEditText": "grdLines_GetEditText",
+        "onSetEditText": "grdLines_SetEditText",
+        "rowCount": 2,
+        "top": 84,
+        "wantTabs": true,
+        "width": 736,
+        "columns": [
+          {
+            "alignment": "right",
+            "title": "#",
+            "width": 36
+          },
+          {
+            "title": "Description",
+            "width": 340
+          },
+          {
+            "alignment": "right",
+            "title": "Qty",
+            "width": 72
+          },
+          {
+            "alignment": "right",
+            "title": "Unit price",
+            "width": 100
+          },
+          {
+            "alignment": "right",
+            "title": "Tax %",
+            "width": 64
+          },
+          {
+            "alignment": "right",
+            "title": "Amount",
+            "width": 110
+          }
+        ]
+      },
+      {
+        "class": "Button",
+        "name": "btnDeleteLine",
+        "caption": "Delete Line",
+        "anchors": ["left", "bottom"],
+        "left": 12,
+        "onClick": "btnDeleteLine_Click",
+        "top": 372,
+        "width": 104
+      },
+      {
+        "class": "Label",
+        "name": "lblProblem",
+        "anchors": ["left", "right", "bottom"],
+        "ellipsis": true,
+        "left": 128,
+        "top": 376,
+        "width": 360
+      },
+      {
+        "class": "Label",
+        "name": "lblSubtotalCaption",
+        "caption": "Subtotal",
+        "alignment": "right",
+        "anchors": ["right", "bottom"],
+        "left": 504,
+        "top": 412,
+        "width": 100
+      },
+      {
+        "class": "Label",
+        "name": "lblSubtotal",
+        "caption": "0.00",
+        "alignment": "right",
+        "anchors": ["right", "bottom"],
+        "left": 608,
+        "top": 412,
+        "width": 140
+      },
+      {
+        "class": "Label",
+        "name": "lblTaxCaption",
+        "caption": "Tax",
+        "alignment": "right",
+        "anchors": ["right", "bottom"],
+        "left": 504,
+        "top": 436,
+        "width": 100
+      },
+      {
+        "class": "Label",
+        "name": "lblTax",
+        "caption": "0.00",
+        "alignment": "right",
+        "anchors": ["right", "bottom"],
+        "left": 608,
+        "top": 436,
+        "width": 140
+      },
+      {
+        "class": "Label",
+        "name": "lblTotalCaption",
+        "caption": "Total",
+        "alignment": "right",
+        "anchors": ["right", "bottom"],
+        "fontBold": true,
+        "left": 504,
+        "top": 460,
+        "width": 100
+      },
+      {
+        "class": "Label",
+        "name": "lblTotal",
+        "caption": "0.00",
+        "alignment": "right",
+        "anchors": ["right", "bottom"],
+        "fontBold": true,
+        "left": 608,
+        "top": 460,
+        "width": 140
+      },
+      {
+        "class": "Label",
+        "name": "lblNotes",
+        "caption": "Notes",
+        "anchors": ["left", "bottom"],
+        "left": 12,
+        "top": 412,
+        "width": 70
+      },
+      {
+        "class": "Memo",
+        "name": "memNotes",
+        "anchors": ["left", "right", "bottom"],
+        "height": 88,
+        "left": 88,
+        "onChange": "Header_Change",
+        "top": 412,
+        "width": 400
+      },
+      {
+        "class": "Button",
+        "name": "btnExport",
+        "caption": "Export…",
+        "anchors": ["left", "bottom"],
+        "enabled": false,
+        "left": 12,
+        "top": 520,
+        "width": 104
+      },
+      {
+        "class": "Button",
+        "name": "btnSave",
+        "caption": "Save",
+        "anchors": ["right", "bottom"],
+        "left": 560,
+        "onClick": "btnSave_Click",
+        "top": 520,
+        "width": 88
+      },
+      {
+        "class": "Button",
+        "name": "btnCancel",
+        "caption": "Cancel",
+        "anchors": ["right", "bottom"],
+        "cancel": true,
+        "left": 660,
+        "modalResult": "cancel",
+        "top": 520,
+        "width": 88
+      }
+    ]
+  }
+}
