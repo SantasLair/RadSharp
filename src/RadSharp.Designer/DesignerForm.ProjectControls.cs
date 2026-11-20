@@ -215,27 +215,12 @@ public partial class DesignerForm
     /// </summary>
     void ReloadWith(OpenForm f, string text, DesignSession? next)
     {
-        try
-        {
-            f.Document.ProjectClasses = next == null ? null : next.Find;
-            // Not the "unknown class" ones: a broken project says so once, above.
-            foreach (var w in f.Document.Reload(text).Where(w => w.Contains(" threw while ", StringComparison.Ordinal)
-                         || w.Contains(" has no published property ", StringComparison.Ordinal)))
-                Output($"{Path.GetFileName(f.Path)}: {w}");
-        }
-        catch (Exception e) when (e is not OutOfMemoryException)
-        {
-            Output($"{Path.GetFileName(f.Path)}: the project's controls couldn't be loaded onto it ({e.GetType().Name}: {e.Message}); they are placeholders on it.");
-            try
-            {
-                f.Document.ProjectClasses = null;
-                f.Document.Reload(text);
-            }
-            catch (Exception e2) when (e2 is not OutOfMemoryException)
-            {
-                Output($"{Path.GetFileName(f.Path)}: it couldn't be reloaded either ({e2.GetType().Name}: {e2.Message}); it keeps what it had.");
-            }
-        }
+        var (warnings, problem) = f.Document.ReloadWith(text, next == null ? null : next.Find);
+        if (problem != null) Output($"{Path.GetFileName(f.Path)}: {problem}");
+        // Not the "unknown class" ones: a broken project says so once, above.
+        foreach (var w in warnings.Where(w => w.Contains(" threw while ", StringComparison.Ordinal)
+                     || w.Contains(" has no published property ", StringComparison.Ordinal)))
+            Output($"{Path.GetFileName(f.Path)}: {w}");
     }
 
     /// <summary>Drops the design session (closing the project): its documents are gone, so nothing to reload.</summary>

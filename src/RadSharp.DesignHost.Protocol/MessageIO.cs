@@ -95,7 +95,7 @@ public sealed class MessageReader
         Add<Hello>(); Add<OpenDocument>(); Add<CloseDocument>(); Add<ActivateDocument>(); Add<ReloadDocument>(); Add<SaveDocument>();
         Add<AttachWindow>(); Add<ResizeWindow>(); Add<FocusWindow>();
         Add<MouseMove>(); Add<MouseDown>(); Add<MouseUp>(); Add<MouseWheel>(); Add<KeyDown>(); Add<KeyUp>(); Add<TextInput>();
-        Add<Command>(); Add<CloseWindow>(); Add<CodeResponse>();
+        Add<Command>(); Add<CloseWindow>(); Add<CodeResponse>(); Add<SetProjectAssembly>();
         Add<HelloAck>(); Add<WindowOpened>(); Add<WindowClosed>(); Add<WindowMoved>(); Add<Frame>(); Add<Cursor>();
         Add<DocumentState>(); Add<DocumentSaved>(); Add<NavigateToCode>(); Add<Error>(); Add<Log>(); Add<CodeRequest>(); Add<ApplyCodeEdit>();
         return d;

@@ -115,6 +115,35 @@ public sealed class DesignDocument
     }
 
     /// <summary>
+    /// Swaps the project's classes under the document: sets <see cref="ProjectClasses"/> to <paramref name="classes"/>
+    /// and reloads <paramref name="json"/> (the text saved while the old classes were still registered). If that throws
+    /// (an exception the form reader doesn't absorb), the document is read again with no project classes, so every one
+    /// of them is a placeholder that keeps its text, and <c>Problem</c> says why; if even that throws, the document keeps
+    /// what it had. What both designers do when a project's controls are rebuilt.
+    /// </summary>
+    public (IReadOnlyList<string> Warnings, string? Problem) ReloadWith(string json, Func<string, ComponentClass?>? classes)
+    {
+        try
+        {
+            ProjectClasses = classes;
+            return (Reload(json), null);
+        }
+        catch (Exception e) when (e is not OutOfMemoryException)
+        {
+            var problem = $"the project's controls couldn't be loaded onto it ({e.GetType().Name}: {e.Message}); they are placeholders on it.";
+            try
+            {
+                ProjectClasses = null;
+                return (Reload(json), problem);
+            }
+            catch (Exception e2) when (e2 is not OutOfMemoryException)
+            {
+                return ([], problem[..^1] + $", and it couldn't be reloaded either ({e2.GetType().Name}: {e2.Message}); it keeps what it had.");
+            }
+        }
+    }
+
+    /// <summary>
     /// Reads form text in design mode with <see cref="Options"/>. A project's control that throws while it is created
     /// or read is a placeholder on its own (the reader sees to that); one that throws once the form is laid out (it
     /// looks for the running application around it, say) can't be singled out, so the form is read again without the
@@ -138,7 +167,18 @@ public sealed class DesignDocument
     }
 
     /// <summary>The form file text (deterministic, spec Appendix A).</summary>
-    public string Save() => FormWriter.Save(Form);
+    public string Save()
+    {
+        var text = FormWriter.Save(Form);
+        LastGoodText = text;
+        return text;
+    }
+
+    /// <summary>
+    /// The text of the last <see cref="Save"/> that succeeded: what a document falls back on if the form can't be
+    /// written any more (a project control's property getter that throws, say).
+    /// </summary>
+    public string LastGoodText { get; private set; } = "";
 
     /// <summary>Marks the current state as saved (after writing <see cref="Save"/> to disk).</summary>
     public void MarkSaved() => _savedText = Save();
@@ -333,7 +373,7 @@ public sealed class DesignDocument
         bool Clashes(string name) => name.Length == 0 || taken.Contains(name) || IsNameUsed(name);
         foreach (var c in controls)
         {
-            foreach (var d in c.Descendants().Prepend(c))
+            foreach (var d in c.Descendants().Prepend(c).Where(d => !d.IsTransient))   // a control's own children keep theirs
             {
                 if (Clashes(d.Name)) d.Name = UniqueName(d is UnknownControl u ? u.ClassName : ComponentRegistry.Of(d).Name, taken);
                 taken.Add(d.Name);

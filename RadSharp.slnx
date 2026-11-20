@@ -21,6 +21,8 @@
     <Project Path="src/RadSharp.Platform.Sdl/RadSharp.Platform.Sdl.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/Fixtures/SampleControls/SampleControls.csproj" />
+    <Project Path="tests/Fixtures/SampleData/SampleData.csproj" />
     <Project Path="tests/RadSharp.Core.Tests/RadSharp.Core.Tests.csproj" />
     <Project Path="tests/RadSharp.Design.Code.Tests/RadSharp.Design.Code.Tests.csproj" />
     <Project Path="tests/RadSharp.Design.Tests/RadSharp.Design.Tests.csproj" />

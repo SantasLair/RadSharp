@@ -21,9 +21,7 @@ namespace RadSharp.Design.Code;
 public sealed class DesignSession : IDisposable
 {
     LiveSession? _live;
-    readonly Dictionary<string, ComponentClass> _byName = new(StringComparer.Ordinal);
-    readonly Dictionary<ComponentClass, string> _categories = [];
-    readonly List<ComponentClass> _classes = [];
+    ProjectClassSet _set = ProjectClassSet.Empty;
     bool _activated;
 
     DesignSession(RadProject project, LiveSession live)
@@ -45,16 +43,18 @@ public sealed class DesignSession : IDisposable
     public ProjectDependencies? Dependencies => _live?.Dependencies;
 
     /// <summary>The usable classes, after <see cref="Activate"/>: the project's first, then its libraries', by name.</summary>
-    public IReadOnlyList<ComponentClass> Classes => _classes;
+    public IReadOnlyList<ComponentClass> Classes => _set.Classes;
 
     /// <summary>Compiles the project (blocking: MSBuild may restore it first). Any thread.</summary>
     public static DesignSession Compile(RadProject project, LiveRunOptions? options = null) =>
         new(project, LiveSession.Compile(project, null, options));
 
     /// <summary>
-    /// On the UI thread: registers the project's and its libraries' control classes and creates one of each (its
-    /// prototype, in design mode). A class that throws, there or in the project's registration code, isn't offered;
-    /// what went wrong is returned, one message per problem, for the designer's Output list.
+    /// On the UI thread: registers the project's and its libraries' control classes, runs the project's
+    /// <see cref="DesignTimeSetupAttribute"/> method if it has one, and creates one of each class (its prototype, in
+    /// design mode). A class that throws, there or in the project's registration code, isn't offered; what went wrong
+    /// is returned, one message per problem, for the designer's Output list. The rules are the Visual Studio design
+    /// host's too (<see cref="ProjectClassSet"/>).
     /// </summary>
     public IReadOnlyList<string> Activate()
     {
@@ -69,36 +69,18 @@ public sealed class DesignSession : IDisposable
             problems.Add($"The project's controls couldn't be registered ({Describe(e)}); they stay placeholders.");
             return problems;
         }
-        var own = live.Assembly;
-        foreach (var cls in found.OrderBy(c => c.Type.Assembly == own ? 0 : 1).ThenBy(c => c.Name, StringComparer.Ordinal))
-        {
-            if (_byName.ContainsKey(cls.Name))
-            {
-                problems.Add($"{cls.Name} ({cls.Type.Assembly.GetName().Name}) has the name of another of the project's controls; " +
-                    "form files can't tell them apart, so the designer uses the first.");
-                continue;
-            }
-            try
-            {
-                using (Control.EnterDesignMode()) _ = cls.Prototype;
-            }
-            catch (Exception e) when (e is not OutOfMemoryException)
-            {
-                problems.Add($"{cls.Name} can't be created at design time ({Describe(e)}); it stays a placeholder.");
-                continue;
-            }
-            _byName[cls.Name] = cls;
-            _classes.Add(cls);
-            _categories[cls] = cls.Type.Assembly == own ? PaletteCategories.Project : cls.Type.Assembly.GetName().Name ?? "Libraries";
-        }
+        if (live.Assembly is { } own) _set = ProjectClassSet.Activate(own, found, problems);
         return problems;
     }
 
+    /// <summary>The usable classes, as a set the palette and the documents share.</summary>
+    public ProjectClassSet ClassSet => _set;
+
     /// <summary>The usable class named <paramref name="name"/>, or null: for <see cref="DesignDocument.ProjectClasses"/>.</summary>
-    public ComponentClass? Find(string name) => _byName.GetValueOrDefault(name);
+    public ComponentClass? Find(string name) => _set.Find(name);
 
     /// <summary>The palette category of one of <see cref="Classes"/>: <see cref="PaletteCategories.Project"/>, or the library's assembly name.</summary>
-    public string CategoryOf(ComponentClass cls) => _categories.GetValueOrDefault(cls, "Libraries");
+    public string CategoryOf(ComponentClass cls) => _set.CategoryOf(cls);
 
     static string Describe(Exception e)
     {
@@ -109,9 +91,7 @@ public sealed class DesignSession : IDisposable
     /// <summary>Unregisters the classes and unloads them (once nothing holds an instance: see the remarks).</summary>
     public void Dispose()
     {
-        _byName.Clear();
-        _categories.Clear();
-        _classes.Clear();
+        _set = ProjectClassSet.Empty;
         _live?.Dispose();
         _live = null;
     }

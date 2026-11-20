@@ -44,7 +44,7 @@ public partial class DesignerForm : Form
         this.Theme = Theme.Current;
 
         // RadSharp's own classes: a live run's (or a design session's) are registered only while it lasts.
-        _palette = [.. ComponentPalette.Classes().Where(c => !c.Type.Assembly.IsCollectible)];
+        _palette = ComponentPalette.Classes();
         RebuildPalette();
         tvPalette.DragMode = DragMode.Automatic;   // drag a palette entry onto a form to place it, not just click
 
@@ -419,9 +419,8 @@ public partial class DesignerForm : Form
         var design = _design;
         tvPalette.Selected = null;   // its node (and class) is about to go
         // A project control takes its name over from RadSharp's, as in the running application.
-        var classes = design == null ? _palette : [.. _palette.Where(c => design.Find(c.Name) == null), .. design.Classes];
-        ComponentPalette.Fill(tvPalette, classes, edtPaletteFilter.Text,
-            c => design != null && design.Find(c.Name) == c ? design.CategoryOf(c) : PaletteCategories.Of(c.Name));
+        var set = design?.ClassSet ?? ProjectClassSet.Empty;
+        ComponentPalette.Fill(tvPalette, set.PaletteClasses(_palette), edtPaletteFilter.Text, set.PaletteCategory);
         // The armed class may be gone (filtered out, or from a design session that was replaced).
         foreach (var f in _forms) f.Surface.PendingClass = null;
     }
@@ -465,7 +464,7 @@ public partial class DesignerForm : Form
 
     void mnuSelectAll_Click(object sender)
     {
-        if (Document is { } doc) doc.SelectMany(doc.PasteTarget().Children.Where(c => c.IsShown || c is Component));
+        if (Document is { } doc) doc.SelectMany(doc.PasteTarget().Children.Where(c => (c.IsShown || c is Component) && !c.IsTransient));
     }
 
     void mnuMenuEditor_Click(object sender)

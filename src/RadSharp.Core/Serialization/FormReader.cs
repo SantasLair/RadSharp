@@ -62,7 +62,13 @@ public static class FormReader
     /// </summary>
     public static void LoadInto(Form form, string json, FormLoadOptions? options = null)
     {
-        var result = LoadCore(json, form, options ?? new() { Scale = Form.DefaultScale });
+        options ??= new() { Scale = Form.DefaultScale };
+        // An application's or framework's form never takes a class of a project the designer has loaded (collectible):
+        // while one is, the registry's name for "Button" may be the project's own. A live run's form (collectible
+        // itself) keeps its own context's preference instead.
+        if (options.FindClass == null && !form.GetType().Assembly.IsCollectible)
+            options = options with { FindClass = static name => ComponentRegistry.Find(name, static c => !c.Type.Assembly.IsCollectible) };
+        var result = LoadCore(json, form, options);
         foreach (var w in result.Warnings) Warning?.Invoke(w);
     }
 

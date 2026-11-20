@@ -17,7 +17,8 @@
 - **A designer built with itself.** The designer is a RadSharp application, so every control it uses is one you can
   put on your own forms.
 - **Design inside Visual Studio too.** A Visual Studio 2022/2026 extension opens `.radform.json` files in a
-  `[Design]` tab with its own Toolbox and Properties windows, much like the WinForms designer.
+  `[Design]` tab with its own Toolbox and Properties windows, much like the WinForms designer. Your project's own
+  controls are at the top of the Toolbox, and they update each time you build.
 - **Light and dark themes,** in the designer and in your apps.
 
 ## Controls
