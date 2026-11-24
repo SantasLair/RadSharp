@@ -2,7 +2,10 @@ name: CI
 
 on:
   push:
+    # Tags run this through release.yml (workflow_call) instead, once, as the release's gate.
+    branches: ['**']
   pull_request:
+  workflow_call:
   # Actions tab -> CI -> "Run workflow": the same jobs plus macOS (for a macOS designer build, or a clean macOS run).
   workflow_dispatch:
 

@@ -18,8 +18,25 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Content Include="radsharp-app\**\*" Exclude="radsharp-app\**\bin\**;radsharp-app\**\obj\**" />
+    <Content Include="radsharp-app\**\*" Exclude="radsharp-app\**\bin\**;radsharp-app\**\obj\**;radsharp-app\.template.config\template.json" />
     <Compile Remove="**\*" />
   </ItemGroup>
+
+  <!-- template.json's RadSharpVersion default is 0.1.0-dev* (the newest local pack). A release pack (a version without
+       "-dev", e.g. 0.1.0-preview.1) stamps its own version instead, so `dotnet new radsharp-app` from nuget.org
+       references packages that exist there. Same rule as the designer's RadProject.DefaultRadSharpVersion. -->
+  <Target Name="StampTemplateVersion" BeforeTargets="_GetPackageFiles">
+    <PropertyGroup>
+      <_TemplateJson>$(MSBuildThisFileDirectory)radsharp-app/.template.config/template.json</_TemplateJson>
+      <_StampedTemplateJson>$(IntermediateOutputPath)template.json</_StampedTemplateJson>
+      <_TemplateVersion>0.1.0-dev*</_TemplateVersion>
+      <_TemplateVersion Condition="!$(Version.Contains('-dev'))">$(Version)</_TemplateVersion>
+    </PropertyGroup>
+    <WriteLinesToFile File="$(_StampedTemplateJson)" Overwrite="true" WriteOnlyWhenDifferent="true"
+                      Lines="$([System.IO.File]::ReadAllText('$(_TemplateJson)').Replace('&quot;0.1.0-dev*&quot;', '&quot;$(_TemplateVersion)&quot;'))" />
+    <ItemGroup>
+      <Content Include="$(_StampedTemplateJson)" Pack="true" PackagePath="content/radsharp-app/.template.config/template.json" />
+    </ItemGroup>
+  </Target>
 
 </Project>

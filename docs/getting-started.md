@@ -15,9 +15,35 @@ a handler, press F9 to run it, press Build to get a native executable for Window
 - An editor for the code-behind: VS Code (`code` on the PATH) is used by default; set `RADSHARP_EDITOR` to
   another command, e.g. `rider --line {line} "{file}"`.
 
+## Get RadSharp
+
+RadSharp is in **preview** (0.x): APIs may change before 1.0. Each release on the
+[GitHub releases page](https://github.com/SantasLair/RadSharp/releases) has:
+
+| File | What it is |
+|---|---|
+| `RadSharp.Designer-<version>-win-x64.zip` | The designer for Windows: unzip anywhere and run `RadSharpDesigner.exe` |
+| `RadSharp.Designer-<version>-linux-x64.tar.gz` | The designer for Linux: `tar -xzf` it and run `./RadSharpDesigner` |
+| `RadSharp.Designer-<version>-osx-arm64.tar.gz` | The designer for Apple Silicon Macs, from Terminal: `tar -xzf` it, `xattr -dr com.apple.quarantine .`, then `./RadSharpDesigner` |
+| `RadSharp.VisualStudio-<version>.vsix` | The Visual Studio 2022/2026 extension: double-click to install |
+| `*.nupkg` | The packages, also on nuget.org (below) |
+| `SHA256SUMS.txt` | Checksums of the files above |
+
+Preview builds are not code-signed. Windows SmartScreen may warn on first run ("More info", then "Run anyway").
+
+The packages are on nuget.org. The template references the RadSharp version it ships with:
+
+```sh
+dotnet new install RadSharp.Templates::0.1.0-preview.1
+dotnet new radsharp-app -n MyApp
+```
+
+A project made by the designer's **New Application…** references the designer's own version, so a preview designer
+makes projects that restore that preview from nuget.org.
+
 ## The designer
 
-Run the designer (`dotnet run --project src/RadSharp.Designer`, or the published app). As in Delphi and Lazarus,
+Run the designer (from a release above, `dotnet run --project src/RadSharp.Designer` in a clone, or a published build). As in Delphi and Lazarus,
 you always work in a **project**: the designer starts on a welcome page with **New Application…**,
 **Open Project…** and your recent projects (also under **File › Reopen**). You can pass a `.csproj` on the command line.
 
@@ -58,12 +84,14 @@ freely), arrow keys to nudge (**Shift** resizes, **Ctrl** moves by the grid).
 
 ## Without the designer
 
-Until the packages are on nuget.org, build them with `./pack.ps1` (Windows) or `./pack.sh` (macOS/Linux): one version for all
+Install the template from nuget.org (see [Get RadSharp](#get-radsharp)), or, to try changes to RadSharp itself, build
+the packages from a clone with `./pack.ps1` (Windows) or `./pack.sh` (macOS/Linux): one version for all
 packages, landing in `artifacts/packages`. Don't run `dotnet pack` on the projects separately, as two runs can straddle
-a minute and produce a `RadSharp.Platform.Sdl` that needs a `RadSharp.Core` version that was never packed. Install the
-template from there:
+a minute and produce a `RadSharp.Platform.Sdl` that needs a `RadSharp.Core` version that was never packed. A local
+pack's template references `0.1.0-dev*`, the newest local pack:
 
 ```sh
+dotnet new install RadSharp.Templates::0.1.0-preview.1      # from nuget.org, or from a clone:
 dotnet new install artifacts/packages/RadSharp.Templates.*.nupkg
 dotnet new radsharp-app -n MyApp
 cd MyApp
