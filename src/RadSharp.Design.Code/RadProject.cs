@@ -65,11 +65,29 @@ public sealed class RadProject
     // ---- Creating ----
 
     /// <summary>
+    /// The RadSharp package version a new project references: this designer's own version for a release build
+    /// (<c>0.1.0-preview.1</c> references exactly that, as published on nuget.org), or <c>0.1.0-dev*</c> for a
+    /// development build, whose minute-stamped version rarely matches the newest local pack (pack.ps1/pack.sh).
+    /// </summary>
+    public static string DefaultRadSharpVersion { get; } = VersionFor(
+        typeof(RadProject).Assembly
+            .GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+            .OfType<System.Reflection.AssemblyInformationalVersionAttribute>().FirstOrDefault()?.InformationalVersion);
+
+    internal static string VersionFor(string? informationalVersion)
+    {
+        var v = informationalVersion?.Split('+')[0];   // drop the "+<commit>" SourceLink adds
+        return string.IsNullOrEmpty(v) || v.Contains("-dev", StringComparison.Ordinal) ? "0.1.0-dev*" : v;
+    }
+
+    /// <summary>
     /// Creates a new app project in <paramref name="directory"/>: .csproj, Program.cs and a main form.
     /// <paramref name="packageSource"/> (a folder of RadSharp packages) is written to a nuget.config.
+    /// <paramref name="radSharpVersion"/> defaults to <see cref="DefaultRadSharpVersion"/>.
     /// </summary>
-    public static RadProject Create(string directory, string name, string radSharpVersion = "0.1.0-dev*", string? packageSource = null)
+    public static RadProject Create(string directory, string name, string? radSharpVersion = null, string? packageSource = null)
     {
+        radSharpVersion ??= DefaultRadSharpVersion;
         System.IO.Directory.CreateDirectory(directory);
         var ns = Sanitize(name);
         var xmlName = System.Security.SecurityElement.Escape(name);   // & < > " ' must not break the .csproj XML

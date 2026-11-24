@@ -19,5 +19,17 @@
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <PackageOutputPath>$(MSBuildThisFileDirectory)artifacts/packages</PackageOutputPath>
     <PackageTags>rad;forms;designer;delphi;skia;sdl;ui</PackageTags>
+    <Copyright>Copyright (c) 2026 SantasLair</Copyright>
+    <PackageProjectUrl>https://github.com/SantasLair/RadSharp</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/SantasLair/RadSharp.git</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PublishRepositoryUrl>true</PublishRepositoryUrl>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageReleaseNotes>https://github.com/SantasLair/RadSharp/blob/main/CHANGELOG.md</PackageReleaseNotes>
   </PropertyGroup>
+
+  <!-- The nuget.org page's readme: absolute links only (the repo README's relative links and images break there). -->
+  <ItemGroup>
+    <None Include="$(MSBuildThisFileDirectory)docs/package-readme.md" Pack="true" PackagePath="README.md" Visible="false" />
+  </ItemGroup>
 </Project>

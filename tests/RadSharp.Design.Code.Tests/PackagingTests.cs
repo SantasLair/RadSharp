@@ -175,4 +175,23 @@ public class PackagingTests
         foreach (var property in new[] { "ApplicationIcon", "Version", "Product", "Company", "Copyright", "BundleId" })
             Assert.Equal(Property(created, property), Property(templated, property));
     }
+
+    [Theory]
+    [InlineData("0.1.0-preview.1", "0.1.0-preview.1")]
+    [InlineData("0.1.0-preview.1+02a76e380e97868e96f681aaf29a2ea1d7d5602f", "0.1.0-preview.1")]
+    [InlineData("1.0.0", "1.0.0")]
+    [InlineData("0.1.0-dev.202611241505+02a76e3", "0.1.0-dev*")]
+    [InlineData(null, "0.1.0-dev*")]
+    [InlineData("", "0.1.0-dev*")]
+    public void A_release_designer_references_its_own_version_and_a_dev_build_floats(string? informational, string expected)
+    {
+        Assert.Equal(expected, RadProject.VersionFor(informational));
+    }
+
+    [Fact]
+    public void New_projects_reference_the_designers_default_version()
+    {
+        var created = File.ReadAllText(RadProject.Create(TempDir(), "Versioned").ProjectFile);
+        Assert.Contains($"""<PackageReference Include="RadSharp.Platform.Sdl" Version="{RadProject.DefaultRadSharpVersion}" />""", created);
+    }
 }
