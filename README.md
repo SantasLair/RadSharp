@@ -137,19 +137,27 @@ The design, protocol and test checklist are in [docs/vs-designer-plan.md](docs/v
 
 ## Status
 
-All roadmap milestones M0–M9 are implemented, and hardening milestones are under way (see
-[RadSharp-roadmap.md](RadSharp-roadmap.md)). The M14 data controls (grids, ListView/TreeView v2, CheckListBox, the
-editable ComboBox) are done; see [docs/gap-plan.md](docs/gap-plan.md). RadSharp is a young codebase: it is developed and tested on Windows, and
-macOS and Linux run in CI. Known gaps and the plan to close them are in [docs/gap-analysis.md](docs/gap-analysis.md),
-[docs/gap-plan.md](docs/gap-plan.md) and [docs/designer-gap-analysis.md](docs/designer-gap-analysis.md).
+**Preview: 0.1.0-preview.1.** Download the designer and the Visual Studio extension from the
+[releases page](https://github.com/SantasLair/RadSharp/releases); the packages are on nuget.org
+(`dotnet new install RadSharp.Templates::0.1.0-preview.1`). APIs may change before 1.0; see
+[docs/known-limits.md](docs/known-limits.md) for what isn't there yet and [CHANGELOG.md](CHANGELOG.md) for releases.
+
+Milestones M0–M16 of the [roadmap](RadSharp-roadmap.md) and [gap plan](docs/gap-plan.md) are implemented as cut for
+1.0. M17 (ship it) is under way: packaging is done, and the reference app (`refapp/Tally`), the 1.0 acceptance test,
+is being finished. RadSharp is developed and tested
+on Windows; Linux runs the full suite in CI, and macOS is checked on a Mac. Known gaps and the plan to close them are in
+[docs/gap-analysis.md](docs/gap-analysis.md), [docs/gap-plan.md](docs/gap-plan.md) and
+[docs/designer-gap-analysis.md](docs/designer-gap-analysis.md).
 
 ## Documentation
 
 - [Getting started](docs/getting-started.md)
+- [Known limits](docs/known-limits.md)
 - [Control reference](docs/controls.md)
 - [Form file and layout spec](docs/spec.md)
 - [Distribution and NativeAOT publishing](docs/distribution.md)
 - [Visual Studio designer](docs/vs-designer-plan.md)
+- [Releasing RadSharp](docs/releasing.md)
 - [Design background](future-framework-brainstorm.md)
 
 ## License

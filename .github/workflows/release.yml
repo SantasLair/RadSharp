@@ -1,0 +1,215 @@
+name: Release
+
+# Push a tag `v<version>` (for example v0.1.0-preview.1) to build a release:
+#   1. the full CI suite (ci.yml) has to pass;
+#   2. packages, the designer for Windows, Linux and macOS, and the Visual Studio extension are built at <version>;
+#   3. a DRAFT GitHub release is created with all of it attached (a prerelease when <version> has a "-suffix");
+#   4. the nuget.org push waits in the `nuget` environment for a reviewer's approval (Settings > Environments >
+#      nuget > Required reviewers), using the NUGET_API_KEY secret stored on that environment.
+# A nuget.org version can be unlisted but never deleted or reused, so step 4 is a separate, approved job.
+#
+# Actions tab > Release > "Run workflow" with a version is a dry run: steps 1-2 only, artifacts on the run, no
+# GitHub release and no nuget.org push.
+
+on:
+  push:
+    tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (dry run: no release, no nuget.org push), e.g. 0.1.0-preview.1'
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      prerelease: ${{ steps.v.outputs.prerelease }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        shell: bash
+        env:
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          if [ "$GITHUB_EVENT_NAME" = "push" ]; then version="${GITHUB_REF_NAME#v}"; else version="$INPUT_VERSION"; fi
+          # SemVer 2.0: MAJOR.MINOR.PATCH with an optional dotted pre-release; no build metadata.
+          if ! printf '%s' "$version" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z-]+(\.[0-9A-Za-z-]+)*)?$'; then
+            echo "::error::'$version' is not a SemVer version like 0.1.0-preview.1"; exit 1
+          fi
+          case "$version" in *-dev*) echo "::error::'-dev' versions are local builds; the designer and template treat them as such"; exit 1;; esac
+          # The VSIX manifest's version must be numeric: it has to equal this version's MAJOR.MINOR.PATCH.
+          core="${version%%-*}"
+          manifest=$(grep -o '<Identity [^>]*' vs/RadSharp.VisualStudio/source.extension.vsixmanifest | grep -o 'Version="[^"]*"' | cut -d'"' -f2)
+          if [ "$manifest" != "$core" ]; then
+            echo "::error::vs/RadSharp.VisualStudio/source.extension.vsixmanifest has Version=\"$manifest\"; set it to \"$core\""; exit 1
+          fi
+          # Release notes are required for a tagged release.
+          if [ "$GITHUB_EVENT_NAME" = "push" ] && [ ! -f "docs/releases/$version.md" ]; then
+            echo "::error::docs/releases/$version.md is missing"; exit 1
+          fi
+          case "$version" in *-*) prerelease=true;; *) prerelease=false;; esac
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "prerelease=$prerelease" >> "$GITHUB_OUTPUT"
+          echo "RadSharp $version (prerelease: $prerelease)" >> "$GITHUB_STEP_SUMMARY"
+
+  ci:
+    needs: version
+    uses: ./.github/workflows/ci.yml
+
+  packages:
+    needs: [version, ci]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Pack
+        run: sh ./pack.sh "${{ needs.version.outputs.version }}"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-packages
+          path: artifacts/packages/*.nupkg
+          if-no-files-found: error
+
+  designer:
+    needs: [version, ci]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            rid: win-x64
+            optional: false
+          - os: ubuntu-latest
+            rid: linux-x64
+            optional: false
+          # Hosted macOS runners have been unreliable (see ci.yml); a failed macOS designer doesn't stop the release,
+          # it can be built on a Mac with the same publish command and attached by hand.
+          - os: macos-latest
+            rid: osx-arm64
+            optional: true
+    runs-on: ${{ matrix.os }}
+    continue-on-error: ${{ matrix.optional }}
+    env:
+      # MSBuild reads environment variables as properties: every project in the publish gets this version.
+      RadSharpVersion: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Publish the designer (self-contained; it hosts Roslyn, so it runs on the JIT)
+        run: dotnet publish src/RadSharp.Designer --configuration Release --runtime ${{ matrix.rid }} --self-contained --output artifacts/designer
+      - name: Archive
+        shell: bash
+        run: |
+          name="RadSharp.Designer-$RadSharpVersion-${{ matrix.rid }}"
+          mkdir -p artifacts/release
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            (cd artifacts/designer && 7z a -tzip "../release/$name.zip" . > /dev/null)
+          else
+            tar -czf "artifacts/release/$name.tar.gz" -C artifacts/designer .   # tar keeps the executable bit
+          fi
+          ls -la artifacts/release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-designer-${{ matrix.rid }}
+          path: artifacts/release/*
+          if-no-files-found: error
+
+  vsix:
+    needs: [version, ci]
+    runs-on: windows-latest
+    env:
+      RadSharpVersion: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      # vs/global.json pins SDK 9.0.3xx (VS 2022's MSBuild can't load 10.0.4xx); the design host it publishes
+      # (src/RadSharp.DesignHost) uses the root global.json's 10.0.4xx.
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: vs/global.json
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Build the VSIX with Visual Studio's MSBuild
+        shell: pwsh
+        run: |
+          $vswhere = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          # The VSSDK build tools come from NuGet (Microsoft.VSSDK.BuildTools), so any VS MSBuild will do.
+          $msbuild = & $vswhere -latest -requires Microsoft.Component.MSBuild -find 'MSBuild\**\Bin\MSBuild.exe' | Select-Object -First 1
+          if (-not $msbuild) { throw "No Visual Studio MSBuild on this runner" }
+          Push-Location vs
+          & $msbuild RadSharp.VisualStudio/RadSharp.VisualStudio.csproj -restore -p:Configuration=Release -v:minimal -nologo
+          if ($LASTEXITCODE -ne 0) { throw "VSIX build failed" }
+          Pop-Location
+          $vsix = Get-ChildItem vs/RadSharp.VisualStudio/bin/Release -Recurse -Filter *.vsix | Select-Object -First 1
+          if (-not $vsix) { throw "No .vsix was produced" }
+          # The design host must be inside, or the extension opens forms in its placeholder view only.
+          Add-Type -AssemblyName System.IO.Compression.FileSystem
+          $zip = [System.IO.Compression.ZipFile]::OpenRead($vsix.FullName)
+          $hasHost = $zip.Entries | Where-Object { $_.FullName -eq 'host/RadSharpDesignHost.exe' }
+          $zip.Dispose()
+          if (-not $hasHost) { throw "$($vsix.Name) has no host/RadSharpDesignHost.exe" }
+          New-Item -ItemType Directory -Force artifacts/release | Out-Null
+          Copy-Item $vsix.FullName "artifacts/release/RadSharp.VisualStudio-$env:RadSharpVersion.vsix"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-vsix
+          path: artifacts/release/*.vsix
+          if-no-files-found: error
+
+  github-release:
+    if: github.event_name == 'push'
+    needs: [version, packages, designer, vsix]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Checksums
+        run: cd dist && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt
+      - name: Draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.version.outputs.version }}
+          PRERELEASE: ${{ needs.version.outputs.prerelease }}
+        run: |
+          flags="--draft --verify-tag"
+          if [ "$PRERELEASE" = "true" ]; then flags="$flags --prerelease"; fi
+          gh release create "$GITHUB_REF_NAME" dist/* $flags --title "RadSharp $VERSION" --notes-file "docs/releases/$VERSION.md"
+
+  nuget:
+    if: github.event_name == 'push'
+    needs: [version, packages, github-release]
+    runs-on: ubuntu-latest
+    environment: nuget
+    steps:
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-packages
+          path: packages
+      - name: Push to nuget.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "$NUGET_API_KEY" ]; then echo "::error::NUGET_API_KEY is not set on the nuget environment"; exit 1; fi
+          # RadSharp.Core first: RadSharp.Platform.Sdl depends on it.
+          for id in RadSharp.Core RadSharp.Platform.Sdl RadSharp.Templates; do
+            dotnet nuget push "packages/$id.${{ needs.version.outputs.version }}.nupkg" \
+              --api-key "$NUGET_API_KEY" --source https://api.nuget.org/v3/index.json --skip-duplicate
+          done
