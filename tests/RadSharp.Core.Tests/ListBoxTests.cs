@@ -267,10 +267,28 @@ public class ListBoxTests
     [Fact]
     public void Adding_100000_items_one_by_one_is_not_quadratic_and_Items_reflects_the_edits()
     {
-        var list = new ListBox();
-        var sw = System.Diagnostics.Stopwatch.StartNew();
-        for (int i = 0; i < 100_000; i++) list.AddItem("x" + i);
-        Assert.True(sw.ElapsedMilliseconds < 3000, $"100k AddItem took {sw.ElapsedMilliseconds} ms");
+        // Compare scaling, not wall-clock: a busy CI runner can be several times slower than a desk machine, but
+        // 4x the items costs about 4x the time when adding is linear and about 16x when it is quadratic.
+        // Best of three runs each, so one stall (GC, a noisy neighbour) doesn't decide the result.
+        static double Fill(int n, out ListBox list)
+        {
+            double best = double.MaxValue;
+            list = null!;
+            for (int run = 0; run < 3; run++)
+            {
+                var l = new ListBox();
+                var sw = System.Diagnostics.Stopwatch.StartNew();
+                for (int i = 0; i < n; i++) l.AddItem("x" + i);
+                best = Math.Min(best, sw.Elapsed.TotalMilliseconds);
+                list = l;
+            }
+            return best;
+        }
+        double small = Fill(25_000, out _);
+        double large = Fill(100_000, out var list);
+        double ratio = large / Math.Max(small, 1.0);
+        Assert.True(ratio < 10, $"4x the items took {ratio:0.0}x the time ({small:0} ms for 25k, {large:0} ms for 100k)");
+        Assert.True(large < 30_000, $"100k AddItem took {large:0} ms");
         Assert.Equal(100_000, list.Items.Length);
         list.InsertItem(0, "first");
         list.DeleteItem(1);

@@ -118,8 +118,11 @@ public class LiveRunReviewTests
         {
             // A slow machine (a cold CI runner) can spend the whole 20 s starting MSBuild and restoring before the
             // sleeper runs. Try once more with room to reach it; the sleeper (120 s) still outlives the timeout.
+            // The first timeout is cached as a failure (same inputs), so forget it or the retry never runs MSBuild.
+            ProjectDependencies.Invalidate(project);
             started = DateTime.Now;
-            deps = ProjectDependencies.Resolve(project, TimeSpan.FromSeconds(60), out error, out _);
+            deps = ProjectDependencies.Resolve(project, TimeSpan.FromSeconds(60), out error, out var retryFromCache);
+            Assert.False(retryFromCache, "the retry returned the cached failure instead of running MSBuild");
         }
         Assert.Null(deps);
         Assert.Contains("longer than", error);
